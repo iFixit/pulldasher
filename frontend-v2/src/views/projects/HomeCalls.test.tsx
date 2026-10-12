@@ -896,7 +896,20 @@ describe('an initiative’s page', () => {
       click(el, 'Undo');
       await settle();
       expect(el.textContent).toContain('the database is down');
-      expect(buttons(el)).toContain('Close');
+      expect(buttons(el)).toContain('Try again');
+   });
+
+   it('says a goal emptied was cleared, not saved', async () => {
+      const el = page('onboarding');
+      click(el, 'Edit');
+      const goal = el.querySelectorAll('input')[1] as HTMLInputElement;
+      act(() => {
+         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(goal, '');
+         goal.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      click(el, 'Save');
+      await settle();
+      expect(el.textContent).toContain('Cleared its goal.');
    });
 });
 

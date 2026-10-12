@@ -337,20 +337,29 @@ function EditFields({
       const back = Object.fromEntries(
          Object.keys(changed).map(k => [k, (r.was as unknown as Record<string, unknown>)[k]])
       ) as Partial<InitiativeFields>;
+      // what it did: a field emptied was cleared, not saved
+      const its = (keys: string[]) => andList(keys.map(k => `its ${k}`));
+      const keys = Object.keys(changed) as (keyof InitiativeFields)[];
+      const set = keys.filter(k => changed[k]);
+      const cleared = keys.filter(k => !changed[k]);
+      const undo = () =>
+         void updateInitiative(initiative.id, back, {
+            undo: {
+               updated_at: r.was.updated_at ?? Math.floor(Date.now() / 1000),
+               status_at: r.was.status_at,
+            },
+         }).then(u =>
+            // a failed Undo keeps its receipt, saying why, and a way to try again
+            onDone('error' in u ? { words: u.error.replace(/\.$/, ''), failed: true, undo } : null)
+         );
       onDone({
-         words: `Saved ${andList(
-            Object.keys(changed).map(k => (k === 'owner' ? 'its owner' : `its ${k}`))
-         )}`,
-         undo: () =>
-            void updateInitiative(initiative.id, back, {
-               undo: {
-                  updated_at: r.was.updated_at ?? Math.floor(Date.now() / 1000),
-                  status_at: r.was.status_at,
-               },
-            }).then(u =>
-               // a failed Undo keeps its receipt, saying why
-               onDone('error' in u ? { words: u.error.replace(/\.$/, ''), failed: true } : null)
-            ),
+         words: [
+            set.length ? `Saved ${its(set)}` : '',
+            cleared.length ? `${set.length ? 'cleared' : 'Cleared'} ${its(cleared)}` : '',
+         ]
+            .filter(Boolean)
+            .join(' and '),
+         undo,
       });
    };
    const field = `h-8 w-full px-2.5 text-[13px] text-ink ${textInputClass}`;
@@ -637,7 +646,9 @@ export function InitiativePage({
                      {receipt.words}.
                   </span>
                   {receipt.undo ? (
-                     <QuietButton onClick={receipt.undo}>Undo</QuietButton>
+                     <QuietButton onClick={receipt.undo}>
+                        {receipt.failed ? 'Try again' : 'Undo'}
+                     </QuietButton>
                   ) : (
                      <QuietButton onClick={() => setReceipt(null)}>Close</QuietButton>
                   )}
