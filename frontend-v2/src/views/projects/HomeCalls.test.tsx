@@ -891,8 +891,10 @@ describe('Undo on a row', () => {
       await settle();
       // the slot says what Undo did, with nothing to click in it, and the
       // answers come back after it
-      const slot = el.querySelector('p[data-decide-focus]') as HTMLElement;
-      expect(slot.textContent).toBe('Put ops back as it was.');
+      const slot = [...el.querySelectorAll('p')].find(
+         p => p.textContent === 'Put ops back as it was.'
+      ) as HTMLElement;
+      expect(slot).toBeDefined();
       expect(slot.querySelector('button')).toBeNull();
       expect(slot.compareDocumentPosition(el.querySelector('button') as Node)).toBe(
          Node.DOCUMENT_POSITION_FOLLOWING
@@ -904,6 +906,16 @@ describe('Undo on a row', () => {
       await settle();
       expect(calls.length).toBe(sent);
       expect(buttons(el)).toEqual(['Keep not trackedSuggested', 'Track it']);
+      // j and k land on the row's answer, never on the held words
+      expect(el.querySelector('[data-decide-focus]')?.textContent).toBe(
+         'Keep not trackedSuggested'
+      );
+      // and a Tab on from the words lets them go
+      act(() => {
+         slot.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+         (el.querySelector('button') as HTMLButtonElement).focus();
+      });
+      expect(el.textContent).not.toContain('Put ops back as it was.');
    });
 
    const both: DecideRow = {

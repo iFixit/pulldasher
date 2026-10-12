@@ -664,8 +664,11 @@ export function DecideCall({
    const refocus = useRef(false);
    // the receipt's height when its Undo was clicked here: the words "Put X
    // back as it was." hold that slot, and the answers come back below it,
-   // so a second click on Undo lands on words, never on an answer
-   const [undid, setUndid] = useState<number | null>(null);
+   // so a second click on Undo lands on words, never on an answer. They
+   // leave once the keyboard moves on (a Tab), never under a pointer
+   const [undid, setUndid] = useState<{ height: number; held: boolean } | null>(null);
+   const putBackRef = useRef<HTMLParagraphElement>(null);
+   const tabbing = useRef(false);
    // the height the row had when a click here changed it, kept as the least
    // it has, so the rows below never slide under the pointer, a phone's
    // wrapped lines included
@@ -686,7 +689,10 @@ export function DecideCall({
       const lost = document.activeElement === document.body && view !== 'ask';
       if (!refocus.current && !lost) return;
       refocus.current = false;
-      rootRef.current?.querySelector<HTMLElement>('[data-decide-focus]')?.focus();
+      // after an Undo, its held words; j and k still land on the answer
+      (
+         putBackRef.current ?? rootRef.current?.querySelector<HTMLElement>('[data-decide-focus]')
+      )?.focus();
    }, [view]);
    const act = (fn: () => void) => () => {
       refocus.current = true;
@@ -729,12 +735,20 @@ export function DecideCall({
       );
    }
    // taken back here: its words where the receipt was, the answers after
-   const putBack = undid != null && mine?.state === 'undone' && !mine.batch && (
+   const putBack = undid?.held && mine?.state === 'undone' && !mine.batch && (
       <p
-         data-decide-focus
+         ref={putBackRef}
          tabIndex={-1}
-         className="m-0 flex items-center rounded text-[13px] text-ink-2"
-         style={{ minHeight: undid }}
+         onKeyDown={e => {
+            tabbing.current = e.key === 'Tab';
+         }}
+         onBlur={() => {
+            if (tabbing.current) setUndid({ height: 0, held: false });
+            tabbing.current = false;
+         }}
+         // a double-click's second press lands here: nothing to select
+         className="m-0 flex select-none items-center rounded text-[13px] text-ink-2"
+         style={{ minHeight: undid.height }}
       >
          Put {name} back as it was.
       </p>
@@ -794,7 +808,7 @@ export function DecideCall({
                   </span>{' '}
                   <QuietButton
                      onClick={act(() => {
-                        setUndid(receiptRef.current?.offsetHeight ?? 0);
+                        setUndid({ height: receiptRef.current?.offsetHeight ?? 0, held: true });
                         undoCall(rowKey(row));
                      })}
                      aria-label={`Undo the decision on ${name}`}
