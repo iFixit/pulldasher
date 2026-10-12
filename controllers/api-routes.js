@@ -260,9 +260,10 @@ export const API_ROUTES = [
       path: '/api/v1/initiatives/file',
       handlers: [canWrite, initiativesController.file],
       does:
-         'File a project: {project, initiative: <slug> or null for none, expect?, baseline_prs?}. `expect` is the ' +
-         'home you saw (a slug or null); 409 with the current `home` when it changed. Answers `before` and `home` ' +
-         '(initiative, set_by, set_at, baseline_prs); undo by sending `before` back with its set_at and baseline_prs. ' +
+         'File a project: {project, initiative: <slug> or null for none, expect?, baseline_prs?, set_at?}. `expect` ' +
+         'is the home you saw (a slug or null); 409 with the current `home` when it changed. 409 when the ' +
+         'initiative is closed, unless `set_at` is sent (an undo). Answers `before` and `home` (initiative, ' +
+         'set_by, set_at, baseline_prs); undo by sending `before` back with its set_at and baseline_prs. ' +
          'Into Not tracked with no baseline_prs, the count is its old baseline plus the PRs since (when it was ' +
          'already not tracked), else its PR count now',
    },
