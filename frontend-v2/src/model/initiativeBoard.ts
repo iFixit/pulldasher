@@ -125,10 +125,18 @@ export function spanWords(
       span.end
          ? `${day(span.start)} to ${day(span.end)}${past ? `, ${n(past, 'week')} past` : ''}`
          : `Since ${day(span.start)}`,
-      span.with_end ? `${n(span.with_end, 'plan')} with an end date` : '',
-      span.ongoing ? `${span.ongoing} ongoing` : '',
+      ...endParts(span),
    ];
    return parts.filter(Boolean).join(' · ');
+}
+
+/** How many of its plans have an end and how many are ongoing: "2 plans
+ * with an end date", "1 ongoing", each only when there are any. */
+export function endParts(span: { with_end: number; ongoing: number }): string[] {
+   return [
+      span.with_end ? `${n(span.with_end, 'plan')} with an end date` : '',
+      span.ongoing ? `${span.ongoing} ongoing` : '',
+   ].filter(Boolean);
 }
 
 /** A closed initiative, in one phrase everywhere: "Closed as done Sep 20". */

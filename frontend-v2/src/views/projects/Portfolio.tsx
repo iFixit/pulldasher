@@ -8,7 +8,7 @@ import {
    type ReactNode,
 } from 'react';
 import { ChevronRight } from 'lucide-react';
-import { issueUrl, n, pullKey, shortRepo } from '../../../../shared/format';
+import { issueUrl, pullKey, shortRepo } from '../../../../shared/format';
 import { STALL_DAYS, type DecideRow } from '../../../../shared/model/decide';
 import { utcDay } from '../../../../shared/model/projects';
 import { FactLink, QuietButton, Segmented, textInputClass } from '../../components/bits';
@@ -52,7 +52,11 @@ import {
 } from '../../model/words';
 import { DecideCall, planRow } from './Decide';
 import { askedInitiative, askOf, reasonWords } from '../../model/decideCalls';
-import { bandGloss as initiativeGloss, closedWords } from '../../model/initiativeBoard';
+import {
+   bandGloss as initiativeGloss,
+   closedWords,
+   endParts,
+} from '../../model/initiativeBoard';
 import {
    BY_PRS_WHY,
    BY_PRS_WHY_NO_REPO,
@@ -1178,8 +1182,7 @@ export function Portfolio(
       );
       const words = [
          initiative.owner ? `owned by ${initiative.owner}` : '',
-         span.with_end ? `${n(span.with_end, 'plan')} with an end date` : '',
-         span.ongoing ? `${span.ongoing} ongoing` : '',
+         ...endParts(span),
          initiative.status === 'open' ? '' : closedWords(initiative),
       ].filter(Boolean);
       return words.length ? (
