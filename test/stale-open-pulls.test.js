@@ -87,7 +87,7 @@ test("openPulls still resolves when the DB can't list open pulls", async (t) => 
 
 // Org repos left out of config.repos only get pulls by webhook, so a lost close
 // there stayed open for good (iFixit/ops#1055). The repair lists them too, and a
-// repo whose listing fails proves nothing about its pulls.
+// repo whose listing fails proves nothing about its pulls, but is reported.
 test("reconcileOpenPulls refetches stale open pulls in repos outside config.repos", async (t) => {
   const listed = [];
   t.mock.method(gitManager, "getOpenPulls", (repo) => {
@@ -120,5 +120,5 @@ test("reconcileOpenPulls refetches stale open pulls in repos outside config.repo
     "test/repo-c",
   ]);
   assert.deepEqual(fetched, ["Test/Untracked#5"]);
-  assert.deepEqual(result, { failedRepos: [], failedItems: [] });
+  assert.deepEqual(result, { failedRepos: ["test/gone"], failedItems: [] });
 });

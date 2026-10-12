@@ -36,6 +36,7 @@ try {
          listedRepos.push(repo);
       } catch (err) {
          console.error('Skipped %s (could not list): %s', repo, err.message || err);
+         process.exitCode = 1;
       }
    }
    const stale = findStaleOpenPulls(dbOpen, listedPulls, listedRepos);
@@ -50,9 +51,14 @@ try {
       const refresh = createPacedRefresh();
       for (const { repo, number } of stale) {
          await pause();
-         await refresh.pull(repo, number).catch(() => (process.exitCode = 1));
+         await refresh.pull(repo, number).catch(() => {});
       }
-      console.log('Refreshed %s pulls.', stale.length);
+      // refresh.pull logs a failed save without rejecting, so read the DB back.
+      const open = new Set((await dbManager.getOpenPullIds()).map(p => p.repo + '#' + p.number));
+      const left = stale.filter(({ repo, number }) => open.has(repo + '#' + number));
+      console.log('Refreshed %s pulls; %s still open in the DB.', stale.length, left.length);
+      left.forEach(({ repo, number }) => console.log('  %s#%s', repo, number));
+      if (left.length) process.exitCode = 1;
    } else if (stale.length) {
       console.log('Dry run: rerun with --apply to refresh them.');
    }
