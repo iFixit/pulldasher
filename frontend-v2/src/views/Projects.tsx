@@ -16,7 +16,7 @@ import {
    resolveRange,
    teamLookup,
    trackedData,
-   untrackedSlugs,
+   notTrackedSlugs,
    useProjectsData,
    type Range,
 } from '../model/projectData';
@@ -119,7 +119,7 @@ export function Projects({
    // and question reads the tracked set below
    const fullData = useProjectsData(prefix ? range : null, null, { all: true });
    const { initiatives } = useInitiatives();
-   const untracked = useMemo(() => untrackedSlugs(fullData, initiatives), [fullData, initiatives]);
+   const untracked = useMemo(() => notTrackedSlugs(fullData, initiatives), [fullData, initiatives]);
    const data = useMemo(() => trackedData(fullData, initiatives), [fullData, initiatives]);
    // the same days just before the range, for every "compared with" line
    const prev = useProjectsData(prefix ? previousRange(range) : null, null, { all: true });

@@ -984,4 +984,65 @@ describe('decideQueue: where projects belong', () => {
          { kind: 'reopened_in_closed', initiative: 7, as: 'done' },
       ]);
    });
+
+   it('never asks to close an initiative the server would refuse: a finished plan with PRs open is still going', () => {
+      // a's plan was done 20 days ago, but 3 PRs are open and moved yesterday
+      const base = {
+         items: [item(1, { project: 'a', status: 'done', status_at: ago(20), updated_at: ago(20) })],
+         live: [project('a', { open: 3, prs: 3, lastActivity: ago(1) })],
+         today,
+         now: NOW,
+      };
+      const open = decideQueue({ ...base, initiatives: [initiative(7, ['a'])] });
+      expect(open.some(r => r.reasons.some(x => x.kind === 'goal_reached'))).toBe(false);
+      // and the same rule says it's going once the initiative is closed
+      const closed = decideQueue({
+         ...base,
+         initiatives: [initiative(7, ['a'], { status: 'done', status_at: ago(10) })],
+      });
+      expect(closed.find(r => r.slug === 'a')?.reasons.map(x => x.kind)).toContain(
+         'reopened_in_closed'
+      );
+   });
+
+   it('keeps an initiative kept open quiet while its finished projects merge more', () => {
+      const ask = (live: Parameters<typeof decideQueue>[0]['live']) =>
+         kinds(
+            decideQueue({
+               items: [item(1, { project: 'a', status: 'done', status_at: ago(20), updated_at: ago(20) })],
+               live,
+               initiatives: [initiative(7, ['a'], { status_at: ago(5) })],
+               today,
+               now: NOW,
+            })
+         ).filter(([, kind]) => kind === 'goal_reached');
+      expect(ask([])).toEqual([]);
+      // a merge yesterday, nothing open: no plan or filing changed
+      expect(ask([project('a', { open: 0, prs: 1, lastActivity: ago(1) })])).toEqual([]);
+   });
+
+   it('asks about a closed initiative on the row the project already has, once', () => {
+      // done 20 days ago, PRs still open: `reopened`, in a closed initiative
+      const rows = decideQueue({
+         items: [item(1, { project: 'a', status: 'done', status_at: ago(20), updated_at: ago(20) })],
+         live: [project('a', { open: 3, prs: 3, firstOpened: '2026-09-01', lastActivity: ago(1) })],
+         initiatives: [initiative(7, ['a'], { status: 'done', status_at: ago(10) })],
+         today,
+         now: NOW,
+      });
+      const mine = rows.filter(r => r.slug === 'a');
+      expect(mine).toHaveLength(1);
+      expect(mine[0].item?.id).toBe(1);
+      expect(mine[0].reasons.map(r => r.kind).sort()).toEqual(['reopened', 'reopened_in_closed']);
+   });
+
+   it('asks which project an active plan with no project is, once initiatives exist', () => {
+      const items = [
+         item(1, { project: null, status: 'active', end_kind: 'soft' }),
+         item(2, { project: null, status: 'planned', start: '2026-11-02', end_kind: 'soft' }),
+      ];
+      expect(kinds(decideQueue({ live: [], items, today, now: NOW }))).toEqual([]);
+      const rows = decideQueue({ live: [], items, initiatives: [initiative(7, [])], today, now: NOW });
+      expect(rows.map(r => [r.item?.id, r.reasons.map(x => x.kind)])).toEqual([[1, ['no_project']]]);
+   });
 });

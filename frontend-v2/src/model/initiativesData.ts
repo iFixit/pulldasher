@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { isDummy } from '../backend/dummy';
 import { DUMMY_GROWN, DUMMY_INITIATIVES } from '../backend/dummyProjects';
 import { createMemoryStore } from '../storage';
+import { UNSORTED_WORD } from './words';
 import {
    homesOf,
    type Filing,
@@ -275,6 +276,18 @@ export async function fileProject(
          ...(baseline_prs != null && set_at != null ? { baseline_prs } : {}),
       })
       .catch((): Reply => ({ status: 0, json: {} }));
+   if (reply.status === 409 && reply.json.home !== undefined) {
+      // someone filed it since: say where it is now, and show it there
+      takeBack();
+      const now = (reply.json.home as Home | null)?.initiative ?? null;
+      const name = now
+         ? store.get().initiatives?.find(i => i.slug === now)?.name ?? now
+         : UNSORTED_WORD;
+      void loadInitiatives();
+      return {
+         error: `Couldn’t move the project: someone moved it to ${name} since, so nothing changed.`,
+      };
+   }
    if (reply.status !== 200) {
       takeBack();
       return { error: problemOf(reply, 'move the project') };
@@ -360,12 +373,24 @@ export function useInitiatives(): InitiativesState {
  * server last said (`serverSays`: a repo default, or the flag it set on a
  * plan). With the initiatives not loaded yet, the server's word stands.
  */
-export function untrackedNow(
+export function isNotTrackedNow(
    slug: string | null,
    serverSays: boolean,
    initiatives: readonly Initiative[] | null = store.get().initiatives
 ): boolean {
    if (!slug || !initiatives) return serverSays;
-   const home = initiatives.find(i => i.projects.some(f => f.project === slug));
-   return home ? home.kind === 'untracked' : serverSays;
+   const kind = homeKinds(initiatives).get(slug);
+   return kind ? kind === 'untracked' : serverSays;
+}
+
+// each list's homes' kinds by slug, read once per list: the roadmap asks
+// about every plan in one pass
+const kindsByList = new WeakMap<readonly Initiative[], Map<string, Initiative['kind']>>();
+function homeKinds(initiatives: readonly Initiative[]): Map<string, Initiative['kind']> {
+   let kinds = kindsByList.get(initiatives);
+   if (!kinds) {
+      kinds = new Map([...homesOf(initiatives)].map(([slug, h]) => [slug, h.initiative.kind]));
+      kindsByList.set(initiatives, kinds);
+   }
+   return kinds;
 }

@@ -8,11 +8,19 @@ import {
    guessHome,
    homeChoices,
    homeWords,
+   initiativeSplitKey,
+   initiativeSplitLabel,
+   initiativeSplitRank,
    spanWords,
+   SPLIT_NO_PROJECT,
+   SPLIT_NOT_TRACKED,
+   SPLIT_ONE_OFFS,
+   SPLIT_UNSORTED,
    trackedToday,
 } from './initiativeBoard';
+import { goingProjects, homesOf } from '../../../shared/model/initiatives';
 import { groupItems, portfolioItems, type PortfolioItem } from './portfolio';
-import { trackedData, untrackedSlugs, type ProjectsData } from './projectData';
+import { trackedData, notTrackedSlugs, type ProjectsData } from './projectData';
 import { mergeOrder, trackedPlans } from './roadmapData';
 
 const NOW = Date.UTC(2026, 9, 11, 12);
@@ -161,7 +169,7 @@ describe('the words', () => {
    it('says where a project lives', () => {
       expect(homeWords(initiative(1, 'site-speed', []))).toBe('in site speed');
       expect(homeWords(initiative(2, 'nt', [], { kind: 'untracked' }))).toBe('Not tracked');
-      expect(homeWords(null)).toBe('in no initiative');
+      expect(homeWords(null)).toBe('Unsorted');
    });
 
    it('says a band’s dates and counts from its projects’ plans', () => {
@@ -181,8 +189,84 @@ describe('the words', () => {
    it('glosses a band with its goal, what it holds and its owner', () => {
       const site = initiative(1, 'site', [], { goal: 'Pages load fast', owner: 'dana' });
       expect(bandGloss(site, 10, 7)).toBe(
-         'Pages load fast. 10 projects, 7 being worked on. Owner: dana.'
+         'Pages load fast. 10 projects, 7 being worked on. Owned by dana.'
       );
+      expect(bandGloss({ ...site, status: 'done' }, 2, 0)).toBe(
+         'Pages load fast. 2 projects, 0 being worked on. Owned by dana. Closed as done.'
+      );
+   });
+
+   it('says when an initiative’s latest end has gone by, so it never reads as finished', () => {
+      // Oct 11: its plan was due Sep 27
+      const plans = [plan(1, 'a', { start: '2026-08-17', weeks: 6 })];
+      expect(spanWords(['a'], plans, NOW)).toBe('Aug 17 to Sep 27, 2 weeks past · 1 with an end');
+   });
+});
+
+describe('the one rule for an initiative’s work still going', () => {
+   it('counts a plan under way, or PRs open on a finished one', () => {
+      const plans = [
+         plan(1, 'going'),
+         plan(2, 'done-quiet', { status: 'done' }),
+         plan(3, 'done-open', { status: 'done' }),
+         plan(4, 'parked', { status: 'parked' }),
+      ];
+      const open = (slug: string) => (slug === 'done-open' || slug === 'unplanned-open' ? 2 : 0);
+      expect(
+         goingProjects(
+            ['going', 'done-quiet', 'done-open', 'parked', 'unplanned-open', 'idle'],
+            plans,
+            open
+         )
+      ).toEqual(['going', 'done-open', 'unplanned-open']);
+   });
+});
+
+describe('Look back’s split by initiative', () => {
+   const list = [
+      initiative(1, 'site', ['fast']),
+      initiative(2, 'klo', ['db'], { kind: 'upkeep', priority: 2 }),
+      initiative(3, 'shelf', ['dotfiles'], { kind: 'untracked', priority: 1 }),
+   ];
+   const homes = homesOf(list);
+   const key = (project: string | null) =>
+      initiativeSplitKey(project, homes, new Set(['ops-repo-default']));
+
+   it('keys each PR by its project’s home, never a hard-coded slug', () => {
+      expect(key('fast')).toBe('site');
+      expect(key('db')).toBe('klo');
+      // Not tracked is one group, filed there or by its repo, whatever its slug
+      expect(key('dotfiles')).toBe(SPLIT_NOT_TRACKED);
+      expect(key('ops-repo-default')).toBe(SPLIT_NOT_TRACKED);
+      // a project filed nowhere apart from small work and no project at all
+      expect(key('loose')).toBe(SPLIT_UNSORTED);
+      expect(key('misc')).toBe(SPLIT_ONE_OFFS);
+      expect(key(null)).toBe(SPLIT_NO_PROJECT);
+   });
+
+   it('names the groups as the Projects table does, in rank then the rest', () => {
+      expect(
+         [SPLIT_NO_PROJECT, SPLIT_ONE_OFFS, SPLIT_NOT_TRACKED, SPLIT_UNSORTED, 'klo', 'site'].map(
+            k => initiativeSplitLabel(k, list)
+         )
+      ).toEqual([
+         'Not in a project',
+         'Small work, no project',
+         'Not tracked',
+         'Unsorted',
+         'klo',
+         'site',
+      ]);
+      const rank = initiativeSplitRank(list);
+      const keys = [SPLIT_NO_PROJECT, SPLIT_ONE_OFFS, SPLIT_NOT_TRACKED, SPLIT_UNSORTED, 'klo', 'site'];
+      expect([...keys].sort((a, b) => rank(a) - rank(b))).toEqual([
+         'site',
+         'klo',
+         SPLIT_UNSORTED,
+         SPLIT_NOT_TRACKED,
+         SPLIT_ONE_OFFS,
+         SPLIT_NO_PROJECT,
+      ]);
    });
 });
 
@@ -226,7 +310,7 @@ describe('a Not tracked project', () => {
    // the server set the flag on its plan
    const allPlans = [plan(1, 'store'), plan(2, 'ops', { untracked: true }), plan(3, 'store')];
    const initiatives = [initiative(1, 'store-work', ['store'])];
-   const untracked = untrackedSlugs(data, initiatives);
+   const untracked = notTrackedSlugs(data, initiatives);
    const today = trackedToday(fullToday, untracked);
    const plans = trackedPlans(allPlans, initiatives);
    const all = portfolioItems(data.projects, fullToday, {}, () => 'Store', NOW, allPlans);
@@ -262,7 +346,7 @@ describe('a Not tracked project', () => {
 
    it('is tracked again the moment a filing on this board says so', () => {
       const filed = [...initiatives, initiative(2, 'ops-work', ['ops'])];
-      expect(untrackedSlugs(data, filed)).toEqual(new Set());
+      expect(notTrackedSlugs(data, filed)).toEqual(new Set());
       expect(trackedPlans(allPlans, filed).map(p => p.id)).toEqual([1, 2, 3]);
    });
 });

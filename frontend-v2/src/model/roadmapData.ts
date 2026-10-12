@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { isDummy, loadDummy } from '../backend/dummy';
 import type { Initiative } from '../../../shared/model/initiatives';
-import { dummyTracking, untrackedNow, useInitiatives, readInitiatives } from './initiativesData';
+import { dummyTracking, isNotTrackedNow, useInitiatives, readInitiatives } from './initiativesData';
 import { DUMMY_PROJECTS, DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } from '../backend/dummyProjects';
 import { createMemoryStore } from '../storage';
 import {
@@ -618,7 +618,7 @@ export async function takeBackRoadmapUpdate(
 /**
  * The tracked plans: every plan but a Not tracked project's (its own flag,
  * set by the server before anything else read it, or a filing made on this
- * board since: initiativesData.ts untrackedNow). Every list, count and
+ * board since: initiativesData.ts isNotTrackedNow). Every list, count and
  * question reads these; only a reader that names the full set (`all`) sees
  * the rest.
  */
@@ -626,7 +626,7 @@ export function trackedPlans<T extends Pick<RoadmapItem, 'project' | 'untracked'
    items: readonly T[],
    initiatives: readonly Initiative[] | null
 ): T[] {
-   return items.filter(i => !untrackedNow(i.project, !!i.untracked, initiatives));
+   return items.filter(i => !isNotTrackedNow(i.project, !!i.untracked, initiatives));
 }
 
 /** The roadmap as the board has it now, outside React: the tracked plans,

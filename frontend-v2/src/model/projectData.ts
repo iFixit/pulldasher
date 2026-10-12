@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Initiative } from '../../../shared/model/initiatives';
-import { dummyTracking, untrackedNow, useInitiatives } from './initiativesData';
+import { dummyTracking, isNotTrackedNow, useInitiatives } from './initiativesData';
 import { createMemoryStore } from '../storage';
 import { dateOf, dayOf } from './days';
 import { isDummy, loadDummy } from '../backend/dummy';
@@ -60,15 +60,15 @@ export interface ProjectsData {
 
 /**
  * The Not tracked slugs now: the server's list, with any filing made on this
- * board since (initiativesData.ts untrackedNow), and every slug a filing
+ * board since (initiativesData.ts isNotTrackedNow), and every slug a filing
  * puts in Not tracked.
  */
-export function untrackedSlugs(
+export function notTrackedSlugs(
    data: Pick<ProjectsData, 'untracked'> | null | undefined,
    initiatives: readonly Initiative[] | null
 ): Set<string> {
    const out = new Set(
-      (data?.untracked ?? []).filter(slug => untrackedNow(slug, true, initiatives))
+      (data?.untracked ?? []).filter(slug => isNotTrackedNow(slug, true, initiatives))
    );
    for (const i of initiatives ?? []) {
       if (i.kind === 'untracked') for (const f of i.projects) out.add(f.project);
@@ -86,7 +86,7 @@ export function trackedData<D extends ProjectsData | null | undefined>(
    initiatives: readonly Initiative[] | null
 ): D {
    if (!data) return data;
-   const out = untrackedSlugs(data, initiatives);
+   const out = notTrackedSlugs(data, initiatives);
    if (!out.size) return data;
    return {
       ...data,

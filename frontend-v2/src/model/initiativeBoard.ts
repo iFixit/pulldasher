@@ -1,11 +1,12 @@
 import { n } from '../../../shared/format';
 import type { GrownProject } from '../../../shared/model/decide';
 import { homesOf, initiativeSpan, type Initiative } from '../../../shared/model/initiatives';
-import type { Today } from '../../../shared/model/projects';
+import { MISC_SLUG, type Today } from '../../../shared/model/projects';
 import type { RoadmapItem } from '../../../shared/model/roadmap';
 import type { PortfolioItem } from './portfolio';
 import { dayWords, type ProjectsData } from './projectData';
-import { byRank, untrackedNow } from './initiativesData';
+import { byRank, isNotTrackedNow } from './initiativesData';
+import { NOT_IN_A_PROJECT, ONE_OFFS, UNSORTED_WORD } from './words';
 
 /**
  * The board's side of initiatives (shared/model/initiatives.ts): the tracked
@@ -37,7 +38,7 @@ export function grownProjects(
 ): GrownProject[] {
    return (data?.grew ?? []).flatMap(slug => {
       const counts = data?.grew_counts?.[slug];
-      return counts && untrackedNow(slug, true, initiatives) ? [{ slug, ...counts }] : [];
+      return counts && isNotTrackedNow(slug, true, initiatives) ? [{ slug, ...counts }] : [];
    });
 }
 
@@ -88,10 +89,10 @@ export function homeChoices(initiatives: readonly Initiative[]): Initiative[] {
    ];
 }
 
-/** "in Release safety", "in Keep the lights on", "Not tracked", "in no
- * initiative": where a project lives, mid-sentence. */
+/** "in Release safety", "in Keep the lights on", "Not tracked",
+ * "Unsorted": where a project lives, mid-sentence. */
 export function homeWords(home: Pick<Initiative, 'name' | 'kind'> | null | undefined): string {
-   if (!home) return 'in no initiative';
+   if (!home) return UNSORTED_WORD;
    return home.kind === 'untracked' ? 'Not tracked' : `in ${home.name}`;
 }
 
@@ -107,23 +108,86 @@ export function spanWords(
    if (!span.start) return '';
    const day = (d: string) => dayWords(d, { now });
    if (span.end_kind === 'ended') return span.ended ? `Ended ${day(span.ended)}` : '';
+   // a latest end already gone by reads as finished unless it says so
+   const today = new Date(now).toISOString().slice(0, 10);
+   const past =
+      span.end && span.end < today
+         ? Math.floor((Date.parse(today) - Date.parse(span.end)) / (7 * 86400 * 1000))
+         : 0;
    const parts = [
-      span.end ? `${day(span.start)} to ${day(span.end)}` : `Since ${day(span.start)}`,
+      span.end
+         ? `${day(span.start)} to ${day(span.end)}${past ? `, ${n(past, 'week')} past` : ''}`
+         : `Since ${day(span.start)}`,
       span.with_end ? `${span.with_end} with an end` : '',
       span.ongoing ? `${span.ongoing} ongoing` : '',
    ];
    return parts.filter(Boolean).join(' · ');
 }
 
-/** What an initiative's band says on hover: its goal, its owner, and how
- * much it holds ("10 projects, 7 being worked on"). */
+/** What an initiative's band says on hover, on the Roadmap and the
+ * Overview alike: its goal, how much it holds ("10 projects, 7 being worked
+ * on"), its owner, and whether it's closed. */
 export function bandGloss(
-   initiative: Pick<Initiative, 'name' | 'goal' | 'owner' | 'kind'>,
+   initiative: Pick<Initiative, 'name' | 'goal' | 'owner' | 'kind' | 'status'>,
    projects: number,
    working: number
 ): string {
    const held = `${n(projects, 'project')}, ${working} being worked on`;
-   const owner = initiative.owner ? ` Owner: ${initiative.owner}.` : '';
+   const owner = initiative.owner ? ` Owned by ${initiative.owner}.` : '';
    const goal = initiative.goal ? `${initiative.goal.replace(/\.?$/, '.')} ` : '';
-   return `${goal}${held}.${owner}`;
+   const closed = initiative.status === 'open' ? '' : ` Closed as ${initiative.status}.`;
+   return `${goal}${held}.${owner}${closed}`;
+}
+
+/** Look back's split by initiative: the group a PR's project's days go
+ * in. Not tracked is one group, filed there or by its repo. */
+export const SPLIT_UNSORTED = '(unsorted)';
+export const SPLIT_NOT_TRACKED = '(not-tracked)';
+export const SPLIT_ONE_OFFS = '(one-offs)';
+export const SPLIT_NO_PROJECT = '(none)';
+
+/** A PR's project's group in Look back's split by initiative: its
+ * initiative's slug (Keep the lights on among them), Not tracked, Unsorted
+ * for a project filed nowhere, small work, or no project at all. */
+export function initiativeSplitKey(
+   project: string | null,
+   homes: ReadonlyMap<string, { initiative: Pick<Initiative, 'slug' | 'kind'> }>,
+   untracked: ReadonlySet<string>
+): string {
+   if (!project) return SPLIT_NO_PROJECT;
+   if (project === MISC_SLUG) return SPLIT_ONE_OFFS;
+   const home = homes.get(project)?.initiative;
+   if (home?.kind === 'untracked' || (!home && untracked.has(project))) return SPLIT_NOT_TRACKED;
+   return home ? home.slug : SPLIT_UNSORTED;
+}
+
+/** That split's groups in order: the initiatives in their rank, then
+ * Unsorted, Not tracked, small work and no project. */
+export function initiativeSplitRank(initiatives: readonly Initiative[]): (key: string) => number {
+   const order = byRank(initiatives)
+      .filter(i => i.kind !== 'untracked')
+      .map(i => i.slug);
+   const tail = [SPLIT_UNSORTED, SPLIT_NOT_TRACKED, SPLIT_ONE_OFFS, SPLIT_NO_PROJECT];
+   return key =>
+      tail.includes(key)
+         ? order.length + tail.indexOf(key)
+         : order.indexOf(key) < 0
+         ? order.length - 0.5
+         : order.indexOf(key);
+}
+
+/** A group of that split by name, in the words the Projects table uses. */
+export function initiativeSplitLabel(key: string, initiatives: readonly Initiative[]): string {
+   switch (key) {
+      case SPLIT_UNSORTED:
+         return UNSORTED_WORD;
+      case SPLIT_NOT_TRACKED:
+         return 'Not tracked';
+      case SPLIT_ONE_OFFS:
+         return ONE_OFFS;
+      case SPLIT_NO_PROJECT:
+         return NOT_IN_A_PROJECT;
+      default:
+         return initiatives.find(i => i.slug === key)?.name ?? key;
+   }
 }

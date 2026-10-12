@@ -1,7 +1,7 @@
 import { Check } from 'lucide-react';
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { issueUrl, n } from '../../../../shared/format';
-import { closedIssues, RANK, type DecideRow } from '../../../../shared/model/decide';
+import { closedIssues, type DecideRow } from '../../../../shared/model/decide';
 import {
    projectOf,
    targetOf,
@@ -62,6 +62,7 @@ import {
    DecideCall,
    isHomeReason,
    planRow,
+   primaryOf,
    reasonParts,
    usePlanCalls,
    type Call,
@@ -669,14 +670,12 @@ export function ProjectPage({
          ? { ...row.item, update: { ...row.item.update, body: '' } }
          : row.item;
    // where it belongs is asked by its home line; the Plan fields answer the rest
-   const primaryOf = (row: DecideRow) =>
-      row.reasons.reduce((a, r) => (RANK[r.kind] < RANK[a.kind] ? r : a));
    const homeAsks = calls.filter(row => row.reasons.length && isHomeReason(primaryOf(row)));
    const planAsks = asks.filter(row => !isHomeReason(primaryOf(row)));
    // each row asks one question, its worst reason's (the one its strip
    // outlines the answer to), after the facts of all of them
    const asked = planAsks.map(row => {
-      const primary = row.reasons.reduce((a, r) => (RANK[r.kind] < RANK[a.kind] ? r : a));
+      const primary = primaryOf(row);
       const sentences = [primary, ...row.reasons.filter(r => r !== primary)].map(r =>
          // the page's Status already says there's no plan
          reasonParts(r, quoteless(row), r.kind === 'new')
@@ -867,7 +866,8 @@ export function ProjectPage({
                   {untracked && !homeAsks.length && (
                      <p className="m-0 mt-0.5 max-w-[70ch] text-xs text-ink-3">
                         Not tracked: it counts in no tile, load or question
-                        {plans && planFor(slug, plans) ? ', and its plan owes no update' : ''}.
+                        {plans && planFor(slug, plans) ? ', and its plan owes no update' : ''}, but
+                        Decide asks again if it doubles in size.
                      </p>
                   )}
                </div>

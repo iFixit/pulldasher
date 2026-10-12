@@ -769,6 +769,16 @@ describe('groupItems by initiative', () => {
       expect(groupItems(items, 'initiative', undefined, [], all).map(g => g.title)).toEqual([
          'EVERYTHING',
       ]);
+      // but one Decide asks about keeps its band, empty, where its question is
+      expect(
+         groupItems(items, 'initiative', undefined, [], all, new Set([2])).map(g => [
+            g.title,
+            g.items.length,
+         ])
+      ).toEqual([
+         ['EVERYTHING', items.length],
+         ['EMPTY', 0],
+      ]);
    });
 
    it('finds by the start of an initiative’s name or slug with “initiative:”', () => {

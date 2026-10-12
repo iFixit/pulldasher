@@ -16,7 +16,7 @@ import {
 import {
    DEFAULT_RANGE,
    ongoingSlugs,
-   untrackedSlugs,
+   notTrackedSlugs,
    resolveRange,
    teamLookup,
    useProjectsData,
@@ -174,7 +174,7 @@ function useYourProjects(
    return useMemo(() => {
       if (!data || !plans) return null;
       const now = Date.now();
-      const untracked = untrackedSlugs(data, initiatives);
+      const untracked = notTrackedSlugs(data, initiatives);
       const today = buildToday(
          data.projects,
          allPulls,

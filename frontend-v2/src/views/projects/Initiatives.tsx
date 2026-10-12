@@ -1,9 +1,10 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useContext, useEffect, useId, useRef, useState } from 'react';
 import { Check } from 'lucide-react';
 import { n } from '../../../../shared/format';
 import type { DecideRow } from '../../../../shared/model/decide';
 import {
    checkInitiativeFields,
+   goingProjects,
    homesOf,
    initiativeSpan,
    type Initiative,
@@ -18,19 +19,36 @@ import {
 import { EmptyState, FactLink, QuietButton, textInputClass } from '../../components/bits';
 import { Fold, Rows } from '../../components/Lane';
 import { Icon } from '../../components/Icon';
-import { fileProject, updateInitiative, type Home } from '../../model/initiativesData';
-import { homeChoices } from '../../model/initiativeBoard';
+import {
+   byRank,
+   fileProject,
+   updateInitiative,
+   useInitiativesValue,
+   type Home,
+} from '../../model/initiativesData';
+import { guessHome, homeChoices, UNSORTED } from '../../model/initiativeBoard';
 import { dayWords } from '../../model/projectData';
 import { stageWord, type PortfolioItem } from '../../model/portfolio';
-import { andList } from '../../model/words';
-import { askedInitiative, askOf, DecideCall, reasonParts } from './Decide';
+import { andList, UNSORTED_WORD } from '../../model/words';
+import {
+   AllItemsContext,
+   answerWords,
+   arrowsAmong,
+   askedInitiative,
+   DecideCall,
+   initiativeById,
+   primaryOf,
+   reasonParts,
+   type Call,
+   type Filed,
+} from './Decide';
 import { openPlan, type Navigate, type ProjectsNav } from './parts';
 import { PLAN_STATUS_WORD, planWords } from './roadmapHealth';
 
-/** "Release safety", "Keep the lights on", "Not tracked", "No initiative":
- * a home by name, standing alone. */
+/** "Release safety", "Keep the lights on", "Not tracked", "Unsorted": a
+ * home by name, standing alone. */
 export const homeName = (home: Pick<Initiative, 'name'> | null | undefined) =>
-   home ? home.name : 'No initiative';
+   home ? home.name : UNSORTED_WORD;
 
 /** A receipt for a move of home: what it did, with Undo, or why not. */
 interface MoveReceipt {
@@ -41,11 +59,11 @@ interface MoveReceipt {
 
 /**
  * Where a project lives, in its page's head: "in Release safety · Move",
- * "Not tracked · Move", or "In no initiative · Move". The initiative's name
- * opens its page. Move opens a chooser in place (never a popover): the homes
- * in rank order, Not tracked last, and No initiative; Move files it there
- * and leaves a receipt with Undo, which puts back the home it had with its
- * time and count.
+ * "Not tracked · Move", or "Unsorted · Move". The initiative's name opens
+ * its page. Move opens a chooser in place of those words (never a popover):
+ * the homes in rank order, Not tracked last, and Unsorted; Move, on once the
+ * pick differs, files it there and leaves a receipt with Undo, which puts
+ * back the home it had with its time and count.
  */
 export function HomeLine({
    slug,
@@ -80,7 +98,7 @@ export function HomeLine({
       if (to === (home?.slug ?? null)) return;
       const toName = homeName(choices.find(i => i.slug === to));
       const saved = await fileProject(slug, to, { expect: home?.slug ?? null });
-      if ('error' in saved) return say({ words: saved.error, failed: true });
+      if ('error' in saved) return say({ words: saved.error.replace(/\.$/, ''), failed: true });
       const before: Home = saved.before;
       say({
          words: `Moved to ${toName}`,
@@ -89,7 +107,7 @@ export function HomeLine({
                set_at: before.set_at,
                baseline_prs: before.baseline_prs,
             });
-            if ('error' in back) say({ words: back.error, failed: true });
+            if ('error' in back) say({ words: back.error.replace(/\.$/, ''), failed: true });
             else {
                setReceipt(null);
                setPick(before.initiative ?? '');
@@ -101,7 +119,7 @@ export function HomeLine({
    };
    return (
       <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-ink-3">
-         {home ? (
+         {moving ? null : home ? (
             home.kind === 'untracked' ? (
                <span>Not tracked</span>
             ) : (
@@ -116,7 +134,7 @@ export function HomeLine({
                </span>
             )
          ) : (
-            <span>In no initiative</span>
+            <span>{UNSORTED_WORD}</span>
          )}
          {!moving && !receipt && (
             <QuietButton
@@ -132,9 +150,7 @@ export function HomeLine({
          )}
          {moving && (
             <span className="inline-flex flex-wrap items-center gap-2">
-               <label htmlFor={selectId} className="sr-only">
-                  Move it to
-               </label>
+               <label htmlFor={selectId}>Move to</label>
                <select
                   id={selectId}
                   autoFocus
@@ -150,9 +166,17 @@ export function HomeLine({
                         {i.name}
                      </option>
                   ))}
-                  <option value="">No initiative</option>
+                  <option value="">{UNSORTED_WORD}</option>
                </select>
-               <QuietButton onClick={() => void move()}>Move</QuietButton>
+               <QuietButton
+                  onClick={() => void move()}
+                  disabled={(pick || null) === (home?.slug ?? null)}
+                  title={
+                     (pick || null) === (home?.slug ?? null) ? 'Choose another home first' : undefined
+                  }
+               >
+                  Move
+               </QuietButton>
                <QuietButton onClick={() => setMoving(false)}>Cancel</QuietButton>
             </span>
          )}
@@ -240,12 +264,12 @@ function spanLine(span: ReturnType<typeof initiativeSpan>, live: number): string
    return `${dates}${from}${span.ongoing ? ` · ${span.ongoing} ongoing` : ''}`;
 }
 
-/** "soft, from its projects", "ongoing", "ended Sep 30": how firm its end
- * is, derived from its plans, never stored. */
+/** "estimated, from its projects", "ongoing", "every plan in it is
+ * finished": how firm its end is, derived from its plans, never stored. */
 function endWords(span: ReturnType<typeof initiativeSpan>): string {
    switch (span.end_kind) {
       case 'soft':
-         return 'soft, from its projects';
+         return 'estimated, from its projects';
       case 'ongoing':
          return 'ongoing, no plan in it has an end';
       case 'ended':
@@ -293,7 +317,10 @@ function EditFields({
                   updated_at: r.was.updated_at ?? Math.floor(Date.now() / 1000),
                   status_at: r.was.status_at,
                },
-            }).then(() => onDone(null)),
+            }).then(u =>
+               // a failed Undo keeps its receipt, saying why
+               onDone('error' in u ? { words: u.error.replace(/\.$/, ''), failed: true } : null)
+            ),
       });
    };
    const field = `h-8 w-full px-2.5 text-[13px] text-ink ${textInputClass}`;
@@ -348,11 +375,14 @@ function EditFields({
 
 /**
  * An initiative's page, the same anatomy as a project's: its name and
- * owner (Edit, in place), its goal, Decide's question when it asks one, its
- * span, how firm its end is and what its plans owe, all read off its
- * projects' plans; then the projects in it in priority order, each with its
- * plan in words, and a "Done or dropped" fold for its finished, dropped and
- * parked work.
+ * owner (Edit, in place), its goal, Decide's questions about it (whether it
+ * reached its goal, or, closed, whether to reopen it for a project still
+ * worked on), its span, how firm its end is and what its plans owe, all
+ * read off its projects' plans; then the projects in it in priority order,
+ * each with its plan in words and any question Decide asks of it, and a
+ * "Done or dropped" fold for the finished, dropped and parked work nobody
+ * is asked about and nothing is going in. Not tracked's page is its ledger:
+ * no owner, edit, span or end.
  */
 export function InitiativePage({
    slug,
@@ -398,11 +428,18 @@ export function InitiativePage({
          />
       );
    }
+   const ledger = initiative.kind === 'untracked';
    const slugs = initiative.projects.map(f => f.project);
    const mine = plans.filter(p => p.project && slugs.includes(p.project));
    const span = initiativeSpan(slugs, plans);
    const live = mine.filter(p => isUnderWay(p.status));
    const bySlug = new Map(items.map(i => [i.slug, i]));
+   // Decide's questions about the initiative itself, at the page's head,
+   // and the rest under the project each is about
+   const aboutIt = calls.filter(r => askedInitiative(r) === initiative.id);
+   const asksOf = (s: string) => calls.filter(r => r.slug === s && !aboutIt.includes(r));
+   // still going by the rule the close guard uses: a plan under way or PRs open
+   const going = new Set(goingProjects(slugs, plans, s => bySlug.get(s)?.open ?? 0));
    // the projects in it by their plan's priority, those with no plan after
    const rows = slugs
       .map(s => ({ slug: s, item: bySlug.get(s), plan: planFor(s, plans) }))
@@ -411,60 +448,93 @@ export function InitiativePage({
             (a.plan?.priority ?? Infinity) - (b.plan?.priority ?? Infinity) ||
             (a.item?.name ?? a.slug).localeCompare(b.item?.name ?? b.slug)
       );
+   // finished: nothing going, and nothing Decide asks of it or about it
    const finished = (r: typeof rows[number]) =>
-      r.plan ? !isUnderWay(r.plan.status) : r.item ? r.item.stage === 'closed' : false;
-   const going = rows.filter(r => !finished(r));
+      !going.has(r.slug) &&
+      !calls.some(c => c.slug === r.slug && c.reasons.length) &&
+      (r.plan ? !isUnderWay(r.plan.status) : r.item ? r.item.stage === 'closed' : false);
+   const shown = rows.filter(r => !finished(r));
    const done = rows.filter(finished);
-   const asked = calls.filter(r => askedInitiative(r) === initiative.id && !r.slug);
+   const owed = calls.filter(
+      r => r.reasons.length && (aboutIt.includes(r) || (!!r.slug && slugs.includes(r.slug)))
+   ).length;
    const kindWord =
-      initiative.kind === 'upkeep'
+      initiative.kind === 'upkeep' && initiative.name !== 'Upkeep'
          ? 'Upkeep'
-         : initiative.kind === 'untracked'
+         : ledger && initiative.name !== 'Not tracked'
          ? 'Not tracked'
          : null;
+   const question = (r: DecideRow, named: string) => {
+      const primary = primaryOf(r);
+      const parts = r.reasons.length ? reasonParts(primary, r.item) : null;
+      const project = r.slug ? bySlug.get(r.slug) : undefined;
+      return (
+         <div key={`${r.slug ?? ''}:${r.item?.id ?? ''}`} className="mt-1.5 text-[13px]">
+            {parts && (
+               <p className="m-0 max-w-[70ch] text-ink-2">
+                  {named}
+                  {parts.facts} <span className="text-warn">{parts.question}</span>
+               </p>
+            )}
+            <DecideCall row={r} project={project} />
+         </div>
+      );
+   };
    const row = (r: typeof rows[number]) => {
       const name = r.item?.name ?? r.plan?.name ?? r.slug;
       const lead = r.plan?.lead ?? r.item?.lead ?? null;
       return (
          <div
             key={r.slug}
-            className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-t border-secondary px-3.5 py-2 text-[13px] first:border-t-0"
+            className="border-t border-secondary px-3.5 py-2 text-[13px] first:border-t-0"
          >
-            <FactLink onClick={() => navigate({ project: r.slug, initiative: null })}>
-               {name}
-            </FactLink>
-            {lead && (
-               <FactLink className="text-xs" onClick={() => onPerson(lead)}>
-                  {lead}
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+               <FactLink onClick={() => navigate({ project: r.slug, initiative: null })}>
+                  {name}
                </FactLink>
-            )}
-            <span className="text-ink-3">
-               {r.plan ? (
-                  <FactLink
-                     className="text-ink-3"
-                     onClick={() => navigate(openPlan(nav, r.plan?.id as number))}
-                     title="Open its plan on the roadmap"
-                  >
-                     {PLAN_STATUS_WORD[r.plan.status]}, {planWords(r.plan)}
+               {lead && (
+                  <FactLink className="text-xs" onClick={() => onPerson(lead)}>
+                     {lead}
                   </FactLink>
-               ) : r.item ? (
-                  `No plan · ${stageWord(r.item)}`
-               ) : (
-                  'No plan'
                )}
-            </span>
-            {!!r.item?.open && (
-               <span className="text-xs text-ink-3">· {n(r.item.open, 'open PR')}</span>
-            )}
+               <span className="text-ink-3">
+                  {r.plan ? (
+                     <FactLink
+                        className="text-ink-3"
+                        onClick={() => navigate(openPlan(nav, r.plan?.id as number))}
+                        title="Open its plan on the roadmap"
+                     >
+                        {PLAN_STATUS_WORD[r.plan.status]}, {planWords(r.plan)}
+                     </FactLink>
+                  ) : r.item ? (
+                     `No plan · ${stageWord(r.item)}`
+                  ) : (
+                     'No plan'
+                  )}
+               </span>
+               {!!r.item?.open && (
+                  <span className="text-xs text-ink-3">· {n(r.item.open, 'open PR')}</span>
+               )}
+            </div>
+            {/* a call is made where it's seen: the question its row asks
+                anywhere else, collapsed to its suggested answer */}
+            {asksOf(r.slug).map(a => question(a, ''))}
          </div>
       );
    };
-   const facts: [string, string][] = [
-      ['Span', spanLine(span, live.length)],
-      ['Ends', endWords(span)],
-      ['Health', healthWords(live)],
-      ['People', leadWords(mine) || 'No lead named on its plans'],
-   ];
+   const facts: [string, string][] = ledger
+      ? [['Health', owed ? `${n(owed, 'question')} on Decide` : 'nothing owed']]
+      : [
+           ['Span', spanLine(span, live.length)],
+           ['Ends', endWords(span)],
+           [
+              'Health',
+              [healthWords(live), owed ? `${n(owed, 'question')} on Decide` : '']
+                 .filter(w => w && w !== 'nothing owed')
+                 .join(', ') || 'nothing owed',
+           ],
+           ['People', leadWords(mine) || 'No lead named on its plans'],
+        ];
    return (
       <>
          <div className="mb-6">
@@ -474,23 +544,28 @@ export function InitiativePage({
                {initiative.status !== 'open' && (
                   <span className="text-[13px] text-ink-3">Closed as {initiative.status}</span>
                )}
-               <span className="flex items-center gap-2 text-xs text-ink-3 sm:ml-auto">
-                  {initiative.owner ? (
-                     <FactLink onClick={() => onPerson(initiative.owner as string)}>
-                        {initiative.owner}
-                     </FactLink>
-                  ) : (
-                     'No owner'
-                  )}
-                  {!editing && (
-                     <QuietButton
-                        onClick={() => setEditing(true)}
-                        aria-label={`Edit ${initiative.name}`}
-                     >
-                        Edit
-                     </QuietButton>
-                  )}
-               </span>
+               {!ledger && (
+                  <span className="flex items-center gap-2 text-xs text-ink-3 sm:ml-auto">
+                     {initiative.owner ? (
+                        <span>
+                           Owner{' '}
+                           <FactLink onClick={() => onPerson(initiative.owner as string)}>
+                              {initiative.owner}
+                           </FactLink>
+                        </span>
+                     ) : (
+                        'No owner'
+                     )}
+                     {!editing && (
+                        <QuietButton
+                           onClick={() => setEditing(true)}
+                           aria-label={`Edit ${initiative.name}`}
+                        >
+                           Edit
+                        </QuietButton>
+                     )}
+                  </span>
+               )}
             </div>
             {initiative.goal && (
                <p className="m-0 mt-1 max-w-[70ch] text-[13px] text-ink-2">{initiative.goal}</p>
@@ -506,25 +581,20 @@ export function InitiativePage({
             )}
             {receipt && (
                <p role="status" className="m-0 mt-2 flex items-center gap-2 text-[13px] text-ink-2">
-                  <Icon icon={Check} size={14} className="inline-block align-[-2px]" />
+                  {!receipt.failed && (
+                     <Icon icon={Check} size={14} className="inline-block align-[-2px]" />
+                  )}
                   {receipt.words}.
-                  {receipt.undo && <QuietButton onClick={receipt.undo}>Undo</QuietButton>}
+                  {receipt.undo ? (
+                     <QuietButton onClick={receipt.undo}>Undo</QuietButton>
+                  ) : (
+                     <QuietButton onClick={() => setReceipt(null)}>Close</QuietButton>
+                  )}
                </p>
             )}
-            {asked.map(r => {
-               const parts = r.reasons.length ? reasonParts(r.reasons[0], null) : null;
-               return (
-                  <div key={r.reasons.map(x => x.kind).join()} className="mt-3 text-[13px]">
-                     {parts && (
-                        <p className="m-0 text-ink-2">
-                           {parts.facts}{' '}
-                           <span className="text-warn">{askOf(r.reasons[0]).question}</span>
-                        </p>
-                     )}
-                     <DecideCall row={r} />
-                  </div>
-               );
-            })}
+            {aboutIt.map(r =>
+               question(r, r.slug ? `${bySlug.get(r.slug)?.name ?? r.slug}: ` : '')
+            )}
          </div>
          <dl className="mb-8 grid max-w-[48rem] gap-x-6 gap-y-1.5 text-[13px] sm:grid-cols-[7rem_1fr]">
             {facts.map(([term, words]) => (
@@ -540,11 +610,11 @@ export function InitiativePage({
             </h3>
             {rows.length ? (
                <Rows>
-                  {going.map(row)}
+                  {shown.map(row)}
                   <Fold
                      count={done.length}
                      label="Done or dropped"
-                     gloss="Its projects whose plans are done, dropped or parked, or that closed with no plan."
+                     gloss="Its projects whose plans are done, dropped or parked, or that closed with no plan, with no PRs open and nothing Decide asks."
                      id={`initiative:${initiative.slug}:done`}
                   >
                      {done.map(row)}
@@ -557,5 +627,325 @@ export function InitiativePage({
             )}
          </section>
       </>
+   );
+}
+
+/** The chooser's label, on every question that files a project. */
+const FILE_IT_IN = 'File it in';
+
+/**
+ * The File it in chooser on a row Decide asks to plan or to file (a new or
+ * unfiled project): where the project goes, filed with whatever call the row
+ * gets. It starts on the home it has, so taking any answer blind moves
+ * nothing; only a project with no home starts on a guess, the initiative its
+ * people work in most. `filed` is the filing the next call carries, when the
+ * pick differs from its home; `picked` once a person chose.
+ */
+export function useHomeChooser(row: DecideRow, { away = false }: { away?: boolean } = {}) {
+   const { initiatives } = useInitiativesValue();
+   const items = useContext(AllItemsContext);
+   const asks = row.reasons.some(r => r.kind === 'new' || r.kind === 'unfiled');
+   const list = initiatives ?? [];
+   const current = row.slug ? homesOf(list).get(row.slug)?.initiative ?? null : null;
+   // `away`: moving it out of the home it has (Track it, Move the project),
+   // so it starts on the guess
+   const guess =
+      (!current || away) && row.slug && list.length ? guessHome(row.slug, items, list) : null;
+   const [pick, setPick] = useState<string | null>(null);
+   const choices = homeChoices(list);
+   const chosen = pick ?? (away ? guess?.slug : current?.slug ?? guess?.slug) ?? '';
+   const to = choices.find(i => i.slug === chosen);
+   return {
+      shown: asks && !!row.slug && choices.length > 0,
+      choices,
+      chosen,
+      current,
+      picked: pick != null,
+      guessed: pick == null && (!current || away) && !!guess && chosen === guess.slug,
+      setPick,
+      filed:
+         to && to.slug !== current?.slug
+            ? ({
+                 to: to.slug,
+                 name: to.name,
+                 from: current?.slug ?? null,
+                 untracked: to.kind === 'untracked',
+              } as Filed)
+            : undefined,
+   };
+}
+
+/** The chooser's line, above the answers that use it: "File it in [Release
+ * safety]", with "guessed" while it shows the board's guess. A select, so
+ * the keyboard and a screen reader get the platform's own list. */
+export function HomeChooser({
+   name,
+   chooser,
+}: {
+   name: string;
+   chooser: Pick<ReturnType<typeof useHomeChooser>, 'chosen' | 'choices' | 'guessed' | 'setPick'>;
+}) {
+   const id = useId();
+   return (
+      <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-ink-3">
+         <label htmlFor={id} className="w-full sm:w-32 sm:shrink-0">
+            {FILE_IT_IN}
+         </label>
+         <select
+            id={id}
+            aria-label={`${FILE_IT_IN}: ${name}`}
+            value={chooser.chosen}
+            onChange={e => chooser.setPick(e.target.value)}
+            className={`h-8 px-2 text-[13px] text-ink ${textInputClass}`}
+         >
+            {!chooser.chosen && <option value="">Choose where it goes</option>}
+            {chooser.choices.map(i => (
+               <option key={i.slug} value={i.slug}>
+                  {i.name}
+               </option>
+            ))}
+         </select>
+         {chooser.guessed && (
+            <span
+               className="underline decoration-dotted underline-offset-2"
+               title={`It’s ${UNSORTED_WORD}. This is the initiative its people work in most.`}
+            >
+               guessed
+            </span>
+         )}
+      </div>
+   );
+}
+
+/** A plan's project chooser, for a plan with no project: "Its project [▾]". */
+function ProjectChooser({
+   name,
+   value,
+   onChange,
+}: {
+   name: string;
+   value: string;
+   onChange: (slug: string) => void;
+}) {
+   const id = useId();
+   const items = useContext(AllItemsContext);
+   const sorted = [...items].sort((a, b) => a.name.localeCompare(b.name));
+   return (
+      <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-ink-3">
+         <label htmlFor={id} className="w-full sm:w-32 sm:shrink-0">
+            Its project
+         </label>
+         <select
+            id={id}
+            aria-label={`The project ${name} is`}
+            value={value}
+            onChange={e => onChange(e.target.value)}
+            className={`h-8 max-w-full px-2 text-[13px] text-ink ${textInputClass}`}
+         >
+            {!value && <option value="">Choose its project</option>}
+            {sorted.map(i => (
+               <option key={i.slug} value={i.slug}>
+                  {i.name}
+               </option>
+            ))}
+         </select>
+      </div>
+   );
+}
+
+/**
+ * The answers to a row that asks where a project belongs, or about an
+ * initiative, in the same shape as Decide's CallStrip: a chooser first when
+ * the answer needs one, then the suggested answer filled, then the others.
+ * Unsorted: File in the chooser's pick. No project yet: Link to the chosen
+ * project. Not tracked, but growing: Keep not tracked, or Track it, which
+ * opens the chooser. Goal maybe reached: Close as done, or Close as dropped
+ * or Keep open. Its initiative closed: Reopen it, or move the project with
+ * the chooser. An answer that waits on an empty chooser is outlined and
+ * off, and only an answer the board picked says Suggested.
+ */
+export function HomeStrip({
+   row,
+   name,
+   describedBy,
+   onCall,
+}: {
+   row: DecideRow;
+   name: string;
+   describedBy?: string;
+   onCall: (call: Call) => void;
+}) {
+   const [more, setMore] = useState(false);
+   const [project, setProject] = useState('');
+   const items = useContext(AllItemsContext);
+   const primary = primaryOf(row);
+   const chooser = useHomeChooser(row, { away: primary.kind !== 'unfiled' });
+   const initiative = initiativeById(askedInitiative(row));
+   // a Track it or a move goes to an initiative, never Not tracked or the
+   // closed one it's in
+   const pickable =
+      primary.kind === 'unfiled'
+         ? chooser.choices
+         : chooser.choices.filter(i => i.kind !== 'untracked' && i.slug !== initiative?.slug);
+   const chosen = pickable.find(i => i.slug === chooser.chosen);
+   const filing: Call | null = chosen
+      ? { kind: 'file', to: chosen.slug, name: chosen.name, untracked: chosen.kind === 'untracked' }
+      : null;
+   const fileOption = { call: filing, words: filing ? answerWords(filing, null) : 'File it' };
+   const notTracked = chooser.choices.find(i => i.kind === 'untracked');
+   const linked = items.find(i => i.slug === project);
+   type Option = { call: Call | null; words: string; suggested?: boolean };
+   const options: Option[] =
+      primary.kind === 'unfiled'
+         ? [{ ...fileOption, suggested: chooser.guessed }]
+         : primary.kind === 'no_project'
+         ? [
+              {
+                 call: linked ? { kind: 'link', project: linked.slug, name: linked.name } : null,
+                 words: linked ? `Link to ${linked.name}` : 'Link it',
+              },
+           ]
+         : primary.kind === 'untracked_grew'
+         ? [
+              {
+                 call: notTracked ? { kind: 'keep_untracked', to: notTracked.slug } : null,
+                 words: 'Keep not tracked',
+                 suggested: true,
+              },
+              ...(more ? [fileOption] : []),
+           ]
+         : primary.kind === 'goal_reached'
+         ? [
+              { call: { kind: 'close', as: 'done' }, words: 'Close as done', suggested: true },
+              ...(more
+                 ? [
+                      { call: { kind: 'close', as: 'dropped' } as Call, words: 'Close as dropped' },
+                      { call: { kind: 'keep_open' } as Call, words: 'Keep open' },
+                   ]
+                 : []),
+           ]
+         : [
+              {
+                 call: { kind: 'reopen' },
+                 words: initiative ? `Reopen ${initiative.name}` : 'Reopen it',
+                 suggested: true,
+              },
+              ...(more ? [fileOption] : []),
+           ];
+   const moreWords =
+      primary.kind === 'untracked_grew'
+         ? 'Track it'
+         : primary.kind === 'reopened_in_closed'
+         ? 'Move the project'
+         : 'Other answers';
+   // Track it and Move the project open the chooser; it starts on a guess,
+   // never on the home being left
+   const chooses =
+      primary.kind === 'unfiled' ||
+      (more && (primary.kind === 'untracked_grew' || primary.kind === 'reopened_in_closed'));
+   return (
+      <div className="flex flex-col">
+         {primary.kind === 'no_project' && (
+            <ProjectChooser name={name} value={project} onChange={setProject} />
+         )}
+         {chooses && pickable.length > 0 && (
+            <HomeChooser
+               name={name}
+               chooser={{ ...chooser, choices: pickable, chosen: chosen?.slug ?? '' }}
+            />
+         )}
+         <div
+            role="toolbar"
+            aria-label={`Decisions for ${name}`}
+            onKeyDown={arrowsAmong}
+            className="flex flex-wrap items-center gap-2"
+         >
+            {options.map((o, k) => {
+               const filled = k === 0 && !!o.call;
+               return (
+                  <button
+                     key={o.words}
+                     type="button"
+                     tabIndex={k === 0 ? 0 : -1}
+                     data-decide-focus={k === 0 || undefined}
+                     aria-describedby={k === 0 ? describedBy : undefined}
+                     aria-label={`${o.words}: ${name}`}
+                     disabled={!o.call}
+                     title={o.call ? undefined : 'Choose one above first'}
+                     onClick={() => o.call && onCall(o.call)}
+                     className={`hit pressable inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-medium disabled:opacity-60 ${
+                        // filled only when there's an answer to make
+                        filled
+                           ? 'border-brand bg-brand text-surface hover:opacity-90'
+                           : 'border-line bg-surface text-ink-2 hover:border-brand hover:text-brand'
+                     }`}
+                  >
+                     {o.words}
+                     {filled && o.suggested && (
+                        <span className="text-[11px] font-normal opacity-80">Suggested</span>
+                     )}
+                  </button>
+               );
+            })}
+            {primary.kind !== 'unfiled' && primary.kind !== 'no_project' && !more && (
+               <button
+                  type="button"
+                  tabIndex={-1}
+                  aria-expanded={false}
+                  aria-label={`${moreWords}: ${name}`}
+                  onClick={() => setMore(true)}
+                  className="hit pressable inline-flex h-8 items-center rounded-lg border border-line bg-surface px-3 text-[13px] font-medium text-ink-2 hover:border-brand hover:text-brand"
+               >
+                  {moreWords}
+               </button>
+            )}
+         </div>
+      </div>
+   );
+}
+
+/**
+ * Decide's Initiative switch, beside the team switch: an owner runs their
+ * slice. A select, since there can be twenty; each names how many are owed,
+ * and only the ones with something owed are offered (and the one picked):
+ * the open homes in rank order, a closed initiative while a project in it
+ * is asked about, then Unsorted.
+ */
+export function InitiativeSwitch({
+   initiatives,
+   owedIn,
+   value,
+   onChange,
+}: {
+   initiatives: readonly Initiative[];
+   owedIn: (slug: string) => number;
+   value: string | null;
+   onChange: (slug: string | null) => void;
+}) {
+   const id = useId();
+   const counted = (label: string, count: number) => (count ? `${label} · ${count}` : label);
+   const closed = byRank(initiatives).filter(i => i.status !== 'open');
+   const offered = [
+      ...[...homeChoices(initiatives), ...closed].map(i => [i.slug, i.name] as const),
+      [UNSORTED, UNSORTED_WORD] as const,
+   ].filter(([slug]) => owedIn(slug) > 0 || slug === value);
+   if (!offered.length) return null;
+   return (
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-ink-3">
+         <label htmlFor={id}>Initiative</label>
+         <select
+            id={id}
+            value={value ?? ''}
+            onChange={e => onChange(e.target.value || null)}
+            className={`h-8 px-2 text-[13px] text-ink ${textInputClass}`}
+         >
+            <option value="">All initiatives</option>
+            {offered.map(([slug, name]) => (
+               <option key={slug} value={slug}>
+                  {counted(name, owedIn(slug))}
+               </option>
+            ))}
+         </select>
+      </div>
    );
 }

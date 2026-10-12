@@ -152,16 +152,16 @@ describe('the initiatives store', () => {
    });
 });
 
-describe('untrackedNow', () => {
+describe('isNotTrackedNow', () => {
    it('takes a filing’s word over the server’s, and the server’s with none', async () => {
-      const { untrackedNow } = await load();
+      const { isNotTrackedNow } = await load();
       const list = [
          initiative(1, 'a', ['tracked']),
          initiative(2, 'nt', ['shelved'], { kind: 'untracked' }),
       ] as Initiative[];
-      expect(untrackedNow('tracked', true, list)).toBe(false);
-      expect(untrackedNow('shelved', false, list)).toBe(true);
-      expect(untrackedNow('repo-default', true, list)).toBe(true);
-      expect(untrackedNow('shelved', false, null)).toBe(false);
+      expect(isNotTrackedNow('tracked', true, list)).toBe(false);
+      expect(isNotTrackedNow('shelved', false, list)).toBe(true);
+      expect(isNotTrackedNow('repo-default', true, list)).toBe(true);
+      expect(isNotTrackedNow('shelved', false, null)).toBe(false);
    });
 });

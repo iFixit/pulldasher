@@ -245,7 +245,7 @@ export const API_ROUTES = [
       does:
          'Every initiative in rank order (top first): slug, name, goal, owner, kind (`initiative`, `upkeep` for ' +
          'Keep the lights on, `untracked` for Not tracked), status and `status_at`, the projects filed in it ' +
-         '(`projects`: slug, set_by, set_at, baseline_prs) and `span`, read off their plans: the earliest start, ' +
+         '(`projects`: each `{project, set_by, set_at, baseline_prs}`) and `span`, read off their plans: the earliest start, ' +
          'the latest end under way, how many plans under way have an end or none, and `end_kind` (soft, ongoing, ' +
          'or ended on `ended`). A project with no filing is Unsorted',
    },
@@ -370,11 +370,13 @@ export function apiIndex(req, res) {
             issues_done:
                'every issue in its project is closed (`done`, `dropped`), and the plan running today hasn’t changed since the last one closed; `open` = its PRs still open',
             unfiled: `in no initiative, with ${DECIDE_MIN_PRS} or more PRs or a plan under way (asked once any initiative exists; a project asked \`new\` is filed from that call)`,
+            no_project:
+               'an active plan with no project, which can’t be filed in an initiative until it has one (asked once any initiative exists); answer by PATCHing its `project`',
             untracked_grew: `not tracked, and opened \`since\` PRs since it was set so: at least its count then (\`baseline\`) and ${GROWTH_FLOOR}`,
             goal_reached:
-               'every project of the open `initiative` is done, dropped, parked, or quiet with no plan, for 14 days; Keep open quiets it until one changes',
+               'no project of the open `initiative` has a plan under way or PRs open, every plan in it stopped 14 days ago or more, and no project with no plan merged lately; Keep open quiets it until a plan or filing in it changes',
             reopened_in_closed:
-               'its `initiative` is closed (`as` done or dropped), but it has open PRs or a plan under way again',
+               'its `initiative` is closed (`as` done or dropped), but it has open PRs or a plan under way again: the same rule that refuses a close. On the project’s own row when it has one',
          },
          to_clear:
             'Make the call as a roadmap write. With no item: POST /api/v1/roadmap {name, project, status, ' +

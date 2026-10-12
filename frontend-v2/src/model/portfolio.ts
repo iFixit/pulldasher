@@ -40,7 +40,9 @@ import {
    NEEDS_A_PLAN,
    NO_PLAN,
    NO_UPDATE_YET,
+   NO_PROJECT_YET,
    pastEnd,
+   UNSORTED_WORD,
    UPDATE_DUE,
 } from './words';
 
@@ -265,16 +267,17 @@ function callWords(reason: DecideReason): Pick<PlanCell, 'kind' | 'text'> {
          return { kind: 'stalled', text: 'Stalled' };
       case 'new':
          return { kind: 'no_plan', text: NEEDS_A_PLAN };
-      // the initiative calls (shared/model/decide.ts): words until the
-      // board's Decide answers them
+      // the initiative calls (shared/model/decide.ts), in Decide's section words
       case 'unfiled':
-         return { kind: 'no_plan', text: 'In no initiative' };
+         return { kind: 'no_plan', text: UNSORTED_WORD };
+      case 'no_project':
+         return { kind: 'no_plan', text: NO_PROJECT_YET };
       case 'untracked_grew':
-         return { kind: 'no_plan', text: 'Still not tracked?' };
+         return { kind: 'no_plan', text: 'Not tracked, but growing' };
       case 'reopened_in_closed':
          return { kind: 'reopened', text: 'Its initiative is closed, still worked on' };
       case 'goal_reached':
-         return { kind: 'issues_done', text: 'Did it reach its goal?' };
+         return { kind: 'issues_done', text: 'Goal maybe reached' };
    }
 }
 
@@ -792,7 +795,7 @@ export const GROUPINGS: [string, string][] = [
 ];
 
 /** The group for projects in no initiative. */
-export const UNSORTED_TITLE = 'Unsorted';
+export const UNSORTED_TITLE = UNSORTED_WORD;
 
 /**
  * The team a project mostly belongs to: the team most of its developers
@@ -828,7 +831,10 @@ export function groupItems(
    by: string,
    nameOf: (slug: string) => string = slug => slug,
    teams: readonly string[] = [],
-   initiatives: readonly Initiative[] = []
+   initiatives: readonly Initiative[] = [],
+   /** by initiative: the ones drawn even with no project in the list (one
+    * Decide asks about, which keeps its band where its question is) */
+   keep: ReadonlySet<number> = new Set()
 ): {
    title: string;
    items: PortfolioItem[];
@@ -836,7 +842,7 @@ export function groupItems(
    /** by initiative: the one the group is, absent for Unsorted */
    initiative?: Initiative;
 }[] {
-   if (by === 'initiative') return byInitiative(items, initiatives);
+   if (by === 'initiative') return byInitiative(items, initiatives, keep);
    if (by !== 'parent' && by !== 'lead' && by !== 'team')
       return [{ title: '', items: [...items], repeats: new Set() }];
    const none = { parent: 'No parent', lead: 'No lead', team: 'No team' }[by];
@@ -878,7 +884,8 @@ export function groupItems(
  */
 function byInitiative(
    items: readonly PortfolioItem[],
-   initiatives: readonly Initiative[]
+   initiatives: readonly Initiative[],
+   keep: ReadonlySet<number>
 ): {
    title: string;
    items: PortfolioItem[];
@@ -904,7 +911,7 @@ function byInitiative(
       repeats: ReadonlySet<string>;
       initiative?: Initiative;
    }[] = ranked.flatMap(i =>
-      groups.has(i.id)
+      groups.has(i.id) || keep.has(i.id)
          ? [
               {
                  title: i.name,

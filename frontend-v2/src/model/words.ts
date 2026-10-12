@@ -45,6 +45,16 @@ export const BEING_WORKED_ON = 'being worked on';
 export const NOT_SAID = 'Not said';
 /** the board's bucket for small work that isn't worth a project */
 export const ONE_OFFS = 'Small work, no project';
+/** a project filed nowhere: in no initiative, Keep the lights on or Not
+ * tracked. Its one name on every band, chooser, hover and split */
+export const UNSORTED_WORD = 'Unsorted';
+/** a plan with no project label, which can't be filed until it has one */
+export const NO_PROJECT_YET = 'No project yet';
+/** an initiative's goal, as its own line beside a question about it */
+export const GOAL = 'Goal';
+/** what Not tracked means, the same wherever it's explained */
+export const NOT_TRACKED_GLOSS =
+   'Projects set not tracked: personal and team workflow nobody reports on. They count in no load, tile, tab or question and owe no update, but Decide asks again if one doubles in size.';
 /** someone on more projects than the overload line (model/retro.ts) */
 export const OVERLOADED = 'overloaded';
 /** a project whose issues are all closed, as a label */

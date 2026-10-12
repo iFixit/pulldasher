@@ -1,7 +1,6 @@
 import {
    createContext,
    useCallback,
-   useContext,
    useEffect,
    useId,
    useMemo,
@@ -71,10 +70,9 @@ import {
    fileProject,
    readInitiatives,
    updateInitiative,
-   useInitiativesValue,
    type Home,
 } from '../../model/initiativesData';
-import { guessHome, homeChoices, UNSORTED } from '../../model/initiativeBoard';
+import { UNSORTED } from '../../model/initiativeBoard';
 import { homesOf } from '../../../../shared/model/initiatives';
 import {
    ALL_ISSUES_CLOSED,
@@ -83,6 +81,7 @@ import {
    COMMIT_THROUGH,
    COPY_AS_TEXT,
    DONE_WHEN,
+   GOAL,
    IN_PROGRESS,
    LAST_14_DAYS,
    missedTarget,
@@ -92,6 +91,8 @@ import {
    pastEnd,
    PLAN_IT,
    targetOn,
+   NO_PROJECT_YET,
+   UNSORTED_WORD,
 } from '../../model/words';
 import type { WorkData } from '../../model/workData';
 import {
@@ -115,6 +116,7 @@ import {
    type ProjectsNav,
 } from './parts';
 import { PLAN_STATUS_WORD, vouchWords, when } from './roadmapHealth';
+import { HomeChooser, HomeStrip, InitiativeSwitch, useHomeChooser } from './Initiatives';
 
 /** The decisions owed now, worst first, for this view, the tab's label and
  * the Overview's tile. `today` and `items` are the tracked ones; the
@@ -170,18 +172,18 @@ const SECTIONS: {
    more: string[];
 }[] = [
    {
+      kinds: ['reopened_in_closed'],
+      title: 'Its initiative is closed, still worked on',
+      more: [
+         'Its initiative was closed as done or dropped, and the project has open PRs or a plan under way again. Reopen the initiative, or move the project to another. A plan of its own marked done but still worked on is asked about once this is answered.',
+      ],
+   },
+   {
       kinds: ['reopened'],
       title: 'Done or dropped, still worked on',
       more: [
          'Marked done or dropped, on the roadmap or by closing its issue, but a week after that a PR is still open, or a new PR opened more than a week after it was marked.',
          ONGOING_HELP,
-      ],
-   },
-   {
-      kinds: ['reopened_in_closed'],
-      title: 'Its initiative is closed, still worked on',
-      more: [
-         'Its initiative was closed as done or dropped, and the project has open PRs or a plan under way again. Reopen the initiative, or move the project to another.',
       ],
    },
    {
@@ -226,7 +228,7 @@ const SECTIONS: {
    },
    {
       kinds: ['goal_reached'],
-      title: 'Did it reach its goal?',
+      title: 'Goal maybe reached',
       more: [
          'Every project in the initiative is done, dropped, parked, or quiet with no plan, and has been for two weeks. Close it, or keep it open; kept open, it’s asked again only once something in it changes.',
       ],
@@ -255,14 +257,21 @@ const SECTIONS: {
    },
    {
       kinds: ['unfiled'],
-      title: 'In no initiative',
+      title: UNSORTED_WORD,
       more: [
-         `In no initiative yet, with ${DECIDE_MIN_PRS} or more PRs open or merged in the ${LAST_14_DAYS} or a plan under way. File it in an initiative, in Keep the lights on, or in Not tracked.`,
+         `Filed nowhere yet, with ${DECIDE_MIN_PRS} or more PRs open or merged in the ${LAST_14_DAYS} or a plan under way. File it in an initiative, in Keep the lights on, or in Not tracked.`,
+      ],
+   },
+   {
+      kinds: ['no_project'],
+      title: NO_PROJECT_YET,
+      more: [
+         'An active plan with no project label, so it can’t be filed in an initiative. Link it to its project, and it goes where that project is filed.',
       ],
    },
    {
       kinds: ['untracked_grew'],
-      title: 'Still not tracked?',
+      title: 'Not tracked, but growing',
       more: [
          'Set Not tracked, and since then it has opened as many PRs as it had before, and 30 or more. Keep it not tracked and the count starts again, or track it in an initiative.',
       ],
@@ -272,8 +281,9 @@ const SECTIONS: {
 const sectionOf = (row: DecideRow) =>
    SECTIONS.findIndex(s => row.reasons.some(r => s.kinds.includes(r.kind)));
 
-/** The reason that put a row in its section: the one its question asks. */
-const primaryOf = (row: DecideRow) =>
+/** The reason that put a row in its section: the one its question asks.
+ * Every view that asks a row's question asks this one. */
+export const primaryOf = (row: DecideRow) =>
    row.reasons.find(r => SECTIONS[sectionOf(row)].kinds.includes(r.kind)) ?? row.reasons[0];
 
 /** A section's question asked of all its rows at once: "Park them for
@@ -338,12 +348,13 @@ const nameOf = (row: DecideRow, project?: Pick<PortfolioItem, 'name'>) =>
    initiativeById(askedInitiative(row))?.name ??
    'A plan';
 /** An initiative by id, as the board has them now. */
-const initiativeById = (id: number | null) =>
+export const initiativeById = (id: number | null) =>
    id == null ? undefined : readInitiatives().initiatives?.find(i => i.id === id);
 /** The reasons that ask where a project belongs, or about an initiative,
  * and are answered by a filing or the initiative's status, not a plan. */
 const HOME_KINDS: readonly DecideReason['kind'][] = [
    'unfiled',
+   'no_project',
    'untracked_grew',
    'goal_reached',
    'reopened_in_closed',
@@ -366,10 +377,14 @@ export type Call =
    | { kind: 'done' }
    | { kind: 'drop' }
    | { kind: 'ongoing' }
-   /** file the project in the initiative with slug `to`, named `name` */
-   | { kind: 'file'; to: string; name: string }
-   /** keep it Not tracked, starting its count again */
-   | { kind: 'keep_untracked' }
+   /** file the project in the initiative with slug `to`, named `name`;
+    * `untracked` when that's Not tracked */
+   | { kind: 'file'; to: string; name: string; untracked?: boolean }
+   /** keep it Not tracked (the initiative with slug `to`), starting its
+    * count again */
+   | { kind: 'keep_untracked'; to: string }
+   /** give a plan with no project its project, by slug */
+   | { kind: 'link'; project: string; name: string }
    /** close the initiative asked about */
    | { kind: 'close'; as: 'done' | 'dropped' }
    /** keep it open, asked again only once something in it changes */
@@ -382,10 +397,10 @@ type PlanCallKind = Extract<Call, { kind: 'commit' | 'park' | 'done' | 'drop' }>
 /** The calls that write a filing or an initiative's status. */
 type HomeCall = Extract<
    Call,
-   { kind: 'file' | 'keep_untracked' | 'close' | 'keep_open' | 'reopen' }
+   { kind: 'file' | 'keep_untracked' | 'link' | 'close' | 'keep_open' | 'reopen' }
 >;
 const isHomeCall = (call: Call): call is HomeCall =>
-   ['file', 'keep_untracked', 'close', 'keep_open', 'reopen'].includes(call.kind);
+   ['file', 'keep_untracked', 'link', 'close', 'keep_open', 'reopen'].includes(call.kind);
 
 /** A filing that rides along with a plan call: the home picked in the row's
  * Initiative chooser, when it differs from the one it has. */
@@ -394,7 +409,13 @@ export interface Filed {
    name: string;
    /** the home it had, which `expect` checks and Undo puts back */
    from: string | null;
+   /** it's Not tracked */
+   untracked?: boolean;
 }
+
+/** Where a filing puts a project, mid-sentence: "Not tracked", "in X". */
+const filedWhere = (filed: Pick<Filed, 'name' | 'untracked'>) =>
+   filed.untracked ? 'Not tracked' : `in ${filed.name}`;
 
 /** The question that asks a plan to end later: its answers are only ends
  * after the one it has. */
@@ -435,6 +456,8 @@ export function askOf(reason: DecideReason): {
       // where it belongs: answered with a filing or the initiative's status
       case 'unfiled':
          return { question: 'Which initiative is it in?', call: 'file' };
+      case 'no_project':
+         return { question: 'Which project is it?', call: 'link' };
       case 'untracked_grew':
          return { question: 'Still not tracked?', call: 'keep_untracked' };
       case 'goal_reached':
@@ -484,13 +507,29 @@ export function answerOf(
    if (!row.reasons.length) return null;
    // a filing or an initiative's status: its own strip suggests it (HomeStrip)
    if (isHomeReason(primaryOf(row))) return null;
-   const asked = askOf(primaryOf(row)).call as Exclude<Call['kind'], HomeCall['kind']>;
+   const asked = restarted(row)
+      ? 'commit'
+      : (askOf(primaryOf(row)).call as Exclude<Call['kind'], HomeCall['kind']>);
    if (asked !== 'commit') return { kind: asked };
    const plan = row.item;
    const end = endsFor(row, project, today).find(
       c => !plan || plan.end_kind === 'ongoing' || weeksThrough(plan.start, c.end) >= plan.weeks
    );
    return end ? { kind: 'commit', ...end } : null;
+}
+
+/** A finished plan still worked on whose initiative was reopened after it
+ * finished: the work started again, so its answer restarts it rather than
+ * keeping it done. */
+function restarted(row: DecideRow): boolean {
+   const plan = row.item;
+   if (!plan || !row.slug || primaryOf(row).kind !== 'reopened') return false;
+   const home = homesOf(readInitiatives().initiatives ?? []).get(row.slug)?.initiative;
+   return (
+      home?.kind === 'initiative' &&
+      home.status === 'open' &&
+      (home.status_at ?? 0) > (plan.status_at ?? plan.updated_at ?? 0)
+   );
 }
 
 const VERBS: Record<Call['kind'], [string, string]> = {
@@ -501,6 +540,7 @@ const VERBS: Record<Call['kind'], [string, string]> = {
    ongoing: ['Mark', 'Marked'],
    file: ['File', 'Filed'],
    keep_untracked: ['Keep', 'Kept'],
+   link: ['Link', 'Linked'],
    close: ['Close', 'Closed'],
    keep_open: ['Keep', 'Kept'],
    reopen: ['Reopen', 'Reopened'],
@@ -564,9 +604,11 @@ export function answerWords(call: Call, plan: RoadmapItem | null): string {
       case 'ongoing':
          return 'Mark ongoing';
       case 'file':
-         return call.to === 'not-tracked' ? 'Set not tracked' : `File in ${call.name}`;
+         return call.untracked ? 'Set not tracked' : `File in ${call.name}`;
       case 'keep_untracked':
          return 'Keep not tracked';
+      case 'link':
+         return `Link to ${call.name}`;
       case 'close':
          return call.as === 'done' ? 'Close as done' : 'Close as dropped';
       case 'keep_open':
@@ -648,7 +690,11 @@ function reasonFacts(reason: DecideReason, item: RoadmapItem | null, bare = fals
             : `All its issues are closed (${tally})${open}`;
       }
       case 'unfiled':
-         return bare ? 'It isn’t filed anywhere yet' : 'It’s in no initiative';
+         return bare ? 'Filed nowhere yet' : `It’s ${UNSORTED_WORD}, filed nowhere yet`;
+      case 'no_project':
+         return bare
+            ? 'Under way with no project label'
+            : 'It has no project, so it can’t be filed in an initiative';
       case 'untracked_grew':
          return `${n(reason.baseline + reason.since, 'PR')}, ${
             reason.since
@@ -773,10 +819,10 @@ export function callWords(
    row: DecideRow,
    project: Pick<PortfolioItem, 'open' | 'ongoing'> | undefined,
    today: string,
-   filed?: Pick<Filed, 'to' | 'name'>
+   filed?: Pick<Filed, 'name' | 'untracked'>
 ): string {
    // a plan call that files the project too says where, once
-   const home = filed && (filed.to === 'not-tracked' ? 'Not tracked' : `in ${filed.name}`);
+   const home = filed && filedWhere(filed);
    if (home && call.kind !== 'commit' && !isHomeCall(call)) {
       return `${callWords(call, row, project, today)} It’s ${home} now.`;
    }
@@ -787,9 +833,11 @@ export function callWords(
             home ? `, ${home}` : ''
          }. Decide asks again if it runs past that.`;
       case 'file':
-         return call.to === 'not-tracked'
+         return call.untracked
             ? 'Set not tracked, so it counts nowhere. Decide asks again if it grows.'
             : `Filed in ${call.name}.`;
+      case 'link':
+         return `Linked to ${call.name}, so it goes where that project is filed.`;
       case 'keep_untracked':
          return 'Kept not tracked. Its count starts again, so Decide asks only if it doubles again.';
       case 'close':
@@ -878,7 +926,7 @@ export function keepCalls(
       const again = byKey.get(key);
       if (m.state !== 'made') {
          if (!again && m.row.reasons.length) back.push(m.row);
-      } else if (!again || kindsOf(again) === kindsOf(m.row)) {
+      } else if (!again || kindsOf(again) === kindsOf(m.row) || answeredHome(m, again)) {
          settled.set(key, m);
       }
    }
@@ -886,6 +934,13 @@ export function keepCalls(
    const all = [...owed, ...[...settled.values()].map(m => m.row)].sort(compareRows);
    return { owed, all, settled };
 }
+
+/** A filing or status call on a row that also asked about its plan: the
+ * row comes back with only the plan's reasons, which it asks on the next
+ * visit, so this one keeps the receipt and its Undo. */
+const answeredHome = (m: Made, again: DecideRow) =>
+   isHomeCall(m.call) &&
+   kindsOf(again) === kindsOf({ ...m.row, reasons: m.row.reasons.filter(r => !isHomeReason(r)) });
 
 /** keepCalls on this visit's calls, for a view that lists Decide's rows. */
 export function useKeptCalls(queue: readonly DecideRow[]) {
@@ -988,6 +1043,8 @@ function afterRow(
 interface Landed {
    id: number | null;
    home?: { project: string; before: Home };
+   /** the plan a link gave a project */
+   linked?: number;
    initiative?: {
       id: number;
       was: { status: Initiative['status']; updated_at: number | null; status_at: number | null };
@@ -1006,10 +1063,15 @@ async function homeWrite(
    call: HomeCall
 ): Promise<Omit<Landed, 'id'> | { why: string }> {
    const slug = row.slug;
+   if (call.kind === 'link') {
+      if (!row.item) return { why: '' };
+      return (await updateRoadmapItem(row.item.id, { project: call.project }))
+         ? { linked: row.item.id }
+         : { why: takeProblem() };
+   }
    if (call.kind === 'file' || call.kind === 'keep_untracked') {
       if (!slug) return { why: '' };
-      const to = call.kind === 'file' ? call.to : 'not-tracked';
-      const r = await fileProject(slug, to, { expect: homeSlugOf(slug) });
+      const r = await fileProject(slug, call.to, { expect: homeSlugOf(slug) });
       return 'error' in r
          ? { why: whyNot(r.error) }
          : { home: { project: slug, before: r.before } };
@@ -1137,7 +1199,15 @@ function undoCall(key: string, batch?: { after: Promise<unknown> }): Promise<unk
          if (!saved) return;
          let why: string | null = null;
          const was = made.row.item;
-         if (isHomeCall(made.call)) {
+         if (saved.linked != null) {
+            // with the times the link replaced, as a plan call's Undo sends
+            const undo =
+               was?.updated_at != null
+                  ? { updated_at: was.updated_at, status_at: was.status_at ?? null }
+                  : undefined;
+            if (!(await updateRoadmapItem(saved.linked, { project: null }, { undo })))
+               why = takeProblem();
+         } else if (isHomeCall(made.call)) {
             // a filing or a status: no plan to put back
          } else if (made.call.kind === 'ongoing' && !ongoingPlan(made.row)) {
             const r = await setOngoing(made.row.slug as string, false);
@@ -1218,7 +1288,7 @@ function sayOrigin(key: string, origin: RoadmapOrigin | null): void {
 
 /** Left and right, Home and End move the focus among a group's buttons, so
  * the group is one Tab stop: the button with tabIndex 0. */
-function arrowsAmong(e: ReactKeyboardEvent<HTMLElement>): void {
+export function arrowsAmong(e: ReactKeyboardEvent<HTMLElement>): void {
    const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
    if (!step && e.key !== 'Home' && e.key !== 'End') return;
    const buttons = [...e.currentTarget.querySelectorAll<HTMLElement>('button')];
@@ -1340,11 +1410,9 @@ export function DecideCall({
             <p className="m-0 flex min-h-[30px] flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-ink-2">
                <span aria-hidden>
                   {shown.filed && shown.filedBefore
-                     ? `${upperFirst(
-                          shown.filed.to === 'not-tracked'
-                             ? 'set not tracked'
-                             : `filed in ${shown.filed.name}`
-                       )}; the plan didn’t save.`
+                     ? `${
+                          shown.filed.untracked ? 'Set not tracked' : `Filed in ${shown.filed.name}`
+                       }; the plan didn’t save.`
                      : 'Didn’t save.'}
                   {shown.why}
                </span>
@@ -1409,11 +1477,15 @@ export function DecideCall({
             />
          ) : (
             <>
+               {/* where it goes, then the answer that files it there */}
+               {chooser.shown && <HomeChooser name={name} chooser={chooser} />}
                <CallStrip
                   row={row}
                   name={name}
                   project={project}
                   describedBy={describedBy}
+                  waiting={chooser.shown && !chooser.chosen}
+                  alsoFiles={chooser.filed && filedWhere(chooser.filed)}
                   onCall={call =>
                      act(() => makeCall(row, call, project, undefined, chooser.filed))()
                   }
@@ -1421,221 +1493,7 @@ export function DecideCall({
                   full={opened}
                   quiet={compact}
                />
-               {chooser.shown && <HomeChooser name={name} chooser={chooser} />}
             </>
-         )}
-      </div>
-   );
-}
-
-/**
- * The Initiative chooser on a row Decide asks to plan or to file (a new or
- * unfiled project): where the project goes, filed with whatever call the row
- * gets. It starts on the home it has, so taking any answer blind moves
- * nothing; only a project with no home starts on a guess, the initiative its
- * people work in most. `filed` is the filing the next call carries, when the
- * pick differs from its home.
- */
-function useHomeChooser(row: DecideRow, { away = false }: { away?: boolean } = {}) {
-   const { initiatives } = useInitiativesValue();
-   const items = useContext(AllItemsContext);
-   const asks = row.reasons.some(r => r.kind === 'new' || r.kind === 'unfiled');
-   const list = initiatives ?? [];
-   const current = row.slug ? homesOf(list).get(row.slug)?.initiative ?? null : null;
-   // `away`: moving it out of the home it has (Track it, Move the project),
-   // so it starts on the guess
-   const guess =
-      (!current || away) && row.slug && list.length ? guessHome(row.slug, items, list) : null;
-   const [pick, setPick] = useState<string | null>(null);
-   const choices = homeChoices(list);
-   const chosen = pick ?? (away ? guess?.slug : current?.slug ?? guess?.slug) ?? '';
-   const to = choices.find(i => i.slug === chosen);
-   return {
-      shown: asks && !!row.slug && choices.length > 0,
-      choices,
-      chosen,
-      current,
-      guessed: (!current || away) && !!guess && chosen === guess.slug,
-      setPick,
-      filed:
-         to && to.slug !== current?.slug
-            ? ({ to: to.slug, name: to.name, from: current?.slug ?? null } as Filed)
-            : undefined,
-   };
-}
-
-/** The chooser's line: "Initiative [Release safety]", with "guessed" while
- * it shows a guess. A select, so the keyboard and a screen reader get the
- * platform's own list. */
-function HomeChooser({
-   name,
-   chooser,
-   label = 'Initiative',
-}: {
-   name: string;
-   chooser: ReturnType<typeof useHomeChooser>;
-   label?: string;
-}) {
-   const id = useId();
-   return (
-      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-ink-3">
-         <label htmlFor={id} className="w-full sm:w-32 sm:shrink-0">
-            {label}
-         </label>
-         <select
-            id={id}
-            aria-label={`Initiative for ${name}`}
-            value={chooser.chosen}
-            onChange={e => chooser.setPick(e.target.value)}
-            className={`h-8 px-2 text-[13px] text-ink ${textInputClass}`}
-         >
-            {!chooser.chosen && <option value="">Choose where it goes</option>}
-            {chooser.choices.map(i => (
-               <option key={i.slug} value={i.slug}>
-                  {i.name}
-               </option>
-            ))}
-         </select>
-         {chooser.guessed && (
-            <span
-               className="underline decoration-dotted underline-offset-2"
-               title="It’s in no initiative yet. This is the one its people work in most."
-            >
-               guessed
-            </span>
-         )}
-      </div>
-   );
-}
-
-/**
- * The answers to a row that asks where a project belongs, or about an
- * initiative, in the same shape as CallStrip: the suggested answer filled,
- * then Other answers. In no initiative: File in the chooser's pick. Still
- * not tracked: Keep not tracked, or Track it, which opens the chooser. Did
- * it reach its goal: Close as done, or Close as dropped or Keep open. Its
- * initiative closed: Reopen it, or move the project with the chooser.
- */
-function HomeStrip({
-   row,
-   name,
-   describedBy,
-   onCall,
-}: {
-   row: DecideRow;
-   name: string;
-   describedBy?: string;
-   onCall: (call: Call) => void;
-}) {
-   const [more, setMore] = useState(false);
-   const primary = primaryOf(row);
-   const chooser = useHomeChooser(row, { away: primary.kind !== 'unfiled' });
-   const initiative = initiativeById(askedInitiative(row));
-   const fileTo = (): Call | null => {
-      const to = chooser.choices.find(i => i.slug === chooser.chosen);
-      return to ? { kind: 'file', to: to.slug, name: to.name } : null;
-   };
-   const filing = fileTo();
-   const options: { call: Call | null; words: string }[] =
-      primary.kind === 'unfiled'
-         ? [{ call: filing, words: filing ? answerWords(filing, null) : 'File it' }]
-         : primary.kind === 'untracked_grew'
-         ? [
-              { call: { kind: 'keep_untracked' }, words: 'Keep not tracked' },
-              ...(more && filing?.kind === 'file' && filing.to !== 'not-tracked'
-                 ? [{ call: filing, words: answerWords(filing, null) }]
-                 : []),
-           ]
-         : primary.kind === 'goal_reached'
-         ? [
-              { call: { kind: 'close', as: 'done' }, words: 'Close as done' },
-              ...(more
-                 ? [
-                      { call: { kind: 'close', as: 'dropped' } as Call, words: 'Close as dropped' },
-                      { call: { kind: 'keep_open' } as Call, words: 'Keep open' },
-                   ]
-                 : []),
-           ]
-         : [
-              {
-                 call: { kind: 'reopen' },
-                 words: initiative ? `Reopen ${initiative.name}` : 'Reopen it',
-              },
-              ...(more && filing?.kind === 'file' && filing.to !== initiative?.slug
-                 ? [{ call: filing, words: `Move it to ${filing.name}` }]
-                 : []),
-           ];
-   const moreWords =
-      primary.kind === 'untracked_grew'
-         ? 'Track it'
-         : primary.kind === 'reopened_in_closed'
-         ? 'Move the project'
-         : 'Other answers';
-   // Track it and Move the project open the chooser; it starts on a guess,
-   // never on the home being left
-   const chooses =
-      primary.kind === 'unfiled' ||
-      (more && (primary.kind === 'untracked_grew' || primary.kind === 'reopened_in_closed'));
-   const pickable =
-      primary.kind === 'unfiled'
-         ? chooser.choices
-         : chooser.choices.filter(
-              i => i.kind !== 'untracked' && i.slug !== (initiative?.slug ?? null)
-           );
-   return (
-      <div className="flex flex-col gap-2">
-         <div
-            role="toolbar"
-            aria-label={`Decisions for ${name}`}
-            onKeyDown={arrowsAmong}
-            className="flex flex-wrap items-center gap-2"
-         >
-            {options.map((o, k) => (
-               <button
-                  key={o.words}
-                  type="button"
-                  tabIndex={k === 0 ? 0 : -1}
-                  data-decide-focus={k === 0 || undefined}
-                  aria-describedby={k === 0 ? describedBy : undefined}
-                  aria-label={`${o.words}: ${name}`}
-                  disabled={!o.call}
-                  onClick={() => o.call && onCall(o.call)}
-                  className={`hit pressable inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-medium disabled:opacity-60 ${
-                     // filled only when there's an answer to suggest
-                     k === 0 && o.call
-                        ? 'border-brand bg-brand text-surface hover:opacity-90'
-                        : 'border-line bg-surface text-ink-2 hover:border-brand hover:text-brand'
-                  }`}
-               >
-                  {o.words}
-                  {k === 0 && o.call && (
-                     <span className="text-[11px] font-normal opacity-80">Suggested</span>
-                  )}
-               </button>
-            ))}
-            {primary.kind !== 'unfiled' && !more && (
-               <button
-                  type="button"
-                  tabIndex={-1}
-                  aria-expanded={false}
-                  aria-label={`${moreWords}: ${name}`}
-                  onClick={() => setMore(true)}
-                  className="hit pressable inline-flex h-8 items-center rounded-lg border border-line bg-surface px-3 text-[13px] font-medium text-ink-2 hover:border-brand hover:text-brand"
-               >
-                  {moreWords}
-               </button>
-            )}
-         </div>
-         {chooses && pickable.length > 0 && (
-            <HomeChooser
-               name={name}
-               chooser={{
-                  ...chooser,
-                  choices: pickable,
-                  chosen: pickable.some(i => i.slug === chooser.chosen) ? chooser.chosen : '',
-               }}
-               label={primary.kind === 'unfiled' ? 'Initiative' : 'Move it to'}
-            />
          )}
       </div>
    );
@@ -1688,11 +1546,19 @@ function CallStrip({
    onCancel,
    full = false,
    quiet = false,
+   waiting = false,
+   alsoFiles,
 }: {
    row: DecideRow;
    name: string;
    /** its project, for its target */
    project: PortfolioItem | undefined;
+   /** the File it in chooser above has nothing picked: the answer waits
+    * for it, outlined and unmarked, as the chooser's own File button does */
+   waiting?: boolean;
+   /** where the call files the project too ("in Release safety"), said to
+    * a screen reader with each answer */
+   alsoFiles?: string;
    describedBy?: string;
    onCall: (call: Call) => void;
    /** close it again, for calls opened from Change */
@@ -1751,7 +1617,7 @@ function CallStrip({
    // long it runs, or what else becomes of it. The suggested answer is
    // filled and says so; the rest are outlined, never bare words.
    // opened from Other answers, a quiet row's answer says Suggested again
-   const marked = !quiet || more || full;
+   const marked = (!quiet || more || full) && !waiting;
    const button = (o: Option, words = o.label) => (
       <button
          key={o.label}
@@ -1759,9 +1625,11 @@ function CallStrip({
          tabIndex={o === lead ? 0 : -1}
          data-decide-focus={o === lead || undefined}
          aria-describedby={o === lead ? describedBy : undefined}
-         aria-label={o.ariaLabel}
+         aria-label={alsoFiles ? `${o.ariaLabel}, ${alsoFiles}` : o.ariaLabel}
+         disabled={waiting && o === first}
+         title={waiting && o === first ? 'Choose where it goes first' : undefined}
          onClick={() => onCall(o.call)}
-         className={`hit pressable inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-medium ${
+         className={`hit pressable inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-medium disabled:opacity-60 ${
             o === first && marked
                ? 'border-brand bg-brand text-surface hover:opacity-90'
                : 'border-line bg-surface text-ink-2 hover:border-brand hover:text-brand'
@@ -1930,7 +1798,7 @@ function useBackToRow(ready: boolean) {
    }, [ready]);
 }
 
-function DecideRowView({
+export function DecideRowView({
    row,
    decided,
    owner,
@@ -2077,6 +1945,12 @@ function DecideRowView({
                   {item?.done_when && askOf(primary).call === 'done' && (
                      <span className="block">
                         <span className="text-ink-3">{DONE_WHEN}:</span> {item.done_when}
+                     </span>
+                  )}
+                  {/* "Did it reach its goal?" beside the goal it asks about */}
+                  {primary.kind === 'goal_reached' && owner?.goal && (
+                     <span className="block">
+                        <span className="text-ink-3">{GOAL}:</span> {owner.goal}
                      </span>
                   )}
                </p>
@@ -2890,49 +2764,6 @@ function FilledInSection({
 
 /** The teams the switch offers: the configured ones in their own order,
  * then any other a row names, by name; "No team" comes after these. */
-/**
- * Decide's Initiative switch, beside the team switch: an owner runs their
- * slice. A select, since there can be twenty; each names how many are owed,
- * and only the ones with something owed are offered (and the one picked).
- */
-function InitiativeSwitch({
-   initiatives,
-   owedIn,
-   value,
-   onChange,
-}: {
-   initiatives: readonly Initiative[];
-   owedIn: (slug: string) => number;
-   value: string | null;
-   onChange: (slug: string | null) => void;
-}) {
-   const id = useId();
-   const counted = (label: string, count: number) => (count ? `${label} · ${count}` : label);
-   const offered = [
-      ...homeChoices(initiatives).map(i => [i.slug, i.name] as const),
-      [UNSORTED, 'In no initiative'] as const,
-   ].filter(([slug]) => owedIn(slug) > 0 || slug === value);
-   if (!offered.length) return null;
-   return (
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-ink-3">
-         <label htmlFor={id}>Initiative</label>
-         <select
-            id={id}
-            value={value ?? ''}
-            onChange={e => onChange(e.target.value || null)}
-            className={`h-8 px-2 text-[13px] text-ink ${textInputClass}`}
-         >
-            <option value="">All initiatives</option>
-            {offered.map(([slug, name]) => (
-               <option key={slug} value={slug}>
-                  {counted(name, owedIn(slug))}
-               </option>
-            ))}
-         </select>
-      </div>
-   );
-}
-
 export function teamOrder(configured: readonly string[], named: readonly (string | null)[]) {
    const others = named.filter((t): t is string => !!t && !configured.includes(t));
    return [...configured, ...[...new Set(others)].sort()];
@@ -3039,7 +2870,7 @@ export function Decide({
    const decidedHere = [...kept.settled.values()].filter(m => inTeam(m.row));
    const withinName = nav.within
       ? nav.within === UNSORTED
-         ? 'work in no initiative'
+         ? `${UNSORTED_WORD} projects`
          : (initiatives ?? []).find(i => i.slug === nav.within)?.name ?? nav.within
       : null;
    const whose = !nav.team
