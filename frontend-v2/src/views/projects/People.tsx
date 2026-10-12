@@ -1190,7 +1190,8 @@ export function People({
    // before it paler, so a short range still shows its trend; they keep
    // their last weeks up the same way
    const chartDays = chartWindow(range);
-   const flow = useProjectsData(chartDays);
+   // per person: every project, Not tracked ones too
+   const flow = useProjectsData(chartDays, null, { all: true });
    const freshFlow = flow !== undefined ? { flow, shown: chartDays, picked: range } : null;
    const keptFlow = useRef(freshFlow);
    if (freshFlow) keptFlow.current = freshFlow;

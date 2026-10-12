@@ -24,6 +24,7 @@ export default defineConfig({
          '/project-work': 'http://localhost:3000',
          '/project-issues': 'http://localhost:3000',
          '/roadmap': 'http://localhost:3000',
+         '/initiatives': 'http://localhost:3000',
          '/settings': 'http://localhost:3000',
       },
    },

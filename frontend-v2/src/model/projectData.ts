@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import type { Initiative } from '../../../shared/model/initiatives';
+import { dummyTracking, untrackedNow, useInitiatives } from './initiativesData';
 import { createMemoryStore } from '../storage';
 import { dateOf, dayOf } from './days';
 import { isDummy, loadDummy } from '../backend/dummy';
@@ -46,7 +48,56 @@ export interface ProjectsData {
     * puts a PR with no project label where the server does. Older servers
     * omit it. */
    pull_links?: PullLinks;
+   /** the Not tracked projects (filed so, or every PR in a repo config.js
+    * leaves untracked), and of those the ones that grew since, with the PRs
+    * `since` it was set not tracked against its count then (`baseline`).
+    * Older servers omit them. */
+   untracked?: string[];
+   grew?: string[];
+   grew_counts?: Record<string, { since: number; baseline: number }>;
    window: WindowStats;
+}
+
+/**
+ * The Not tracked slugs now: the server's list, with any filing made on this
+ * board since (initiativesData.ts untrackedNow), and every slug a filing
+ * puts in Not tracked.
+ */
+export function untrackedSlugs(
+   data: Pick<ProjectsData, 'untracked'> | null | undefined,
+   initiatives: readonly Initiative[] | null
+): Set<string> {
+   const out = new Set(
+      (data?.untracked ?? []).filter(slug => untrackedNow(slug, true, initiatives))
+   );
+   for (const i of initiatives ?? []) {
+      if (i.kind === 'untracked') for (const f of i.projects) out.add(f.project);
+   }
+   return out;
+}
+
+/**
+ * One window's data with the Not tracked projects left out of its issues and
+ * its per-project numbers, as every list and count reads it. The server's
+ * aggregates (totals, weeks, people) always count everything.
+ */
+export function trackedData<D extends ProjectsData | null | undefined>(
+   data: D,
+   initiatives: readonly Initiative[] | null
+): D {
+   if (!data) return data;
+   const out = untrackedSlugs(data, initiatives);
+   if (!out.size) return data;
+   return {
+      ...data,
+      projects: data.projects.filter(p => !out.has(p.slug)),
+      window: {
+         ...data.window,
+         projects: Object.fromEntries(
+            Object.entries(data.window.projects).filter(([slug]) => !out.has(slug))
+         ),
+      },
+   };
 }
 
 /** A login's developer team, or null for a non-developer. GitHub logins
@@ -221,6 +272,10 @@ async function dummyData({ start, end }: Range, project: string | null): Promise
       decide_rotation: dummyRotation,
       ongoing: dummyOngoing,
       pull_links: linked,
+      ...(() => {
+         const { untracked, grew } = dummyTracking();
+         return { untracked, grew: Object.keys(grew), grew_counts: grew };
+      })(),
       window: windowStats(spans, start, end, {
          teamOf: teamLookup(dummyTeams ?? DUMMY_TEAMS),
          reviews,
@@ -282,9 +337,27 @@ export function ongoingSlugs(data: ProjectsData | null | undefined): ReadonlySet
    ]);
 }
 
+/**
+ * One window's projects data, tracked (trackedData): Not tracked projects
+ * left out, unless `all` asks for every project, or the data is one named
+ * project's, which is read whole.
+ */
 export function useProjectsData(
    range: Range | null,
-   project: string | null = null
+   project: string | null = null,
+   { all = false }: { all?: boolean } = {}
+): ProjectsData | null | undefined {
+   const got = useAllProjectsData(range, project);
+   const { initiatives } = useInitiatives();
+   return useMemo(
+      () => (all || project != null ? got : trackedData(got, initiatives)),
+      [got, initiatives, all, project]
+   );
+}
+
+function useAllProjectsData(
+   range: Range | null,
+   project: string | null
 ): ProjectsData | null | undefined {
    const { n } = version.useValue();
    const base = range ? `${range.start}..${range.end}:${project ?? ''}` : '';

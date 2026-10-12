@@ -1,5 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { isDummy, loadDummy } from '../backend/dummy';
+import type { Initiative } from '../../../shared/model/initiatives';
+import { dummyTracking, untrackedNow, useInitiatives, readInitiatives } from './initiativesData';
 import { DUMMY_PROJECTS, DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } from '../backend/dummyProjects';
 import { createMemoryStore } from '../storage';
 import {
@@ -225,10 +227,13 @@ function dummyApi(): Api {
    // each with what its project did lately, as the server sends it
    const sent = async (items: readonly RoadmapItem[]) => {
       const bySlug = await dummyLately(live());
+      // as the server sets it, from the filings (lib/initiatives.js)
+      const untracked = new Set(dummyTracking().untracked);
       return items.map(r => ({
          ...r,
          waits_on: r.waits_on.filter(other => !removed.has(other)),
          lately: (r.project && bySlug.get(r.project)) || null,
+         untracked: !!r.project && untracked.has(r.project),
       }));
    };
    return {
@@ -529,10 +534,28 @@ export async function restoreRoadmapItem(id: number): Promise<boolean> {
    return true;
 }
 
-/** Put the items in this order, top first; resolves to whether it saved. If
- * someone else changed the roadmap meanwhile, the server's list wins and
- * the person hears why. */
-export async function reorderRoadmap(ids: number[]): Promise<boolean> {
+/**
+ * The whole order PUT /roadmap/order needs, from an order of only some plans
+ * (the tracked ones a view shows): those fill, in their new order, exactly
+ * the places they held in `full`, and every other plan keeps its own. An id
+ * `full` doesn't have goes last.
+ */
+export function mergeOrder(
+   full: readonly Pick<RoadmapItem, 'id'>[],
+   ids: readonly number[]
+): number[] {
+   const given = new Set(ids);
+   const queue = [...ids];
+   const merged = full.map(i => (given.has(i.id) ? (queue.shift() as number) : i.id));
+   return [...merged, ...queue];
+}
+
+/** Put the items in this order, top first; resolves to whether it saved. A
+ * list of only the tracked plans keeps every not-tracked one where it was
+ * (mergeOrder). If someone else changed the roadmap meanwhile, the server's
+ * list wins and the person hears why. */
+export async function reorderRoadmap(shownIds: number[]): Promise<boolean> {
+   const ids = mergeOrder(byPriority(store.get().items ?? []), shownIds);
    const undo = optimistic(items =>
       byPriority(items.map(i => ({ ...i, priority: ids.indexOf(i.id) })))
    );
@@ -592,9 +615,26 @@ export async function takeBackRoadmapUpdate(
    return { update };
 }
 
-/** The roadmap as the board has it now, outside React. */
-export function readRoadmap(): RoadmapState {
-   return store.get();
+/**
+ * The tracked plans: every plan but a Not tracked project's (its own flag,
+ * set by the server before anything else read it, or a filing made on this
+ * board since: initiativesData.ts untrackedNow). Every list, count and
+ * question reads these; only a reader that names the full set (`all`) sees
+ * the rest.
+ */
+export function trackedPlans<T extends Pick<RoadmapItem, 'project' | 'untracked'>>(
+   items: readonly T[],
+   initiatives: readonly Initiative[] | null
+): T[] {
+   return items.filter(i => !untrackedNow(i.project, !!i.untracked, initiatives));
+}
+
+/** The roadmap as the board has it now, outside React: the tracked plans,
+ * or every plan with `all`. */
+export function readRoadmap({ all = false }: { all?: boolean } = {}): RoadmapState {
+   const state = store.get();
+   if (all || !state.items) return state;
+   return { ...state, items: trackedPlans(state.items, readInitiatives().initiatives) };
 }
 
 export function dismissRoadmapProblem(): void {
@@ -620,8 +660,15 @@ function watch(): () => void {
    };
 }
 
-/** The roadmap, loaded now and kept fresh while any view shows it. */
-export function useRoadmap(): RoadmapState {
+/** The roadmap, loaded now and kept fresh while any view shows it: the
+ * tracked plans, or every plan with `all` (trackedPlans). */
+export function useRoadmap({ all = false }: { all?: boolean } = {}): RoadmapState {
    useEffect(watch, []);
-   return store.useValue();
+   const state = store.useValue();
+   const { initiatives } = useInitiatives();
+   return useMemo(
+      () =>
+         all || !state.items ? state : { ...state, items: trackedPlans(state.items, initiatives) },
+      [state, initiatives, all]
+   );
 }

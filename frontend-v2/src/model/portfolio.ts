@@ -29,6 +29,7 @@ import {
 import type { Status } from '../../../shared/model/status';
 import type { PullData } from '../../../shared/types';
 import type { IssueCounts } from '../../../shared/model/work';
+import { homesOf, type Initiative } from '../../../shared/model/initiatives';
 import { dayOf } from './days';
 import { dayWords } from './projectData';
 import type { ProjectWorker } from './retro';
@@ -654,14 +655,25 @@ export interface FindFields {
  * lead, team or parents. "lead:" or "team:" before a name matches the
  * leads or teams it starts, so "lead:mla" finds mlahargou's before the
  * login is typed out; "parent:" matches a parent exactly, which is what a
- * click on a parent puts in the box.
+ * click on a parent puts in the box; "initiative:" matches the start of the
+ * name or slug of the initiative a project is in (`initiativeOf`).
  */
-export function findFilter(find: string): ((row: FindFields) => boolean) | null {
+export function findFilter(
+   find: string,
+   initiativeOf: (slug: string | null) => Pick<Initiative, 'name' | 'slug'> | undefined = () =>
+      undefined
+): ((row: FindFields) => boolean) | null {
    const q = find.trim().toLowerCase();
    if (!q) return null;
-   const exact = /^(lead|team|parent):\s*(.+)$/.exec(q);
+   const exact = /^(lead|team|parent|initiative):\s*(.+)$/.exec(q);
    if (exact) {
       const [, field, name] = exact;
+      if (field === 'initiative') {
+         return row => {
+            const home = initiativeOf(row.slug);
+            return !!home && [home.name, home.slug].some(s => s.toLowerCase().startsWith(name));
+         };
+      }
       if (field === 'parent') return row => row.parents.some(p => p.toLowerCase() === name);
       return row => (row[field as 'lead' | 'team'] ?? '').toLowerCase().startsWith(name);
    }
@@ -672,8 +684,12 @@ export function findFilter(find: string): ((row: FindFields) => boolean) | null 
 }
 
 /** Whether a project's row matches the find box (findFilter). */
-export function matchesFind(item: PortfolioItem, find: string): boolean {
-   const filter = findFilter(find);
+export function matchesFind(
+   item: PortfolioItem,
+   find: string,
+   initiativeOf?: (slug: string | null) => Pick<Initiative, 'name' | 'slug'> | undefined
+): boolean {
+   const filter = findFilter(find, initiativeOf);
    return !filter || filter(item);
 }
 
@@ -770,10 +786,13 @@ export function sortItems(items: readonly PortfolioItem[], sort: string): Portfo
 
 export const GROUPINGS: [string, string][] = [
    ['none', 'No grouping'],
-   ['parent', 'Parent'],
+   ['initiative', 'Initiative'],
    ['lead', 'Lead'],
    ['team', 'Team'],
 ];
+
+/** The group for projects in no initiative. */
+export const UNSORTED_TITLE = 'Unsorted';
 
 /**
  * The team a project mostly belongs to: the team most of its developers
@@ -808,8 +827,16 @@ export function groupItems(
    items: readonly PortfolioItem[],
    by: string,
    nameOf: (slug: string) => string = slug => slug,
-   teams: readonly string[] = []
-): { title: string; items: PortfolioItem[]; repeats: ReadonlySet<string> }[] {
+   teams: readonly string[] = [],
+   initiatives: readonly Initiative[] = []
+): {
+   title: string;
+   items: PortfolioItem[];
+   repeats: ReadonlySet<string>;
+   /** by initiative: the one the group is, absent for Unsorted */
+   initiative?: Initiative;
+}[] {
+   if (by === 'initiative') return byInitiative(items, initiatives);
    if (by !== 'parent' && by !== 'lead' && by !== 'team')
       return [{ title: '', items: [...items], repeats: new Set() }];
    const none = { parent: 'No parent', lead: 'No lead', team: 'No team' }[by];
@@ -841,6 +868,56 @@ export function groupItems(
          for (const i of list) seen.add(i.slug);
          return { title, items: list, repeats };
       });
+}
+
+/**
+ * Projects by initiative, each group in its initiative's rank (closed ones
+ * after the open), the projects in the list's own order inside, and
+ * Unsorted last, only when it holds one. Not tracked projects aren't in
+ * `items`: the Overview draws them in their own group.
+ */
+function byInitiative(
+   items: readonly PortfolioItem[],
+   initiatives: readonly Initiative[]
+): {
+   title: string;
+   items: PortfolioItem[];
+   repeats: ReadonlySet<string>;
+   initiative?: Initiative;
+}[] {
+   const homes = homesOf(initiatives);
+   const groups = new Map<number | null, PortfolioItem[]>();
+   for (const item of items) {
+      const home = homes.get(item.slug)?.initiative;
+      const key = home && home.kind !== 'untracked' ? home.id : null;
+      groups.set(key, [...(groups.get(key) ?? []), item]);
+   }
+   const ranked = [...initiatives].sort(
+      (a, b) =>
+         Number(a.status !== 'open') - Number(b.status !== 'open') ||
+         a.priority - b.priority ||
+         a.id - b.id
+   );
+   const out: {
+      title: string;
+      items: PortfolioItem[];
+      repeats: ReadonlySet<string>;
+      initiative?: Initiative;
+   }[] = ranked.flatMap(i =>
+      groups.has(i.id)
+         ? [
+              {
+                 title: i.name,
+                 items: groups.get(i.id) ?? [],
+                 repeats: new Set<string>(),
+                 initiative: i,
+              },
+           ]
+         : []
+   );
+   const loose = groups.get(null);
+   if (loose?.length) out.push({ title: UNSORTED_TITLE, items: loose, repeats: new Set() });
+   return out;
 }
 
 const STAGE_WORD: Record<Stage, string> = {

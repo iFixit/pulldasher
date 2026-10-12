@@ -42,7 +42,8 @@ async function dummyStanding(): Promise<ProjectStanding> {
       import('../../../shared/model/roadmap'),
    ]);
    await loadRoadmap();
-   const items = readRoadmap().items ?? [];
+   // every plan, not-tracked ones too: the review board ranks every PR
+   const items = readRoadmap({ all: true }).items ?? [];
    const plans: ProjectStanding['plans'] = {};
    for (const slug of new Set(items.flatMap(i => (i.project ? [i.project] : [])))) {
       const plan = planFor(slug, items);

@@ -840,7 +840,8 @@ export function PlanFacts({
    /** it has work in flight, so the roadmap's list of work with no plan has it */
    live?: boolean;
 }) {
-   const { items } = useRoadmap();
+   // one slug: the full set, so a Not tracked project's plan line is real
+   const { items } = useRoadmap({ all: true });
    if (!items) return null;
    const plan = planFor(slug, items);
    const link = (label: string, patch: Parameters<Navigate>[0]) => (

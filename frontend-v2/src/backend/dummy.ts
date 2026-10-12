@@ -123,6 +123,11 @@ const DUMMY_PROJECT_PULLS: Record<string, number[]> = {
    // its one PR moved this week, so its plan, marked Planned from Monday,
    // reads In progress: Decide's "Filled in on its own this week"
    translations: [22],
+   // Not tracked (backend/dummyProjects.ts DUMMY_INITIATIVES): ops-runbooks
+   // has a plan and grew since it was set not tracked, so Decide asks
+   // "Still not tracked?"; dotfiles is personal workflow that asks nothing
+   'ops-runbooks': [28, 33, 39, 46],
+   dotfiles: [49, 51],
    misc: [3, 18, 20, 29, 43, 47, 53],
 };
 const SECOND_PROJECT: Record<number, string> = { 50: 'webdriver-deflake' };
