@@ -743,3 +743,37 @@ describe('a row asking whether an initiative reached its goal', () => {
       expect(el.textContent).toContain('Goal: New customers get a welcome series');
    });
 });
+
+describe('Undo on a row', () => {
+   const grew: DecideRow = {
+      slug: 'ops',
+      item: null,
+      reasons: [{ kind: 'untracked_grew', since: 31, baseline: 2 }],
+   };
+
+   it('holds its words where the receipt was, so a second click there answers nothing', async () => {
+      const el = render(grew);
+      click(el, 'Keep not tracked');
+      await settle();
+      const undo = [...el.querySelectorAll('button')].find(
+         b => b.textContent === 'Undo'
+      ) as HTMLButtonElement;
+      act(() => undo.click());
+      await settle();
+      // the slot says what Undo did, with nothing to click in it, and the
+      // answers come back after it
+      const slot = el.querySelector('p[data-decide-focus]') as HTMLElement;
+      expect(slot.textContent).toBe('Put ops back as it was.');
+      expect(slot.querySelector('button')).toBeNull();
+      expect(slot.compareDocumentPosition(el.querySelector('button') as Node)).toBe(
+         Node.DOCUMENT_POSITION_FOLLOWING
+      );
+      expect(document.activeElement).toBe(slot);
+      // a double-click's second press lands on the old Undo: nothing is sent
+      const sent = calls.length;
+      act(() => undo.click());
+      await settle();
+      expect(calls.length).toBe(sent);
+      expect(buttons(el)).toEqual(['Keep not trackedSuggested', 'Track it']);
+   });
+});

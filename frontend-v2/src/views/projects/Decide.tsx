@@ -652,7 +652,12 @@ export function DecideCall({
    const shown = mine?.state === 'made' || mine?.state === 'failed' ? mine : undefined;
    const name = nameOf(row, project);
    const rootRef = useRef<HTMLDivElement>(null);
+   const receiptRef = useRef<HTMLDivElement>(null);
    const refocus = useRef(false);
+   // the receipt's height when its Undo was clicked here: the words "Put X
+   // back as it was." hold that slot, and the answers come back below it,
+   // so a second click on Undo lands on words, never on an answer
+   const [undid, setUndid] = useState<number | null>(null);
    // the height the row had when a click here changed it, kept as the least
    // it has, so the rows below never slide under the pointer, a phone's
    // wrapped lines included
@@ -691,6 +696,9 @@ export function DecideCall({
       ? ''
       : mine.state === 'failed'
       ? `Didn’t save the decision on ${name}.${mine.why ?? ''}`
+      : // undone here, the focus lands on the same words in the row
+      undid != null
+      ? ''
       : `Put ${name} back as it was.`;
    const live = (
       <span className="sr-only" aria-live="polite">
@@ -712,9 +720,21 @@ export function DecideCall({
          </div>
       );
    }
+   // taken back here: its words where the receipt was, the answers after
+   const putBack = undid != null && mine?.state === 'undone' && !mine.batch && (
+      <p
+         data-decide-focus
+         tabIndex={-1}
+         className="m-0 flex items-center rounded text-[13px] text-ink-2"
+         style={{ minHeight: undid }}
+      >
+         Put {name} back as it was.
+      </p>
+   );
    return (
       <div ref={rootRef} className={compact ? 'ml-auto' : 'mt-1.5'} style={{ minHeight: held }}>
          {live}
+         {putBack}
          {shown?.state === 'failed' ? (
             <p className="m-0 flex min-h-[30px] flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-ink-2">
                <span aria-hidden>
@@ -749,7 +769,10 @@ export function DecideCall({
                </QuietButton>
             </p>
          ) : shown ? (
-            <div className="flex min-h-[30px] flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-ink-2">
+            <div
+               ref={receiptRef}
+               className="flex min-h-[30px] flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-ink-2"
+            >
                {/* one run of text, so Undo shares the words' last line and
                    the receipt is no taller than the calls it replaced */}
                <span>
@@ -762,7 +785,10 @@ export function DecideCall({
                      {shown.why && ` ${shown.why}`}
                   </span>{' '}
                   <QuietButton
-                     onClick={act(() => undoCall(rowKey(row)))}
+                     onClick={act(() => {
+                        setUndid(receiptRef.current?.offsetHeight ?? 0);
+                        undoCall(rowKey(row));
+                     })}
                      aria-label={`Undo the decision on ${name}`}
                   >
                      Undo
