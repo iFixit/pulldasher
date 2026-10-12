@@ -156,7 +156,10 @@ export function HomeLine({
                   {receipt.words}.
                </span>
                {receipt.undo ? (
-                  <QuietButton onClick={receipt.undo}>
+                  <QuietButton
+                     onClick={receipt.undo}
+                     aria-label={receipt.failed ? 'Try the Undo again' : `Undo: ${receipt.words}`}
+                  >
                      {receipt.failed ? 'Try again' : 'Undo'}
                   </QuietButton>
                ) : receipt.settled ? null : (
@@ -658,7 +661,10 @@ export function InitiativePage({
                      {receipt.words}.
                   </span>
                   {receipt.undo ? (
-                     <QuietButton onClick={receipt.undo}>
+                     <QuietButton
+                        onClick={receipt.undo}
+                        aria-label={receipt.failed ? 'Try the Undo again' : `Undo: ${receipt.words}`}
+                     >
                         {receipt.failed ? 'Try again' : 'Undo'}
                      </QuietButton>
                   ) : (

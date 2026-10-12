@@ -267,6 +267,12 @@ describe('a row that asks about an initiative', () => {
          path: '/initiatives/4',
          body: { status: 'open', restate: true },
       });
+      // named as every Undo is: by what it takes back
+      expect(
+         [...el.querySelectorAll('button')]
+            .find(b => b.textContent === 'Undo')
+            ?.getAttribute('aria-label')
+      ).toBe('Undo: Kept open. Decide asks again once something in it changes');
       click(el, 'Undo');
       await settle();
       expect(calls.at(-1)).toMatchObject({

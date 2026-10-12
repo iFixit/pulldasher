@@ -848,7 +848,7 @@ export function DecideCall({
                            letGo
                         )
                      )}
-                     aria-label={`Undo the decision on ${name}`}
+                     aria-label={`Undo: ${shown.words.replace(/\.$/, '')}`}
                   >
                      Undo
                   </QuietButton>
