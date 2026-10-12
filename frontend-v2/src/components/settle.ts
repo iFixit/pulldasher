@@ -18,18 +18,25 @@ import { flushSync } from 'react-dom';
  * click too, however long it's held). It reaches nothing (no focus, no
  * selection, no click, and the control flashes an outline) when:
  *
- * - its control wasn't there, or has moved since (more than 1 px);
- * - it lands on no control, and on something other than what was there;
- * - it's the same control again within a double-click (DOUBLE_MS), unless
- *   that control is a toggle (it opens or closes something, or is
- *   pressed) or a grip that drags.
+ * - it's the control just pressed, again within a double-click
+ *   (DOUBLE_MS), or saying new words, unless it's a toggle (it opens or
+ *   closes something, or is pressed) or a grip that drags: its own change
+ *   of size or label didn't slide under the pointer;
+ * - it's another control that wasn't there, or has moved since (its
+ *   centre or its layout size, by more than 1 px, so a press's own
+ *   `scale` doesn't count);
+ * - it lands on no control, and on something other than what was there.
  *
- * So a control that stayed put takes every press: a toggle closed again at
- * once, the next week on the load chart, a grip's drag. The hold ends when
- * the pointer moves away, after HOLD_MS, or once the page is scrolled by a
- * person (a wheel, a key, the scrollbar, a touch pan). A pointer that
- * moved further than a wobble within it is aimed: what it lands on, it
- * means.
+ * So a control that stayed put takes every press: a toggle closed again,
+ * the next week on the load chart, a grip's drag. A press the browser
+ * itself counts as a double or triple click on the control just pressed is
+ * one click, toggles too. The hold ends when the pointer moves away, after
+ * HOLD_MS, or once the page is scrolled by a person (a wheel, any key but
+ * a modifier alone, the scrollbar, a touch pan). A pointer that moved
+ * further than a wobble is aimed, once a double-click's span has passed or
+ * it has rested on what it moved to: what it lands on, it means. A touch
+ * has no move between taps, so a tap on what came under a still finger
+ * waits out the hold.
  *
  * What the click left (a receipt, Undo's words) is put where it can be
  * seen with `settle` or `reveal`, below the sticky headers, and the caller
@@ -56,6 +63,10 @@ export const DOUBLE_MS = 500;
 /** How far a pointer moves before it's aiming, not wobbling. */
 const WOBBLE_PX = 6;
 
+/** How long a moved pointer rests before it's aiming: a sloppy
+ * double-click's drift never rests between its presses. */
+const REST_MS = 120;
+
 const CONTROL =
    'button, a[href], summary, [role="button"], [role="tab"], [role="radio"], [role="switch"], [role="menuitem"]';
 
@@ -71,6 +82,26 @@ const TOGGLE = '[aria-expanded], [aria-pressed], [role="switch"], summary, summa
  * swap it, since jsdom makes no trusted events. */
 export const pressedBy = { person: (e: Event) => e.isTrusted };
 
+/** Where a control sits by its layout: its centre on screen, which a
+ * `scale` about the centre keeps, and its size before transforms. */
+interface Box {
+   x: number;
+   y: number;
+   w: number;
+   h: number;
+}
+
+function boxOf(el: Element): Box {
+   const r = el.getBoundingClientRect();
+   const { offsetWidth, offsetHeight } = el as HTMLElement;
+   return {
+      x: r.left + r.width / 2,
+      y: r.top + r.height / 2,
+      w: offsetWidth ?? r.width,
+      h: offsetHeight ?? r.height,
+   };
+}
+
 interface Hold {
    /** the press's point; null for a key's click, which holds no point */
    x: number | null;
@@ -79,13 +110,15 @@ interface Hold {
    at: number;
    /** presses near the point are judged until then */
    until: number;
-   /** the control pressed, and what was under the point */
+   /** the control pressed, its words then, and what was under the point */
    first: Element | null;
+   said: string | null;
    under: Element | null;
    /** every control near the point then, and where it was */
-   stayed: Map<Element, DOMRect>;
-   /** the furthest the pointer has gone from the point */
+   stayed: Map<Element, Box>;
+   /** the furthest the pointer has gone from the point, and when it last moved */
    far: number;
+   movedAt: number;
    /** what goes once the pointer moves away or the next action starts */
    leave: (() => void)[];
 }
@@ -110,15 +143,21 @@ function leave(): void {
    h?.leave.forEach(fn => fn());
 }
 
-/** The controls within GUARD_PX of a point, and where they are. */
-function controlsNear(x: number, y: number): Map<Element, DOMRect> {
-   const found = new Map<Element, DOMRect>();
-   for (const el of document.querySelectorAll(TARGET)) {
-      const r = el.getBoundingClientRect();
-      if (!r.width && !r.height) continue;
-      const dx = Math.max(r.left - x, 0, x - r.right);
-      const dy = Math.max(r.top - y, 0, y - r.bottom);
-      if (Math.hypot(dx, dy) <= GUARD_PX) found.set(el, r);
+/** Where to look around a point: every 8 px within GUARD_PX. */
+const GRID: [number, number][] = [];
+for (let dx = -GUARD_PX; dx <= GUARD_PX; dx += 8)
+   for (let dy = -GUARD_PX; dy <= GUARD_PX; dy += 8)
+      if (Math.hypot(dx, dy) <= GUARD_PX) GRID.push([dx, dy]);
+
+/** The controls a press within GUARD_PX of a point would land on, and
+ * where they are: a hit test per grid point, not a walk of the page.
+ * ponytail: a control smaller than the grid's 8 px can fall between its
+ * points and read as arrived; a finer grid if one ever matters. */
+function controlsNear(x: number, y: number): Map<Element, Box> {
+   const found = new Map<Element, Box>();
+   for (const [dx, dy] of GRID) {
+      const el = document.elementFromPoint?.(x + dx, y + dy)?.closest(TARGET);
+      if (el && !found.has(el)) found.set(el, boxOf(el));
    }
    return found;
 }
@@ -139,9 +178,11 @@ export function guardAt(
       at,
       until: x == null ? 0 : at + HOLD_MS,
       first,
+      said: first?.textContent ?? null,
       under: x == null ? null : document.elementFromPoint?.(x, y) ?? first,
       stayed: x == null ? new Map() : controlsNear(x, y),
       far: 0,
+      movedAt: at,
       leave: [],
    };
 }
@@ -155,9 +196,11 @@ export function onLeave(fn: () => void): void {
       at: 0,
       until: 0,
       first: null,
+      said: null,
       under: null,
       stayed: new Map(),
       far: 0,
+      movedAt: 0,
       leave: [],
    };
    hold.leave.push(fn);
@@ -169,17 +212,29 @@ export function clearHolds(): void {
    eating = false;
 }
 
-const moved = (a: DOMRect, b: DOMRect) =>
-   Math.abs(a.left - b.left) > 1 ||
-   Math.abs(a.top - b.top) > 1 ||
-   Math.abs(a.width - b.width) > 1 ||
-   Math.abs(a.height - b.height) > 1;
+const moved = (a: Box, b: Box) =>
+   Math.abs(a.x - b.x) > 1 ||
+   Math.abs(a.y - b.y) > 1 ||
+   Math.abs(a.w - b.w) > 1 ||
+   Math.abs(a.h - b.h) > 1;
+
+/** The hold is over by the clock: what it noted can go. */
+function expire(h: Hold): void {
+   h.until = 0;
+   h.first = h.under = null;
+   h.stayed = new Map();
+}
 
 /** Whether a press at this pointerdown lands on something that came under
  * the point since the click: the rule above. */
 function stray(e: MouseEvent): Element | boolean {
    const h = hold;
-   if (!h || !near(h, e) || madeAt(e) >= h.until) return false;
+   if (!h || !near(h, e)) return false;
+   const made = madeAt(e);
+   if (made >= h.until) {
+      expire(h);
+      return false;
+   }
    const target = e.target instanceof Element ? e.target : null;
    const control = target?.closest(TARGET);
    if (!control) {
@@ -187,16 +242,26 @@ function stray(e: MouseEvent): Element | boolean {
       const was = h.under;
       return !(target && was?.isConnected && (target.contains(was) || was.contains(target)));
    }
+   // moved past a wobble, and then rested or took its time: aimed
+   const aimed = h.far > WOBBLE_PX && (made - h.at >= DOUBLE_MS || made - h.movedAt >= REST_MS);
+   if (control === h.first) {
+      if (control.matches(TOGGLE) || control.getAttribute('draggable') === 'true') return false;
+      if (made - h.at < DOUBLE_MS) return control;
+      // the same element saying something else is a new control
+      return control.textContent !== h.said && !aimed ? control : false;
+   }
    const was = h.stayed.get(control);
-   if (!was || moved(was, control.getBoundingClientRect()))
-      return h.far > WOBBLE_PX ? false : control;
-   const again =
-      control === h.first &&
-      madeAt(e) - h.at < DOUBLE_MS &&
-      !control.matches(TOGGLE) &&
-      control.getAttribute('draggable') !== 'true';
-   return again ? control : false;
+   if (was && !moved(was, boxOf(control))) return false;
+   return aimed ? false : control;
 }
+
+/** A press the browser counts as a double or triple click, on the control
+ * just pressed: one click, whatever that control is. */
+const again = (e: MouseEvent) =>
+   e.detail >= 2 &&
+   !!hold?.first &&
+   near(hold, e) &&
+   (e.target as Element | null)?.closest?.(TARGET) === hold.first;
 
 /** Outline a control a press didn't reach, a moment, so it reads as kept
  * from a stray press, not as dead. */
@@ -227,14 +292,16 @@ if (typeof window !== 'undefined') {
       e.stopImmediatePropagation();
    };
    const scrolled = () => {
-      if (hold) hold.until = 0;
+      if (hold) expire(hold);
    };
    on('pointerdown', e => {
       if (!pressedBy.person(e)) return;
       // the scrollbar, outside the page's own box: a scroll on purpose
       const page = document.documentElement;
-      if (e.target === page && (e.clientX >= page.clientWidth || e.clientY >= page.clientHeight))
+      if (e.target === page && (e.clientX >= page.clientWidth || e.clientY >= page.clientHeight)) {
+         eating = false;
          return scrolled();
+      }
       const verdict = stray(e);
       eating = !!verdict;
       if (verdict instanceof Element) flash(verdict);
@@ -242,14 +309,22 @@ if (typeof window !== 'undefined') {
       // a press away from the point: the pointer moved there
       if (hold && !near(hold, e)) leave();
    });
-   for (const type of ['mousedown', 'pointerup', 'mouseup', 'dblclick'] as const)
+   for (const type of ['mousedown', 'pointerup', 'mouseup', 'auxclick', 'dblclick'] as const)
       on(type, e => {
-         if (eating && pressedBy.person(e)) eat(e);
+         if (!pressedBy.person(e)) return;
+         if (eating) return eat(e);
+         // a double-click's second press on what was just pressed (a toggle
+         // passed pointerdown): no selection, no second click
+         if ((type === 'mousedown' || type === 'dblclick') && again(e)) eat(e);
       });
    on('click', e => {
       if (!pressedBy.person(e)) return;
       // a key's click (detail 0) is never a stray press
       if (e.detail > 0 && eating) return eat(e);
+      if (again(e)) {
+         flash(hold?.first as Element);
+         return eat(e);
+      }
       const control = (e.target as Element | null)?.closest?.(CONTROL);
       if (!control?.closest('[data-press-guard]')) return;
       guardAt(e.detail > 0 ? e.clientX : null, e.clientY, madeAt(e), control);
@@ -259,14 +334,22 @@ if (typeof window !== 'undefined') {
       e => {
          if (hold?.x == null) return;
          const d = away(hold, e);
-         if (d > GUARD_PX) leave();
-         else hold.far = Math.max(hold.far, d);
+         if (d > GUARD_PX) return leave();
+         if (d > hold.far) hold.far = d;
+         hold.movedAt = madeAt(e);
       },
       { capture: true, passive: true }
    );
    // a person scrolls the page on purpose: what's under the pointer is seen
    on('wheel', scrolled, { capture: true, passive: true });
-   on('keydown', scrolled, { capture: true, passive: true });
+   // a modifier alone scrolls nothing: a ctrl-click is still guarded
+   on(
+      'keydown',
+      e => {
+         if (!['Shift', 'Control', 'Alt', 'Meta'].includes(e.key)) scrolled();
+      },
+      { capture: true, passive: true }
+   );
    on('pointercancel', scrolled, { capture: true, passive: true });
    import.meta.hot?.dispose(() => {
       for (const [type, fn, opts] of listeners) removeEventListener(type, fn, opts);

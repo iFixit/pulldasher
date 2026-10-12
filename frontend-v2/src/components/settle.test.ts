@@ -53,15 +53,17 @@ function region() {
    return { root, first, other, hits };
 }
 
-/** What a mouse sends for one press at a point, onto `el` (what's there). */
+/** What a mouse sends for one press at a point, onto `el` (what's there);
+ * `detail` is the browser's click count (0 for a key). */
 function pressAt(el: Element, x: number, y: number, detail = 1) {
    const at = { bubbles: true, cancelable: true, clientX: x, clientY: y };
    const down = new MouseEvent('pointerdown', at);
    el.dispatchEvent(down);
-   const mouse = new MouseEvent('mousedown', at);
+   const mouse = new MouseEvent('mousedown', { ...at, detail: Math.max(detail, 1) });
    el.dispatchEvent(mouse);
    el.dispatchEvent(new MouseEvent('mouseup', at));
    el.dispatchEvent(new MouseEvent('click', { ...at, detail }));
+   if (detail === 2) el.dispatchEvent(new MouseEvent('dblclick', { ...at, detail }));
    return { down, mouse };
 }
 
@@ -78,6 +80,12 @@ beforeEach(() => {
       flashed.push(this);
       return {} as Animation;
    };
+   // what a press at a point lands on: the last placed element there
+   document.elementFromPoint = (x: number, y: number) =>
+      [...document.body.querySelectorAll('*')].reverse().find(el => {
+         const r = el.getBoundingClientRect();
+         return r.width > 0 && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+      }) ?? null;
    // the page's own box, so a press at a point isn't on its scrollbar
    vi.spyOn(document.documentElement, 'clientWidth', 'get').mockReturnValue(1000);
    vi.spyOn(document.documentElement, 'clientHeight', 'get').mockReturnValue(800);
@@ -87,6 +95,7 @@ afterEach(() => {
    document.body.innerHTML = '';
    vi.restoreAllMocks();
    delete (Element.prototype as Partial<Element>).animate;
+   delete (document as Partial<Document>).elementFromPoint;
 });
 
 describe('the press guard: a stray press', () => {
@@ -192,13 +201,136 @@ describe('the press guard: a stray press', () => {
    });
 });
 
+describe('the press guard: a sloppy or doubled press', () => {
+   it('takes a double-click that drifts past a wobble as one click', () => {
+      const { root, first } = region();
+      pressAt(first, 100, 100);
+      const end = document.createElement('button');
+      place(end, 80, 105);
+      root.append(end);
+      let endHits = 0;
+      end.addEventListener('click', () => endHits++);
+      // 9 px down within 90 ms, never resting
+      now += 45;
+      moveTo(100, 105);
+      now += 45;
+      moveTo(100, 109);
+      pressAt(end, 100, 109);
+      expect(endHits).toBe(0);
+      // a double-click's span later, it's aimed
+      now += DOUBLE_MS;
+      moveTo(100, 110);
+      pressAt(end, 100, 110);
+      expect(endHits).toBe(1);
+   });
+
+   it('takes the browser’s double and triple click on a toggle as one click', () => {
+      const { first, hits } = region();
+      first.setAttribute('aria-expanded', 'false');
+      pressAt(first, 100, 100);
+      now += 120;
+      const { mouse } = pressAt(first, 100, 100, 2);
+      now += 120;
+      pressAt(first, 100, 100, 3);
+      expect(hits.first).toBe(1);
+      // nothing selected, and the toggle says it kept the press
+      expect(mouse.defaultPrevented).toBe(true);
+      expect(flashed).toEqual([first, first]);
+   });
+
+   it('eats a middle-click’s auxclick on a link that arrived', () => {
+      const { root, first } = region();
+      pressAt(first, 100, 100);
+      const link = document.createElement('a');
+      link.href = '#x';
+      place(link, 85, 92);
+      root.append(link);
+      const at = { bubbles: true, cancelable: true, clientX: 100, clientY: 100, button: 1 };
+      link.dispatchEvent(new MouseEvent('pointerdown', at));
+      const aux = new MouseEvent('auxclick', at);
+      link.dispatchEvent(aux);
+      expect(aux.defaultPrevented).toBe(true);
+   });
+
+   it('keeps the hold through a modifier key alone', () => {
+      const { first, other, hits } = region();
+      pressAt(first, 100, 100);
+      place(other, 90, 95);
+      document.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Control' }));
+      pressAt(other, 100, 100);
+      expect(hits.other).toBe(0);
+   });
+
+   it('eats a press on the control just pressed when it says something else', () => {
+      const { first, hits } = region();
+      first.textContent = 'Mark Not tracked';
+      first.addEventListener('click', () => {
+         first.textContent = 'Undo: Marked Not tracked';
+      });
+      pressAt(first, 100, 100);
+      now += 700;
+      pressAt(first, 100, 100);
+      expect(hits.first).toBe(1);
+   });
+});
+
 describe('the press guard: a press a person means', () => {
+   it('reaches the control just pressed, whose box its own press scaled', () => {
+      const { first, hits } = region();
+      // noted at its click mid-way back from .pressable:active's 0.97
+      place(first, 81, 90.3, 38.8, 19.4);
+      pressAt(first, 100, 100);
+      place(first, 80, 90);
+      now += DOUBLE_MS + 100;
+      pressAt(first, 100, 100);
+      expect(hits.first).toBe(2);
+   });
+
+   it('reaches a neighbour whose box only scaled about its centre', () => {
+      const { first, other, hits } = region();
+      place(other, 120.6, 90.3, 38.8, 19.4);
+      pressAt(first, 100, 100);
+      place(other, 120, 90);
+      now += 200;
+      pressAt(other, 122, 100);
+      expect(hits.other).toBe(1);
+      expect(flashed).toEqual([]);
+   });
+
+   it.each([
+      ['wider', [70, 90, 60, 20]],
+      ['narrower, its words swapped', [100, 90, 20, 20]],
+      ['shifted 2 px', [82, 92, 40, 20]],
+   ] as const)('reaches a toggle whose box changed (%s), at 0.4 s', (_how, [l, t, w, h]) => {
+      const { first, hits } = region();
+      first.setAttribute('aria-expanded', 'false');
+      first.addEventListener('click', () => {
+         first.setAttribute('aria-expanded', 'true');
+         place(first, l, t, w, h);
+      });
+      pressAt(first, 110, 100);
+      now += 400;
+      pressAt(first, 110, 100);
+      expect(hits.first).toBe(2);
+      expect(flashed).toEqual([]);
+   });
+
+   it('reaches the control just pressed, its box changed, after a double-click’s span', () => {
+      const { first, hits } = region();
+      first.addEventListener('click', () => place(first, 76, 88, 50, 24));
+      pressAt(first, 100, 100);
+      now += DOUBLE_MS + 1;
+      pressAt(first, 100, 100);
+      expect(hits.first).toBe(2);
+   });
+
    it('reaches a neighbour that stayed in place, at once', () => {
       const { first, other, hits } = region();
       place(other, 122, 90, 12, 20);
       pressAt(first, 100, 100);
       now += 200;
-      pressAt(other, 116 + 12, 100);
+      // within GUARD_PX of the click, so the hold judges it
+      pressAt(other, 123, 100);
       expect(hits.other).toBe(1);
       expect(flashed).toEqual([]);
    });
@@ -261,6 +393,8 @@ describe('the press guard: a press a person means', () => {
       pressAt(end, 102, 104);
       expect(endHits).toBe(0);
       moveTo(100, 112);
+      // it rests on what it moved to
+      now += 150;
       pressAt(end, 100, 112);
       expect(endHits).toBe(1);
    });
