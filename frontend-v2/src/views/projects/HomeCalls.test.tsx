@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act } from 'react';
-import { createRoot } from 'react-dom/client';
+import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { DecideRow } from '../../../../shared/model/decide';
 import type { Initiative } from '../../../../shared/model/initiatives';
@@ -136,7 +136,11 @@ beforeAll(async () => {
 });
 
 let host: HTMLDivElement | null = null;
+// every tree a test mounts, unmounted after it, so none listens on to the
+// stores the next test writes
+const roots: Root[] = [];
 afterEach(() => {
+   act(() => roots.splice(0).forEach(r => r.unmount()));
    clearHomePicks();
    host?.remove();
    host = null;
@@ -166,6 +170,7 @@ function mount(node: React.ReactNode): HTMLDivElement {
    host = document.createElement('div');
    document.body.append(host);
    const root = createRoot(host);
+   roots.push(root);
    act(() => root.render(<AllItemsContext.Provider value={ITEMS}>{node}</AllItemsContext.Provider>));
    return host;
 }

@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { act } from 'react';
-import { createRoot } from 'react-dom/client';
+import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Initiative } from '../../../../shared/model/initiatives';
 import type { RoadmapItem } from '../../../../shared/model/roadmap';
-import { loadInitiatives } from '../../model/initiativesData';
+import { loadInitiatives, useInitiativesValue } from '../../model/initiativesData';
 import { loadRoadmap } from '../../model/roadmapData';
 import type { ProjectsNav } from './parts';
 import { Roadmap } from './Roadmap';
@@ -125,6 +125,7 @@ beforeAll(() => {
 });
 
 let host: HTMLDivElement | null = null;
+let root: Root | null = null;
 beforeEach(async () => {
    server = START.map(i => ({ ...i }));
    localStorage.clear();
@@ -133,6 +134,9 @@ beforeEach(async () => {
    calls.length = 0;
 });
 afterEach(() => {
+   // an unmounted tree stops listening to the stores the next test writes
+   act(() => root?.unmount());
+   root = null;
    host?.remove();
    host = null;
 });
@@ -163,23 +167,29 @@ const NAV = {
 
 const settle = () => act(() => new Promise(resolve => setTimeout(resolve, 0)));
 
+/** The Roadmap with the initiatives as the board holds them, as the app
+ * passes them, so a move shows in the next render. */
+function Live({ nav }: { nav: ProjectsNav }) {
+   const { initiatives } = useInitiativesValue();
+   return (
+      <Roadmap
+         items={[]}
+         initiatives={initiatives ? [...initiatives] : server}
+         untracked={new Set(['ops'])}
+         teamMembers={{}}
+         nav={nav}
+         navigate={() => undefined}
+         decisions={[]}
+      />
+   );
+}
+
 async function mount(nav: Partial<ProjectsNav> = {}) {
    host = document.createElement('div');
    document.body.append(host);
-   const root = createRoot(host);
-   await act(async () =>
-      root.render(
-         <Roadmap
-            items={[]}
-            initiatives={server}
-            untracked={new Set(['ops'])}
-            teamMembers={{}}
-            nav={{ ...NAV, ...nav }}
-            navigate={() => undefined}
-            decisions={[]}
-         />
-      )
-   );
+   const r = createRoot(host);
+   root = r;
+   await act(async () => r.render(<Live nav={{ ...NAV, ...nav }} />));
    await settle();
    return host;
 }
