@@ -1,0 +1,61 @@
+#!/usr/bin/env node
+/**
+ * Pulls whose `closed` webhook never landed stay open in the DB. Until the
+ * stale-open check listed repos outside config.repos, nothing repaired them
+ * there: 21 PRs closed 2026-09-26 to 09-30, while prod wrote into dev's DB,
+ * stayed open on prod (iFixit/ops#1055 in PR jail). The hourly repair now
+ * catches these; this fixes them without waiting for a deploy.
+ *
+ * It lists the open pulls of every repo the DB holds open pulls in and, with
+ * --apply, refetches each pull GitHub no longer lists, which stores its real
+ * state:
+ *
+ *   docker exec pulldasher bin/repair-stale-open-pulls [--apply]
+ *
+ * Without --apply it only lists. GitHub calls are paced, since the board
+ * shares the token's hourly quota.
+ */
+import db from '../lib/db.js';
+import dbManager from '../lib/db-manager.js';
+import git from '../lib/git-manager.js';
+import { createPacedRefresh, findStaleOpenPulls, findUnlistedRepos } from '../lib/refresh.js';
+
+const apply = process.argv.includes('--apply');
+// at most 40 GitHub calls a minute, well under the 5000-an-hour quota
+const PACE_MS = 1500;
+const pause = () => new Promise(resolve => setTimeout(resolve, PACE_MS));
+
+try {
+   const dbOpen = await dbManager.getOpenPullIds();
+   const listedRepos = [];
+   const listedPulls = [];
+   for (const repo of findUnlistedRepos(dbOpen, [])) {
+      await pause();
+      try {
+         listedPulls.push(...(await git.getOpenPulls(repo)));
+         listedRepos.push(repo);
+      } catch (err) {
+         console.error('Skipped %s (could not list): %s', repo, err.message || err);
+      }
+   }
+   const stale = findStaleOpenPulls(dbOpen, listedPulls, listedRepos);
+   console.log(
+      '%s of %s stored-open pulls are no longer open on GitHub',
+      stale.length,
+      dbOpen.length
+   );
+   stale.forEach(({ repo, number }) => console.log('  %s#%s', repo, number));
+
+   if (apply) {
+      const refresh = createPacedRefresh();
+      for (const { repo, number } of stale) {
+         await pause();
+         await refresh.pull(repo, number).catch(() => (process.exitCode = 1));
+      }
+      console.log('Refreshed %s pulls.', stale.length);
+   } else if (stale.length) {
+      console.log('Dry run: rerun with --apply to refresh them.');
+   }
+} finally {
+   db.end();
+}
