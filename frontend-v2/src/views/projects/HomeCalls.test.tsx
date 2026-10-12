@@ -619,6 +619,32 @@ describe('a project page’s home line', () => {
       expect([...select.options].at(-1)?.textContent).toBe('Unsorted');
       expect(move?.disabled).toBe(false);
    });
+
+   it('says the move once, and its Undo in the one Undo form', async () => {
+      const said: string[] = [];
+      const el = mount(
+         <HomeLine
+            slug="cache"
+            initiatives={INITIATIVES}
+            navigate={nothing}
+            onSaid={words => said.push(words)}
+         />
+      );
+      click(el, 'Move');
+      const select = el.querySelector('select') as HTMLSelectElement;
+      act(() => {
+         select.value = 'fixbot';
+         select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      act(() => [...el.querySelectorAll('button')].find(b => b.textContent === 'Move')?.click());
+      await settle();
+      // the receipt names the new home; the home word isn't said beside it
+      expect(el.textContent?.match(/FixBot chat/g)).toHaveLength(1);
+      expect(el.textContent).toContain('Moved to FixBot chat.');
+      click(el, 'Undo');
+      await settle();
+      expect(said.at(-1)).toBe('Put cache back in Site speed');
+   });
 });
 
 describe('a row asking whether an initiative reached its goal', () => {

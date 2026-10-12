@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useContext, useEffect, useId, useRef, useState } from 'react';
 import { Check } from 'lucide-react';
 import { n } from '../../../../shared/format';
 import type { DecideRow } from '../../../../shared/model/decide';
@@ -25,7 +25,12 @@ import { dayWords } from '../../model/projectData';
 import { stageWord, type PortfolioItem } from '../../model/portfolio';
 import { andList, UNSORTED_WORD } from '../../model/words';
 import { DecideCall } from './Decide';
-import { askedInitiative, primaryOf, reasonParts } from '../../model/decideCalls';
+import {
+   AllItemsContext,
+   askedInitiative,
+   primaryOf,
+   reasonParts,
+} from '../../model/decideCalls';
 import { openPlan, type Navigate, type ProjectsNav } from './parts';
 import { PLAN_STATUS_WORD, planWords } from './roadmapHealth';
 
@@ -62,6 +67,7 @@ export function HomeLine({
    onSaid?: (words: string) => void;
 }) {
    const home = homesOf(initiatives).get(slug)?.initiative ?? null;
+   const projectName = useContext(AllItemsContext).find(i => i.slug === slug)?.name ?? slug;
    const [moving, setMoving] = useState(false);
    const [pick, setPick] = useState(home?.slug ?? '');
    const [receipt, setReceipt] = useState<MoveReceipt | null>(null);
@@ -95,7 +101,7 @@ export function HomeLine({
             else {
                setReceipt(null);
                setPick(before.initiative ?? '');
-               onSaid?.(`Put it back in ${homeName(home)}`);
+               onSaid?.(`Put ${projectName} back in ${homeName(home)}`);
                requestAnimationFrame(() => document.getElementById(moveId)?.focus());
             }
          },
@@ -103,7 +109,8 @@ export function HomeLine({
    };
    return (
       <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-ink-3">
-         {moving ? null : home ? (
+         {/* the receipt names the new home; saying it beside would repeat it */}
+         {moving || (receipt && !receipt.failed) ? null : home ? (
             home.kind === 'untracked' ? (
                <span>Not tracked</span>
             ) : (

@@ -673,7 +673,7 @@ export function DecideCall({
       ? ''
       : mine.state === 'failed'
       ? `Didn’t save the decision on ${name}.${mine.why ?? ''}`
-      : `Undid the decision on ${name}.`;
+      : `Put ${name} back as it was.`;
    const live = (
       <span className="sr-only" aria-live="polite">
          {said}
@@ -1327,7 +1327,7 @@ function SectionCalls({
    };
    const undoAll = () => {
       refocus.current = true;
-      setSaid(`Undid ${n(standing.length, 'decision')} under ${title}.`);
+      setSaid(`Put ${n(standing.length, 'decision')} under ${title} back as they were.`);
       inTurn(standing.map(m => after => undoCall(rowKey(m.row), { after })));
    };
    // the rows' failures, said once for all of them
@@ -1510,7 +1510,7 @@ function ParkLine({
             {state === 'failed'
                ? `Didn’t park ${name}.${parked?.why ?? ''}`
                : parked?.state === 'undone'
-               ? `Undid parking ${name}.`
+               ? `Put ${name} back as it was.`
                : parked?.why ?? ''}
          </span>
       </li>

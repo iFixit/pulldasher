@@ -281,7 +281,7 @@ export function initiativeLanes(c: LaneContext) {
                }).then(back => {
                   if ('error' in back) return fail(key);
                   openFold(laneId(r.before.initiative ?? UNSORTED));
-                  say(null, `Put ${item.name} back`);
+                  say(null, `Put ${item.name} back in ${fromHome?.name ?? UNSORTED_WORD}`);
                });
             },
          });
