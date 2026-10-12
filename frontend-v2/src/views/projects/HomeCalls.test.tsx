@@ -9,7 +9,7 @@ import { fileProject, loadInitiatives } from '../../model/initiativesData';
 import type { PortfolioItem } from '../../model/portfolio';
 import { HomeLine, InitiativePage } from './Initiatives';
 import { clearHomePicks, InitiativeSwitch } from './HomeCalls';
-import { clearHolds } from '../../components/settle';
+import { clearHolds, pressedBy } from '../../components/settle';
 import { NO_PROJECT, UNSORTED } from '../../model/initiativeBoard';
 import { PROJECT_SLUG } from '../../../../shared/model/roadmap';
 import type { ProjectsNav } from './parts';
@@ -29,6 +29,9 @@ import {
    rowKey,
    sectionOf,
 } from '../../model/decideCalls';
+
+// jsdom makes no trusted events: every press here is a person's
+pressedBy.person = () => true;
 
 // React's act() warns unless the environment says it's a test
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

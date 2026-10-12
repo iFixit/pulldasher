@@ -3431,7 +3431,7 @@ export function Roadmap({
    );
 
    return (
-      <section {...PRESS_GUARD} className="mb-7">
+      <section className="mb-7">
          {/* the timeline's toolbar and column names stay in place while its
              rows scroll, from sm up; on a phone they'd eat the screen */}
          <div
@@ -3697,26 +3697,30 @@ export function Roadmap({
                         : null
                   }
                />
-               {newPlan}
-               {receiptAdded}
-               {!ordered.length && !unplanned.length && !adding ? (
-                  <div className="px-3.5 py-4 text-[13px] text-ink-3">
-                     Nothing on the roadmap yet, and no projects {BEING_WORKED_ON}. Click Add to the
-                     roadmap to start a plan.
-                  </div>
-               ) : (
-                  <div>
-                     {body}
-                     {notTrackedLane}
-                  </div>
-               )}
-               {narrowed &&
-                  !shownPlans.length &&
-                  !(everything && shownUnplanned.length) &&
-                  nothingMatches(`on the roadmap or ${BEING_WORKED_ON}`)}
+               {/* the press guard covers what moves under a click (rows,
+                   receipts, details), not the load chart above */}
+               <div {...PRESS_GUARD}>
+                  {newPlan}
+                  {receiptAdded}
+                  {!ordered.length && !unplanned.length && !adding ? (
+                     <div className="px-3.5 py-4 text-[13px] text-ink-3">
+                        Nothing on the roadmap yet, and no projects {BEING_WORKED_ON}. Click Add to
+                        the roadmap to start a plan.
+                     </div>
+                  ) : (
+                     <div>
+                        {body}
+                        {notTrackedLane}
+                     </div>
+                  )}
+                  {narrowed &&
+                     !shownPlans.length &&
+                     !(everything && shownUnplanned.length) &&
+                     nothingMatches(`on the roadmap or ${BEING_WORKED_ON}`)}
+               </div>
             </div>
          ) : (
-            <>
+            <div {...PRESS_GUARD} className="contents">
                {(newPlan || receiptAdded) && (
                   <div className="mb-3">
                      <Rows>
@@ -3761,7 +3765,7 @@ export function Roadmap({
                      }
                   />
                )}
-            </>
+            </div>
          )}
       </section>
    );

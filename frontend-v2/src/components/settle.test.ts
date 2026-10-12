@@ -1,6 +1,19 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearHolds, GUARD_PX, guardAt, HOLD_MS, onLeave, reveal, settle } from './settle';
+import {
+   clearHolds,
+   DOUBLE_MS,
+   GUARD_PX,
+   guardAt,
+   HOLD_MS,
+   onLeave,
+   pressedBy,
+   reveal,
+   settle,
+} from './settle';
+
+// jsdom makes no trusted events: every press here is a person's
+pressedBy.person = () => true;
 
 const box = (top: number, height: number, left = 0, width = 400) =>
    ({
@@ -15,7 +28,13 @@ const box = (top: number, height: number, left = 0, width = 400) =>
       toJSON: () => ({}),
    } as DOMRect);
 
-/** A region under the rule, with a button that counts its clicks. */
+/** Put an element at a place on screen: what its rect says. */
+const place = (el: HTMLElement, left: number, top: number, width = 40, height = 20) => {
+   el.getBoundingClientRect = () => box(top, height, left, width);
+};
+
+/** A region under the rule, with two buttons that count their clicks:
+ * `first` around (100, 100), `other` far away until a test moves it. */
 function region() {
    const root = document.createElement('div');
    root.setAttribute('data-press-guard', '');
@@ -23,6 +42,8 @@ function region() {
    const other = document.createElement('button');
    root.append(first, other);
    document.body.append(root);
+   place(first, 80, 90);
+   place(other, 400, 400);
    const hits = { first: 0, other: 0 };
    first.addEventListener('click', () => hits.first++);
    other.addEventListener('click', () => hits.other++);
@@ -30,56 +51,283 @@ function region() {
 }
 
 /** What a mouse sends for one press at a point, onto `el` (what's there). */
-function pressAt(el: HTMLElement, x: number, y: number, detail = 1) {
+function pressAt(el: Element, x: number, y: number, detail = 1) {
    const at = { bubbles: true, cancelable: true, clientX: x, clientY: y };
    const down = new MouseEvent('pointerdown', at);
    el.dispatchEvent(down);
-   el.dispatchEvent(new MouseEvent('mousedown', at));
+   const mouse = new MouseEvent('mousedown', at);
+   el.dispatchEvent(mouse);
    el.dispatchEvent(new MouseEvent('mouseup', at));
    el.dispatchEvent(new MouseEvent('click', { ...at, detail }));
-   return down;
+   return { down, mouse };
 }
 
 const moveTo = (x: number, y: number) =>
    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: x, clientY: y }));
 
 let now = 1000;
+let flashed: Element[] = [];
 beforeEach(() => {
    now = 1000;
    vi.spyOn(performance, 'now').mockImplementation(() => now);
+   flashed = [];
+   Element.prototype.animate = function (this: Element) {
+      flashed.push(this);
+      return {} as Animation;
+   };
+   // the page's own box, so a press at a point isn't on its scrollbar
+   vi.spyOn(document.documentElement, 'clientWidth', 'get').mockReturnValue(1000);
+   vi.spyOn(document.documentElement, 'clientHeight', 'get').mockReturnValue(800);
 });
 afterEach(() => {
    clearHolds();
    document.body.innerHTML = '';
    vi.restoreAllMocks();
+   delete (Element.prototype as Partial<Element>).animate;
 });
 
-describe('the press guard', () => {
-   it('lets no press at a click’s point reach what slid there', () => {
-      const { first, other, hits } = region();
+describe('the press guard: a stray press', () => {
+   it('reaches no control that arrived under the point since the click', () => {
+      const { root, first, hits } = region();
       pressAt(first, 100, 100);
       expect(hits.first).toBe(1);
-      // the click moved `other` under the pointer: a double-click's second
-      // press finds it, and reaches nothing
-      const down = pressAt(other, 100 + GUARD_PX - 2, 100);
-      expect(hits.other).toBe(0);
-      // nothing takes the focus or starts a selection either
+      // the click put a new control where the pointer is: a double-click's
+      // second press finds it, and reaches nothing
+      const came = document.createElement('button');
+      place(came, 85, 92);
+      root.append(came);
+      let cameHits = 0;
+      came.addEventListener('click', () => cameHits++);
+      const { down, mouse } = pressAt(came, 101, 100);
+      expect(cameHits).toBe(0);
+      // nothing takes the focus or starts a selection either, and the
+      // control says it was kept from the press
       expect(down.defaultPrevented).toBe(true);
-      // the same control again, too: a triple click is one click
+      expect(mouse.defaultPrevented).toBe(true);
+      expect(flashed).toEqual([came]);
+   });
+
+   it('reaches no control that slid under the point', () => {
+      const { first, other, hits } = region();
+      pressAt(first, 100, 100);
+      place(other, 90, 95);
+      pressAt(other, 100 + GUARD_PX - 4, 100);
+      expect(hits.other).toBe(0);
+   });
+
+   it('reaches no control that moved, though it was near', () => {
+      const { first, other, hits } = region();
+      place(other, 125, 90);
+      pressAt(first, 100, 100);
+      // a line above it grew: it slid down 18 px, still near the point
+      place(other, 125, 108);
+      pressAt(other, 118, 112);
+      expect(hits.other).toBe(0);
+   });
+
+   it('takes a double-click on one control as one click', () => {
+      const { first, hits } = region();
+      pressAt(first, 100, 100);
+      now += DOUBLE_MS - 100;
       pressAt(first, 100, 100);
       expect(hits.first).toBe(1);
    });
 
-   it('lets a press away from the point through', () => {
-      const { first, other, hits } = region();
+   it('eats the click of a press it ate, however long the press is held', () => {
+      const { root, first } = region();
       pressAt(first, 100, 100);
-      pressAt(other, 100 + GUARD_PX + 2, 100);
+      const came = document.createElement('button');
+      place(came, 85, 92);
+      root.append(came);
+      let cameHits = 0;
+      came.addEventListener('click', () => cameHits++);
+      const at = { bubbles: true, cancelable: true, clientX: 100, clientY: 100 };
+      now += HOLD_MS - 200;
+      came.dispatchEvent(new MouseEvent('pointerdown', at));
+      // held down past the hold's end, then let go
+      now += 600;
+      came.dispatchEvent(new MouseEvent('mouseup', at));
+      came.dispatchEvent(new MouseEvent('click', { ...at, detail: 1 }));
+      expect(cameHits).toBe(0);
+   });
+
+   it('reaches nothing new where no control is, so nothing that came is selected', () => {
+      const { root, first } = region();
+      pressAt(first, 100, 100);
+      first.remove();
+      const words = document.createElement('span');
+      root.append(words);
+      const { down } = pressAt(words, 100, 100);
+      expect(down.defaultPrevented).toBe(true);
+   });
+
+   it('holds at a drop’s point', () => {
+      const { root, hits, other } = region();
+      guardAt(50, 60);
+      place(other, 40, 50);
+      pressAt(other, 52, 61);
+      expect(hits.other).toBe(0);
+      const came = document.createElement('button');
+      root.append(came);
+      place(came, 45, 55);
+      pressAt(came, 52, 61);
+      expect(flashed).toEqual([other, came]);
+   });
+
+   it('judges a press by when it was made, not when a busy page got to it', () => {
+      const { first, hits } = region();
+      pressAt(first, 100, 100);
+      // a long render: the page reads the second press of a double-click
+      // two seconds on, though it was made a moment after the first
+      now += 2000;
+      const at = { bubbles: true, cancelable: true, clientX: 100, clientY: 100 };
+      const down = new MouseEvent('pointerdown', at);
+      Object.defineProperty(down, 'timeStamp', { value: 1080 });
+      first.dispatchEvent(down);
+      first.dispatchEvent(new MouseEvent('click', { ...at, detail: 2 }));
+      expect(hits.first).toBe(1);
+   });
+});
+
+describe('the press guard: a press a person means', () => {
+   it('reaches a neighbour that stayed in place, at once', () => {
+      const { first, other, hits } = region();
+      place(other, 122, 90, 12, 20);
+      pressAt(first, 100, 100);
+      now += 200;
+      pressAt(other, 116 + 12, 100);
+      expect(hits.other).toBe(1);
+      expect(flashed).toEqual([]);
+   });
+
+   it('reaches the same control again after a double-click’s span', () => {
+      const { first, hits } = region();
+      pressAt(first, 100, 100);
+      now += DOUBLE_MS + 1;
+      pressAt(first, 100, 100);
+      expect(hits.first).toBe(2);
+   });
+
+   it('closes a toggle it just opened, at 0.4 s or at once', () => {
+      const { first, hits } = region();
+      first.setAttribute('aria-expanded', 'false');
+      first.addEventListener('click', () =>
+         first.setAttribute('aria-expanded', String(first.getAttribute('aria-expanded') !== 'true'))
+      );
+      pressAt(first, 100, 100);
+      now += 400;
+      pressAt(first, 100, 100);
+      expect(first.getAttribute('aria-expanded')).toBe('false');
+      pressAt(first, 100, 100);
+      expect(hits.first).toBe(3);
+      // a fold's band: a summary, or what's inside one
+      const fold = document.createElement('details');
+      const band = document.createElement('summary');
+      const label = document.createElement('button');
+      band.append(label);
+      fold.append(band);
+      first.closest('[data-press-guard]')?.append(fold);
+      place(label, 300, 300);
+      let labelHits = 0;
+      label.addEventListener('click', () => labelHits++);
+      pressAt(label, 310, 310);
+      pressAt(label, 310, 310);
+      expect(labelHits).toBe(2);
+   });
+
+   it('never cancels a drag from a grip that stayed put', () => {
+      const { first } = region();
+      first.setAttribute('draggable', 'true');
+      pressAt(first, 100, 100);
+      now += 200;
+      const { down, mouse } = pressAt(first, 100, 100);
+      expect(down.defaultPrevented).toBe(false);
+      expect(mouse.defaultPrevented).toBe(false);
+   });
+
+   it('reaches a control the pointer moved onto, past a wobble', () => {
+      const { root, first } = region();
+      pressAt(first, 100, 100);
+      // Other answers opened its ends 12 px below the pointer
+      const end = document.createElement('button');
+      place(end, 80, 108);
+      root.append(end);
+      let endHits = 0;
+      end.addEventListener('click', () => endHits++);
+      moveTo(102, 104);
+      pressAt(end, 102, 104);
+      expect(endHits).toBe(0);
+      moveTo(100, 112);
+      pressAt(end, 100, 112);
+      expect(endHits).toBe(1);
+   });
+
+   it('reaches what the pointer moved away to', () => {
+      const { first, other, hits } = region();
+      place(other, 140, 90);
+      pressAt(first, 100, 100);
+      pressAt(other, 100 + GUARD_PX + 26, 100);
       expect(hits.other).toBe(1);
    });
 
-   it('ends once the pointer moves away, and not for a wobble', () => {
-      const { first, other, hits } = region();
-      pressAt(first, 100, 100);
+   it('reaches a key’s press always, and holds nothing outside its regions', () => {
+      const { root, first } = region();
+      pressAt(first, 100, 100, 0);
+      const came = document.createElement('button');
+      place(came, 85, 92);
+      root.append(came);
+      let cameHits = 0;
+      came.addEventListener('click', () => cameHits++);
+      pressAt(came, 100, 100);
+      expect(cameHits).toBe(1);
+      clearHolds();
+      const outside = document.createElement('button');
+      document.body.append(outside);
+      place(outside, 280, 290);
+      let outsideHits = 0;
+      outside.addEventListener('click', () => outsideHits++);
+      pressAt(outside, 300, 300);
+      outside.remove();
+      const next = document.createElement('button');
+      document.body.append(next);
+      place(next, 280, 290);
+      next.addEventListener('click', () => outsideHits++);
+      pressAt(next, 300, 300);
+      expect(outsideHits).toBe(2);
+   });
+
+   it('lets code’s own click (opening a "+ N more") start nothing and end nothing', () => {
+      const person = pressedBy.person;
+      pressedBy.person = e => e.isTrusted;
+      try {
+         const { first, other } = region();
+         guardAt(100, 100);
+         const gone = vi.fn();
+         onLeave(gone);
+         first.click();
+         expect(gone).not.toHaveBeenCalled();
+         // the hold is still the drop's: what came is still kept from a press
+         pressedBy.person = person;
+         place(other, 90, 95);
+         const { down } = pressAt(other, 100, 100);
+         expect(down.defaultPrevented).toBe(true);
+      } finally {
+         pressedBy.person = person;
+      }
+   });
+});
+
+describe('the press guard lets go', () => {
+   /** A click on `first`, then a control that slid under the point. */
+   const slid = () => {
+      const r = region();
+      pressAt(r.first, 100, 100);
+      place(r.other, 90, 95);
+      return r;
+   };
+
+   it('once the pointer moves away, and not for a wobble', () => {
+      const { other, hits } = slid();
       moveTo(103, 98);
       pressAt(other, 100, 100);
       expect(hits.other).toBe(0);
@@ -88,9 +336,8 @@ describe('the press guard', () => {
       expect(hits.other).toBe(1);
    });
 
-   it('lets go after its time with the pointer still, and no sooner', () => {
-      const { first, other, hits } = region();
-      pressAt(first, 100, 100);
+   it('after its time with the pointer still, and no sooner', () => {
+      const { other, hits } = slid();
       now += HOLD_MS - 1;
       pressAt(other, 100, 100);
       expect(hits.other).toBe(0);
@@ -99,68 +346,38 @@ describe('the press guard', () => {
       expect(hits.other).toBe(1);
    });
 
-   it('judges a press by when it was made, not when a busy page got to it', () => {
-      const { first, other, hits } = region();
-      pressAt(first, 100, 100);
-      // a long render: the page reads the second press of a double-click
-      // two seconds on, though it was made a moment after the first
-      now += 2000;
-      const click = new MouseEvent('click', { bubbles: true, cancelable: true, clientX: 100, clientY: 100, detail: 2 });
-      Object.defineProperty(click, 'timeStamp', { value: 1080 });
-      other.dispatchEvent(click);
-      expect(hits.other).toBe(0);
-   });
-
    it('holds at least a second and a half', () => {
       expect(HOLD_MS).toBeGreaterThanOrEqual(1500);
    });
 
-   it('lets go on a wheel: the page moved on purpose', () => {
-      const { first, other, hits } = region();
-      pressAt(first, 100, 100);
-      document.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: 40 }));
+   it.each([
+      [
+         'a wheel',
+         () => document.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: 40 })),
+      ],
+      [
+         'a key',
+         () =>
+            document.dispatchEvent(
+               new KeyboardEvent('keydown', { bubbles: true, key: 'PageDown' })
+            ),
+      ],
+      [
+         'a touch pan',
+         () => document.dispatchEvent(new MouseEvent('pointercancel', { bubbles: true })),
+      ],
+      [
+         'the scrollbar',
+         () =>
+            document.documentElement.dispatchEvent(
+               new MouseEvent('pointerdown', { bubbles: true, clientX: 1005, clientY: 100 })
+            ),
+      ],
+   ])('once %s scrolls the page', (_how, scroll) => {
+      const { other, hits } = slid();
+      scroll();
       pressAt(other, 100, 100);
       expect(hits.other).toBe(1);
-   });
-
-   it('holds nothing for a key’s click, or outside its regions', () => {
-      const { first, other, hits } = region();
-      pressAt(first, 100, 100, 0);
-      pressAt(other, 100, 100);
-      expect(hits.other).toBe(1);
-      const outside = document.createElement('button');
-      document.body.append(outside);
-      let outsideHits = 0;
-      outside.addEventListener('click', () => outsideHits++);
-      pressAt(outside, 300, 300);
-      pressAt(outside, 300, 300);
-      expect(outsideHits).toBe(2);
-   });
-
-   it('lets code’s own click (opening a "+ N more") start nothing and end nothing', () => {
-      // outside tests, only a person's press counts: jsdom makes no trusted ones
-      vi.stubEnv('MODE', 'production');
-      try {
-         const { first, other, hits } = region();
-         guardAt(100, 100);
-         const gone = vi.fn();
-         onLeave(gone);
-         first.click();
-         expect(hits.first).toBe(1);
-         expect(gone).not.toHaveBeenCalled();
-         const down = new MouseEvent('pointerdown', { bubbles: true, cancelable: true, clientX: 100, clientY: 100 });
-         other.dispatchEvent(down);
-         expect(down.defaultPrevented).toBe(true);
-      } finally {
-         vi.unstubAllEnvs();
-      }
-   });
-
-   it('holds at a drop’s point', () => {
-      const { other, hits } = region();
-      guardAt(50, 60);
-      pressAt(other, 52, 61);
-      expect(hits.other).toBe(0);
    });
 });
 

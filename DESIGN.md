@@ -905,14 +905,21 @@ icon with a class bolted on.
   answers opened, an edit form. An answer strip's one Tab stop is its
   first answer that can be pressed, so an answer waiting on an empty
   chooser never hides Other answers from the keyboard.
-- **After a click, nothing new can be clicked under a still pointer**
+- **After a click, a still pointer can't press what came under it**
   (`components/settle.ts`). A click often changes what sits under the
-  pointer: a receipt replaces the answers, a row joins a section above, a
-  lane opens. On every view the initiatives feature draws on, a pointer
-  click (or a drop) holds its point, and a press within 24 px of it
-  reaches nothing until the pointer moves away or the page scrolls, or
-  1.6 s with the pointer still. So a double or triple click is one click,
-  and a press "to be sure" a second later does nothing. What the click
+  pointer: a receipt replaces the answers, a row joins a section above,
+  Other answers opens its ends. In the parts of a view that move when the
+  initiatives feature answers a click (Decide, the Roadmap's lanes and
+  details, the project and initiative pages, the Overview; not the load
+  chart), a pointer click or a drop notes what's within 24 px of its
+  point and where it sits. For 1.6 s, until the pointer moves away or a
+  person scrolls, a press there reaches nothing (and the control flashes
+  an outline) only if it lands on a control that arrived or moved since,
+  or on the same control again within a double-click. A control that
+  stayed put takes every press: a toggle closes again at once, the next
+  week, a neighbour, a grip's drag. So a double or triple click is one
+  click, and a press "to be sure" a second later lands on nothing new. A
+  pointer moved onto a control that arrived means it. What the click
   left (a receipt, Undo's words) gets the focus and is shown whole below
   the sticky headers, wherever it went. Undo's held words ("Put X back as
   it was.") stand where the receipt was until the pointer moves away, a

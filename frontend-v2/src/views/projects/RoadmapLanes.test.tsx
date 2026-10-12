@@ -9,7 +9,10 @@ import { loadInitiatives, useInitiativesValue } from '../../model/initiativesDat
 import { loadRoadmap } from '../../model/roadmapData';
 import type { ProjectsNav } from './parts';
 import { Roadmap } from './Roadmap';
-import { clearHolds } from '../../components/settle';
+import { clearHolds, pressedBy } from '../../components/settle';
+
+// jsdom makes no trusted events: every press here is a person's
+pressedBy.person = () => true;
 
 // React's act() warns unless the environment says it's a test
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
