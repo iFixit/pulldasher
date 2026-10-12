@@ -2725,6 +2725,9 @@ export function Roadmap({
       row: {
          onDragOver: (e: DragEvent) => {
             if (dragging == null) return;
+            // a plan with no project can't be filed in another lane
+            const moving = byInitiative ? ordered.find(i => i.id === dragging) : undefined;
+            if (moving && !moving.project && laneKey(item.project) !== NO_PROJECT_LANE) return;
             e.preventDefault();
             setDropTarget(item.id);
          },

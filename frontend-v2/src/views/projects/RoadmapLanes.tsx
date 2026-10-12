@@ -232,13 +232,19 @@ export function initiativeLanes(c: LaneContext) {
    const fileByDrag = (item: RoadmapItem, to: string) => {
       const key = `plan:${item.id}`;
       const slug = item.project;
+      // the lanes refuse its drag (laneDrop), so this is the fallback: said
+      // where it was dropped, with the way to the question that links it
       if (!slug) {
-         return setAnnounced(
-            `${item.name} has no project yet, so it can’t be filed. Link it to its project in Edit details first.`
-         );
+         return say({
+            key,
+            words: `${item.name} has no project yet, so it can’t be filed. Open its plan to link its project`,
+            failed: true,
+            open: item.id,
+         });
       }
       if (to === NO_PROJECT_LANE) return;
-      const from = homeOf(slug)?.slug ?? null;
+      const fromHome = homeOf(slug);
+      const from = fromHome?.slug ?? null;
       const target = to === UNSORTED ? null : to;
       const toName = target
          ? byRank(initiatives ?? []).find(i => i.slug === target)?.name ?? target
@@ -312,8 +318,10 @@ export function initiativeLanes(c: LaneContext) {
       onDragOver: (e: DragEvent) => {
          if (dragging == null && draggingLane == null) return;
          if (draggingLane != null && !initiative) return;
-         // a plan files through its project, never into the no-project lane
+         // a plan files through its project, never into the no-project
+         // lane; one with no project isn't taken at all, so nothing lights
          if (key === NO_PROJECT_LANE) return;
+         if (draggingLane == null && !ordered.find(i => i.id === dragging)?.project) return;
          e.preventDefault();
          setOverLane(key);
       },
