@@ -9,6 +9,8 @@ import { loadInitiatives } from '../../model/initiativesData';
 import type { PortfolioItem } from '../../model/portfolio';
 import { HomeLine, InitiativePage } from './Initiatives';
 import { InitiativeSwitch } from './HomeCalls';
+import { NO_PROJECT, UNSORTED } from '../../model/initiativeBoard';
+import { PROJECT_SLUG } from '../../../../shared/model/roadmap';
 import type { ProjectsNav } from './parts';
 import { DecideCall, DecideRowView, keepCalls, type Made } from './Decide';
 import { AllItemsContext, answerWords, callWords } from '../../model/decideCalls';
@@ -512,6 +514,26 @@ describe('Decide’s Initiative switch', () => {
          'Site speed · 2',
          'Catalog · 1',
       ]);
+   });
+
+   it('counts plans with no project apart from Unsorted, under keys no slug can take', () => {
+      const owed: Record<string, number> = { [UNSORTED]: 3, [NO_PROJECT]: 1 };
+      const el = mount(
+         <InitiativeSwitch
+            initiatives={INITIATIVES}
+            owedIn={slug => owed[slug] ?? 0}
+            value={null}
+            onChange={nothing}
+         />
+      );
+      const options = [...el.querySelectorAll('option')];
+      expect(options.map(o => o.textContent)).toEqual([
+         'All initiatives',
+         'Unsorted · 3',
+         'No project yet · 1',
+      ]);
+      // an initiative may be called "unsorted"; these keys can't be its slug
+      for (const o of options.slice(1)) expect(PROJECT_SLUG.test(o.value)).toBe(false);
    });
 });
 

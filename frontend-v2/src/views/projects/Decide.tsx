@@ -62,7 +62,7 @@ import {
    updateInitiative,
    type Home,
 } from '../../model/initiativesData';
-import { UNSORTED } from '../../model/initiativeBoard';
+import { NO_PROJECT, UNSORTED } from '../../model/initiativeBoard';
 import { homesOf } from '../../../../shared/model/initiatives';
 import {
    ALL_ISSUES_CLOSED,
@@ -2153,24 +2153,35 @@ export function Decide({
       decideRows(today, plans, closed, work, ongoing, { initiatives: initiatives ?? [], grown }),
       made
    );
+   // the Initiative switch's key for a row: its initiative, Unsorted, or
+   // for a plan with no project, the No project yet entry, as the Roadmap
+   // lanes split them
+   const withinOf = (row: DecideRow) =>
+      initiativeOfRow(row)?.slug ?? (row.slug ? UNSORTED : NO_PROJECT);
    const inTeam = (row: DecideRow) =>
       (!nav.team || (teamOfRow(row) ?? '(none)') === nav.team) &&
-      (!nav.within || (initiativeOfRow(row)?.slug ?? UNSORTED) === nav.within);
+      (!nav.within || withinOf(row) === nav.within);
    const owed = kept.owed.filter(inTeam);
    const shown = kept.all.filter(inTeam);
    const decidedHere = [...kept.settled.values()].filter(m => inTeam(m.row));
    const withinName = nav.within
       ? nav.within === UNSORTED
          ? `${UNSORTED_WORD} projects`
+         : nav.within === NO_PROJECT
+         ? 'plans with no project yet'
          : (initiatives ?? []).find(i => i.slug === nav.within)?.name ?? nav.within
       : null;
-   const whose = !nav.team
-      ? withinName
-         ? ` for ${withinName}`
-         : ''
+   // both when both narrow it: "for Store in Site speed"
+   const teamWords = !nav.team
+      ? ''
       : nav.team === '(none)'
       ? ' for work with no team'
       : ` for ${nav.team}`;
+   const whose = withinName
+      ? teamWords
+         ? `${teamWords} in ${withinName}`
+         : ` for ${withinName}`
+      : teamWords;
    const heading = owed.length
       ? `${n(owed.length, 'decision')} to make`
       : decidedHere.length
@@ -2288,10 +2299,7 @@ export function Decide({
             {(initiatives ?? []).length > 0 && (
                <InitiativeSwitch
                   initiatives={initiatives ?? []}
-                  owedIn={slug =>
-                     kept.owed.filter(row => (initiativeOfRow(row)?.slug ?? UNSORTED) === slug)
-                        .length
-                  }
+                  owedIn={slug => kept.owed.filter(row => withinOf(row) === slug).length}
                   value={nav.within}
                   onChange={within => navigate({ within })}
                />

@@ -14,8 +14,12 @@ import { NOT_IN_A_PROJECT, ONE_OFFS, UNSORTED_WORD } from './words';
  * project's home, and the words an initiative's band and page say.
  */
 
-/** The slug of the home Unsorted stands for: a project with no filing. */
-export const UNSORTED = 'unsorted';
+/** The key Unsorted stands for (a project with no filing) in a lane, the
+ * Initiative switch and Look back's split: never a slug, so no initiative
+ * can share it (PROJECT_SLUG takes no parentheses). */
+export const UNSORTED = '(unsorted)';
+/** The key for plans with no project, which no initiative can hold. */
+export const NO_PROJECT = '(no-project)';
 
 /** Today without the Not tracked projects: what every count and question
  * reads. PRs outside any project stay, since they're in no project. */
@@ -156,7 +160,7 @@ export function bandGloss(
 
 /** Look back's split by initiative: the group a PR's project's days go
  * in. Not tracked is one group, filed there or by its repo. */
-export const SPLIT_UNSORTED = '(unsorted)';
+export const SPLIT_UNSORTED = UNSORTED;
 export const SPLIT_NOT_TRACKED = '(not-tracked)';
 export const SPLIT_ONE_OFFS = '(one-offs)';
 export const SPLIT_NO_PROJECT = '(none)';

@@ -12,7 +12,12 @@ import { FactLink, QuietButton } from '../../components/bits';
 import { Icon } from '../../components/Icon';
 import { Fold, openFold, useFoldState } from '../../components/Lane';
 import { askedInitiative, askOf } from '../../model/decideCalls';
-import { bandGloss as initiativeGloss, spanWords, UNSORTED } from '../../model/initiativeBoard';
+import {
+   bandGloss as initiativeGloss,
+   NO_PROJECT,
+   spanWords,
+   UNSORTED,
+} from '../../model/initiativeBoard';
 import { byRank, fileProject, moveInitiative, readInitiatives } from '../../model/initiativesData';
 import type { PortfolioItem } from '../../model/portfolio';
 import { NO_PROJECT_YET, UNSORTED_WORD } from '../../model/words';
@@ -35,7 +40,7 @@ function hashWith(patch: Record<string, string | null>): string {
 const readInitiativesNow = () => readInitiatives().initiatives ?? [];
 
 /** the lane, by initiative, of plans with no project */
-export const NO_PROJECT_LANE = '(no-project)';
+export const NO_PROJECT_LANE = NO_PROJECT;
 
 /** The quiet line under a row that says what a click just saved, with the
  * way back (Decide's receipt): where the click was, not far away. */

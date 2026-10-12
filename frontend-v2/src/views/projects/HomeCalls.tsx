@@ -10,8 +10,8 @@ import type { DecideRow } from '../../../../shared/model/decide';
 import { homesOf, type Initiative } from '../../../../shared/model/initiatives';
 import { textInputClass } from '../../components/bits';
 import { byRank, useInitiativesValue } from '../../model/initiativesData';
-import { guessHome, homeChoices, UNSORTED } from '../../model/initiativeBoard';
-import { UNSORTED_WORD } from '../../model/words';
+import { guessHome, homeChoices, NO_PROJECT, UNSORTED } from '../../model/initiativeBoard';
+import { NO_PROJECT_YET, UNSORTED_WORD } from '../../model/words';
 import {
    AllItemsContext,
    answerWords,
@@ -302,7 +302,7 @@ export function HomeStrip({
  * slice. A select, since there can be twenty; each names how many are owed,
  * and only the ones with something owed are offered (and the one picked):
  * the open homes in rank order, a closed initiative while a project in it
- * is asked about, then Unsorted.
+ * is asked about, then Unsorted and No project yet.
  */
 export function InitiativeSwitch({
    initiatives,
@@ -321,6 +321,8 @@ export function InitiativeSwitch({
    const offered = [
       ...[...homeChoices(initiatives), ...closed].map(i => [i.slug, i.name] as const),
       [UNSORTED, UNSORTED_WORD] as const,
+      // a plan with no project is in no initiative, as its Roadmap lane says
+      [NO_PROJECT, NO_PROJECT_YET] as const,
    ].filter(([slug]) => owedIn(slug) > 0 || slug === value);
    if (!offered.length) return null;
    return (
