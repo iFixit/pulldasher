@@ -328,6 +328,11 @@ icon with a class bolted on.
 - **j and k move between a list's rows** wherever a list is long enough to
   triage (`components/useRowKeys.ts`), opening a "+ N more" on the way past
   so every row is reachable, the way they move between PRs on the board.
+  They land on a row's first target that can be pressed; a target that's
+  off (an answer waiting on its chooser) gives way to the row's first
+  control that isn't a field (its name: j typed in a select picks an
+  option), and a row with nowhere to land is stepped past, so j and k reach
+  every row from every row.
 - **One filled button, one failure line.** `PrimaryButton` ends a form;
   a failed load is `LoadFailed` (grey, with Try again: nobody owes a
   failed fetch, so never amber, and red stays CI's); a save confirms in
@@ -865,7 +870,11 @@ icon with a class bolted on.
   "Priority" is the one word for order, for lanes and rows alike, on grips,
   hovers and receipts; a receipt names the number its row shows ("Moved
   Cache warmer to priority 1 in Site speed"). A band with no grip keeps
-  the grip's column, so every label starts at one x. A closed initiative
+  the grip's column, so every label starts at one x, and a row with no
+  number keeps the number's, so every name in a lane does too. An
+  initiative's band, on the Roadmap and the Overview alike, ends a long
+  name in an ellipsis, keeps its count, and on a phone puts its detail on
+  its own line. A closed initiative
   says "Closed as done Sep 20" everywhere; an open one whose plans all
   stopped says "Nothing under way since Sep 20".
   "File" is the one word for putting a project in an initiative: the
@@ -875,6 +884,13 @@ icon with a class bolted on.
   File Cancel". An Unsorted row's File is its answer; Track it, File
   elsewhere, a plan's details and a project's page open it with Cancel;
   Needs a plan shows it alone, since its plan answer carries the pick.
+  A plan with no project asks the same way: "Its project [select] Link".
+  An opener (Track it, File elsewhere) stays where it is on every view,
+  says it's open, and opens the chooser on the line below; a second click
+  on it closes it. With nothing offered chosen (a home that closed since),
+  the chooser says "Choose where it goes". Filing is offered once: while
+  a plan's Plan line asks where its project goes, its Initiative line
+  only says the home.
   The chooser shows only while the project is filed nowhere; a filed
   project's plan answer stays a plan answer. Filing from a plan's details
   is a drop's keyboard twin: its receipt and Undo sit under the row in
@@ -888,9 +904,21 @@ icon with a class bolted on.
   opened it**: a chooser (not the details around it), the answers Other
   answers opened, an edit form. An answer strip's one Tab stop is its
   first answer that can be pressed, so an answer waiting on an empty
-  chooser never hides Other answers from the keyboard. Undo's held words
-  can't be selected, and where the page can't scroll up to keep them
-  under the pointer, a gap holds them there through a triple click.
+  chooser never hides Other answers from the keyboard.
+- **After a click, nothing new can be clicked under a still pointer**
+  (`components/settle.ts`). A click often changes what sits under the
+  pointer: a receipt replaces the answers, a row joins a section above, a
+  lane opens. On every view the initiatives feature draws on, a pointer
+  click (or a drop) holds its point, and a press within 24 px of it
+  reaches nothing until the pointer moves away or the page scrolls, or
+  1.6 s with the pointer still. So a double or triple click is one click,
+  and a press "to be sure" a second later does nothing. What the click
+  left (a receipt, Undo's words) gets the focus and is shown whole below
+  the sticky headers, wherever it went. Undo's held words ("Put X back as
+  it was.") stand where the receipt was until the pointer moves away, a
+  Tab, or the next action. A failed Undo says the server's reason and
+  keeps Try again. A run of lane moves, on one lane or several, keeps one
+  receipt whose Undo puts the whole order back.
   "Unsorted" is the one word for a project filed nowhere, on every band,
   chooser, hover and split (the sentence form is "filed nowhere"). A plan
   with no project can't be filed, so it sits in its own "No project yet"
