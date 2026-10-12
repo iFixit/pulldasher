@@ -59,12 +59,15 @@ export function HomeLine({
    initiatives,
    navigate,
    onSaid,
+   movable = true,
 }: {
    slug: string;
    initiatives: readonly Initiative[];
    navigate: Navigate;
    /** say a change aloud, for a screen reader */
    onSaid?: (words: string) => void;
+   /** false while another control on the page files it (Decide's question) */
+   movable?: boolean;
 }) {
    const home = homesOf(initiatives).get(slug)?.initiative ?? null;
    const projectName = useContext(AllItemsContext).find(i => i.slug === slug)?.name ?? slug;
@@ -127,7 +130,7 @@ export function HomeLine({
          ) : (
             <span>{UNSORTED_WORD}</span>
          )}
-         {!moving && !receipt && (
+         {movable && !moving && !receipt && (
             <QuietButton
                id={moveId}
                onClick={() => {

@@ -687,6 +687,14 @@ describe('a project page’s home line', () => {
       expect(move?.disabled).toBe(false);
    });
 
+   it('offers no Move while Decide’s question on the page files it', () => {
+      const el = mount(
+         <HomeLine slug="new-thing" initiatives={INITIATIVES} navigate={nothing} movable={false} />
+      );
+      expect(el.textContent).toBe('Unsorted');
+      expect(el.querySelector('button')).toBeNull();
+   });
+
    it('says the move once, and its Undo in the one Undo form', async () => {
       const said: string[] = [];
       const el = mount(

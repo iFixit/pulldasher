@@ -55,6 +55,7 @@ import {
    END_WORD,
    LAST_14_DAYS,
    NO_UPDATE_YET,
+   NOT_TRACKED_GLOSS,
    UPDATE_DUE,
 } from '../../model/words';
 import { DecideCall, planRow, usePlanCalls } from './Decide';
@@ -840,11 +841,14 @@ export function ProjectPage({
             </div>
             {initiatives && initiatives.length > 0 && (
                <div className="mt-1">
+                  {/* while Decide asks where it goes, its answers below are
+                      the one way to move it */}
                   <HomeLine
                      slug={slug}
                      initiatives={initiatives}
                      navigate={navigate}
                      onSaid={setSaid}
+                     movable={!homeAsks.length}
                   />
                   {/* where it belongs, when Decide asks: its question and answers */}
                   {homeAsks.map(row => {
@@ -863,9 +867,7 @@ export function ProjectPage({
                   })}
                   {untracked && !homeAsks.length && (
                      <p className="m-0 mt-0.5 max-w-[70ch] text-xs text-ink-3">
-                        Not tracked: it counts in no tile, load or question
-                        {plans && planFor(slug, plans) ? ', and its plan owes no update' : ''}, but
-                        Decide asks again if it doubles in size.
+                        {NOT_TRACKED_GLOSS}
                      </p>
                   )}
                </div>
