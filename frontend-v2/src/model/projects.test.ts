@@ -29,6 +29,7 @@ function open(over: {
    workedDays?: number;
    /** a reviewer who asked for changes the author hasn't answered */
    changesBy?: string;
+   draft?: boolean;
 }): DerivedPull {
    return {
       status: over.status ?? 'needs_cr',
@@ -37,6 +38,7 @@ function open(over: {
          number: ++n,
          user: { login: over.author ?? 'alice' },
          labels: labels(...(over.labels ?? [])),
+         draft: over.draft ?? false,
          created_at: iso(NOW - (over.ageDays ?? 1) * DAY),
          updated_at: iso(NOW - (over.idleDays ?? 0) * DAY),
          status: {
@@ -276,6 +278,39 @@ describe('buildToday', () => {
          NOW
       );
       expect(today.live[0].flags).toEqual([]);
+   });
+
+   it('never counts a draft, and lists it under its project or outside', () => {
+      const draft = (labels: string[], over: Parameters<typeof open>[0] = {}) =>
+         open({ labels, status: 'draft', draft: true, ...over });
+      const real = open({ labels: ['project:mixed'], author: 'a', idleDays: 2 });
+      const mixedDraft = draft(['project:mixed'], { author: 'b', idleDays: 90 });
+      const planned = draft(['project:planned'], { author: 'c' });
+      const noIssue = draft(['project:nothing-yet']);
+      const oneOff = draft(['project:misc']);
+      const loose = draft([]);
+      const two = draft(['project:mixed', 'project:planned']);
+      const today = buildToday(
+         [project({ slug: 'mixed' }), project({ slug: 'planned' })],
+         [real, mixedDraft, planned, noIssue, oneOff, loose, two],
+         [],
+         P,
+         NOW
+      );
+      // live and quiet go by real PRs: a project with only drafts is quiet
+      expect(today.live.map(g => g.slug)).toEqual(['mixed']);
+      expect(today.quiet.map(g => g.slug)).toEqual(['planned']);
+      const [mixed] = today.live;
+      expect(mixed.open).toEqual([real]);
+      expect(mixed.drafts).toEqual([mixedDraft, two]);
+      // its people, idle days and flags read the real PR only
+      expect([mixed.people, mixed.idleDays]).toEqual([['a'], 2]);
+      expect(today.quiet[0].open).toEqual([]);
+      expect(today.quiet[0].drafts).toEqual([planned]);
+      expect(today.quiet[0].people).toEqual([]);
+      // the rest list outside, never as one-offs, unsorted or two projects
+      expect(new Set(today.drafts)).toEqual(new Set([noIssue, oneOff, loose]));
+      expect([today.misc, today.unsorted, today.doubleLabeled]).toEqual([[], [], []]);
    });
 
    it('reports idle days from the stalest open PR and sorts the busiest first', () => {

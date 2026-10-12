@@ -595,11 +595,11 @@ export function ProjectPage({
    // project, or none), and the last two weeks' merges
    const liveIndex = new Map(
       [
-         ...today.live.flatMap(g => g.open),
-         ...today.quiet.flatMap(g => g.open),
+         ...[...today.live, ...today.quiet].flatMap(g => [...g.open, ...g.drafts]),
          ...today.misc,
          ...today.unsorted,
          ...today.doubleLabeled,
+         ...today.drafts,
       ].map(p => [issueKey(p.data), p])
    );
    const knownIndex = new Map([...merged, ...closed].map(p => [issueKey(p), p]));

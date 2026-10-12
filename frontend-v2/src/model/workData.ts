@@ -162,6 +162,7 @@ export async function dummyWorkInputs(plans: readonly RoadmapItem[]): Promise<Wo
          closedAt: p.closed_at ? epoch(p.closed_at) : null,
          state: p.state === 'open' ? 'open' : 'closed',
          links: linksOf.get(issueKey(p)) ?? [],
+         ...(p.draft ? { draft: true } : {}),
       };
       knownPulls.set(issueKey(pull), pull);
       // misc holds unsorted work, not a project: a misc PR joins the

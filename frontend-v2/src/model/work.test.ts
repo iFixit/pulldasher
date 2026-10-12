@@ -286,6 +286,44 @@ describe('planWork', () => {
       expect([first.openPulls, second.openPulls]).toEqual([1, 0]);
    });
 
+   it('never counts a draft: not open, not after the end, not after done', () => {
+      const [late] = planWork({
+         plans: [tool],
+         attached: new Map(),
+         pulls: new Map([['tool', [pull(11, '2026-09-10', { draft: true }), pull(12, '2026-09-10')]]]),
+         links: new Map(),
+      });
+      expect([late.openPulls, ids(late.afterEnd), ids(late.afterDone)]).toEqual([1, [12], [12]]);
+   });
+
+   it('says which of a page’s PRs are open drafts', () => {
+      const page = projectWork(
+         {
+            plans: [],
+            attached: new Map(),
+            pulls: new Map([
+               [
+                  'tool',
+                  [
+                     pull(20, '2026-09-10', { draft: true }),
+                     pull(21, '2026-09-10'),
+                     // GitHub can't merge a draft; one closed as a draft is just closed
+                     pull(22, '2026-09-10', { draft: true, state: 'closed', closedAt: at('2026-09-11') }),
+                  ],
+               ],
+            ]),
+            links: new Map(),
+         },
+         'tool',
+         at('2026-09-12')
+      );
+      expect(Object.fromEntries(page.unlinked.map(p => [p.number, p.draft]))).toEqual({
+         20: true,
+         21: undefined,
+         22: undefined,
+      });
+   });
+
    it('counts from when it was marked done, not from a later edit', () => {
       // done Sep 1, its notes edited Sep 20
       const edited = { ...tool, status_at: at('2026-09-01'), updated_at: at('2026-09-20') };

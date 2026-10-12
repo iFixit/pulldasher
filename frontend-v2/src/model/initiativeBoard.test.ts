@@ -52,6 +52,7 @@ const group = (slug: string, people: string[] = []): ProjectGroup => ({
    slug,
    project: null,
    open: [],
+   drafts: [],
    merged: [],
    closed: [],
    people,
@@ -99,6 +100,7 @@ describe('trackedToday', () => {
          misc: [],
          unsorted: [],
          doubleLabeled: [],
+         drafts: [],
       };
       const tracked = trackedToday(today, new Set(['ops', 'quiet-ops']));
       expect(tracked.live.map(g => g.slug)).toEqual(['kept']);
@@ -316,6 +318,7 @@ describe('a Not tracked project', () => {
       misc: [],
       unsorted: [],
       doubleLabeled: [],
+      drafts: [],
    };
    // the server set the flag on its plan
    const allPlans = [plan(1, 'store'), plan(2, 'ops', { untracked: true }), plan(3, 'store')];

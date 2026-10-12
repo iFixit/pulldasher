@@ -103,6 +103,7 @@ function group(
       slug,
       project: p,
       open,
+      drafts: [],
       merged,
       closed: [],
       people,
@@ -184,6 +185,7 @@ const today: Today = {
    misc: [],
    unsorted: [],
    doubleLabeled: [],
+   drafts: [],
 };
 const projects = [
    alpha,

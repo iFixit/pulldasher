@@ -257,6 +257,19 @@ test('spansFromRows files PRs by label, leaves bots out, falls back to the merge
    ]);
 });
 
+test('spansFromRows leaves drafts out, open or closed as one', () => {
+   const spans = spansFromRows(
+      [
+         { repo: 'test/repo-a', number: 1, owner: 'alice', date: 100, date_closed: null, date_merged: null, draft: 1 },
+         { repo: 'test/repo-a', number: 2, owner: 'alice', date: 100, date_closed: 150, date_merged: null, draft: 1 },
+         { repo: 'test/repo-a', number: 3, owner: 'alice', date: 100, date_closed: null, date_merged: null, draft: 0 },
+      ],
+      [],
+      'project:'
+   );
+   assert.deepEqual(spans, [{ author: 'alice', project: null, opened: 100, closed: null, merged: false }]);
+});
+
 test('spansFromRows files a PR with no project label under the project whose issue it links', () => {
    const spans = spansFromRows(
       [
@@ -369,6 +382,9 @@ before(() => {
    seed(pullRow(12, 'alice'), [label('project:alpha', 12)]);
    seed(pullRow(13, 'bob'), []);
    seed(pullRow(14, 'fixture-bot'), [label('project:alpha', 14)]);
+   // a draft in alpha, and one in no project: listed, counted nowhere
+   seed(pullRow(16, 'alice', { draft: 1 }), [label('project:alpha', 16)]);
+   seed(pullRow(17, 'dave', { draft: 1 }), []);
    // merged yesterday in alpha: alice's third PR there
    seed(pullRow(15, 'alice', { state: 'closed', date_closed: now - DAY, date_merged: now - DAY }), [
       label('project:alpha', 15),
@@ -497,6 +513,8 @@ test('/api/v1/projects lists each project with today and the window', async () =
    // ones still need their CR
    assert.deepEqual(alpha.open, ['test/repo-a#11', 'test/repo-a#12']);
    assert.deepEqual(alpha.merged_recently, ['test/repo-a#15']);
+   assert.deepEqual(alpha.drafts, ['test/repo-a#16']);
+   assert.deepEqual(body.drafts, ['test/repo-a#17']);
    assert.deepEqual(alpha.flags, ['one_person', 'waiting_on_review']);
    // both wait on a code review, in the project page's words
    assert.deepEqual(alpha.stages, { ready: 0, hold: 0, review: 2, work: 0 });

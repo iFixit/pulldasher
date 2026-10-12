@@ -42,7 +42,7 @@ import { switchView, type Navigate, type ProjectsNav } from './projects/parts';
 
 export type { ProjectsNav } from './projects/parts';
 
-const NO_TODAY: Today = { live: [], quiet: [], misc: [], unsorted: [], doubleLabeled: [] };
+const NO_TODAY: Today = { live: [], quiet: [], misc: [], unsorted: [], doubleLabeled: [], drafts: [] };
 
 /** The way back from a project's page, named for where it goes. */
 const BACK_WORDS: Record<ProjectsNav['view'], string> = {

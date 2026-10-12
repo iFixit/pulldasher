@@ -156,6 +156,8 @@ function projectRecords(projects, today, stats, prefix, { homes, untracked, grow
          // done or dropped; a slug seen only in the window's history is null
          standing: standing.get(slug) || closedAs,
          open: g ? g.open.map(d => key(d.data)) : [],
+         // its open drafts: listed, counted nowhere (shared isDraft)
+         drafts: g ? g.drafts.map(d => key(d.data)) : [],
          merged_recently: g ? g.merged.map(key) : [],
          people: g ? g.people : [],
          idle_days: g ? g.idleDays : null,
@@ -253,6 +255,8 @@ export default {
                },
                unsorted: { open: today.unsorted.map(d => key(d.data)), window: stats.unsorted },
                double_labeled: today.doubleLabeled.map(d => key(d.data)),
+               // open drafts no listed project holds: counted nowhere
+               drafts: today.drafts.map(d => key(d.data)),
                totals: stats.totals,
                days: stats.days,
             };

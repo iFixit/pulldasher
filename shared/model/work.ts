@@ -131,6 +131,8 @@ export interface WorkPull {
    state: 'open' | 'closed';
    /** the issues its body links on purpose (bodyLinks) */
    links: IssueRef[];
+   /** a draft: it isn't work yet, so no count takes it (projects.ts isDraft) */
+   draft?: boolean;
 }
 
 /** A PR that links an issue, as the issue's row shows it: its title and
@@ -142,6 +144,9 @@ export interface IssuePull {
    author: string | null;
    createdAt: number | null;
    state: 'open' | 'merged' | 'closed' | null;
+   /** an open draft: listed, never counted (projects.ts isDraft). The board
+    * reads it off its live row when it has one, which is newer. */
+   draft?: true;
    /** on a PR that does none of the project's issues: the issues it does
     * that other projects have (their slugs), so the page can say where the
     * work may belong. Absent when there are none. */
@@ -318,6 +323,8 @@ export function planWork(inputs: WorkInputs): PlanWork[] {
       const mine = byProject.get(slug) ?? [];
       if (!mine.length) continue;
       for (const pr of prs) {
+         // a draft isn't work yet: not open, not late, not a comeback
+         if (pr.draft) continue;
          const plan = planOfWork(mine, pr.createdAt);
          if (!plan) continue;
          if (pr.state === 'open') openPulls.set(plan.id, (openPulls.get(plan.id) ?? 0) + 1);
@@ -345,13 +352,15 @@ export function projectCounts(inputs: Pick<WorkInputs, 'attached'>): Map<string,
 
 /** A PR as an issue's row shows it. */
 function issuePull(pr: WorkPull): IssuePull {
+   const state = pr.mergedAt != null ? 'merged' : pr.state;
    return {
       repo: pr.repo,
       number: pr.number,
       title: pr.title,
       author: pr.author,
       createdAt: pr.createdAt,
-      state: pr.mergedAt != null ? 'merged' : pr.state,
+      state,
+      ...(pr.draft && state === 'open' ? { draft: true as const } : {}),
    };
 }
 
