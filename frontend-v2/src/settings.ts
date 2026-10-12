@@ -1,6 +1,6 @@
 import { STARVE_DAYS } from '../../shared/model/status';
-import { JAIL_MAX_DAYS, JAIL_MAX_OPEN } from './model/jail';
-import { createPersistentStore, readStorage, writeStorage } from './storage';
+import { FINISH_MAX_DAYS, FINISH_MAX_OPEN } from './model/finishLine';
+import { createPersistentStore } from './storage';
 
 /** one named review circle; DEFAULT_TEAM_NAME is what quick add-to-team
  * gestures (the row kebab, the People filter) create when no roster exists */
@@ -111,21 +111,19 @@ export interface Settings {
     * or age tooltip) before it opens, so brushing the pointer across the board
     * doesn't flash panels open. 0 = open instantly; a click always bypasses it. */
    hoverDelayMs: number;
-   /** Finish line (once "PR jail", hence the stored keys): 'auto' pops it up
+   /** Finish line: 'auto' pops it up
     * when you're over the limits, 'manual' only shows the header count
     * (click to open), 'off' shows neither. Opt-in: 'manual' by default. */
-   jailMode: 'auto' | 'manual' | 'off';
+   finishLineMode: 'auto' | 'manual' | 'off';
    /** Finish line counts you over when you have more than this many open PRs */
-   jailMaxOpen: number;
+   finishLineMaxOpen: number;
    /** ...or when any of them has been open longer than this many days */
-   jailMaxDays: number;
+   finishLineMaxDays: number;
    /** whether your draft PRs count toward Finish line */
-   jailCountDrafts: boolean;
+   finishLineCountDrafts: boolean;
    /** Finish line closes only by holding a button down; Esc and the close
     * button do nothing. Off by default, for people who want the friction. */
-   jailHoldToClose: boolean;
-   /** which one-time migrations (migrateSettings) this saved blob has had */
-   settingsVersion: number;
+   finishLineHoldToClose: boolean;
 }
 
 /** The heaviest age text tier (red), derived from ageWarnDays rather than
@@ -178,54 +176,14 @@ export const DEFAULT_SETTINGS: Settings = {
    repoQueueCap: 15,
    openPrsNewTab: true,
    hoverDelayMs: 250,
-   jailMode: 'manual',
-   jailMaxOpen: JAIL_MAX_OPEN,
-   jailMaxDays: JAIL_MAX_DAYS,
-   jailCountDrafts: false,
-   jailHoldToClose: false,
-   settingsVersion: 1,
+   finishLineMode: 'manual',
+   finishLineMaxOpen: FINISH_MAX_OPEN,
+   finishLineMaxDays: FINISH_MAX_DAYS,
+   finishLineCountDrafts: false,
+   finishLineHoldToClose: false,
 };
 
-type SavedSettings = Partial<Settings> & { jailOn?: boolean };
-
-/**
- * Brings a saved blob up to date; the same object when there's nothing to do.
- * - jailOn (an on/off switch, live for a day) became jailMode; an Off carries over.
- * - Version 1 made Finish line opt-in. The store saves every field on any
- *   change, so a saved 'auto' can't tell a choice from the old default: a
- *   blob from before moves 'auto' to the new default once. Someone who wants
- *   the popup turns it back on, and it stays.
- */
-export function migrateSettings(saved: SavedSettings): SavedSettings {
-   let next = saved;
-   if (next.jailOn !== undefined) {
-      const { jailOn, ...rest } = next;
-      next = jailOn ? rest : { ...rest, jailMode: 'off' };
-   }
-   if ((next.settingsVersion ?? 0) < 1) {
-      next = {
-         ...next,
-         jailMode: next.jailMode === 'off' ? 'off' : DEFAULT_SETTINGS.jailMode,
-         settingsVersion: 1,
-      };
-   }
-   return next;
-}
-
-const SETTINGS_KEY = 'pd2.settings';
-{
-   let saved: SavedSettings | null = null;
-   try {
-      saved = JSON.parse(readStorage(SETTINGS_KEY) ?? 'null') as SavedSettings | null;
-   } catch {
-      // unreadable: the store falls back to the defaults
-   }
-   if (saved) {
-      const next = migrateSettings(saved);
-      if (next !== saved) writeStorage(SETTINGS_KEY, JSON.stringify(next));
-   }
-}
-const store = createPersistentStore(SETTINGS_KEY, DEFAULT_SETTINGS);
+const store = createPersistentStore('pd2.settings', DEFAULT_SETTINGS);
 
 /** Union of every personal roster, sorted — "your people": the set that
  * leads the review queues and wears the teammate corner heart. */

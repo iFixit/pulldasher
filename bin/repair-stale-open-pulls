@@ -3,7 +3,7 @@
  * Pulls whose `closed` webhook never landed stay open in the DB. Until the
  * stale-open check listed repos outside config.repos, nothing repaired them
  * there: 21 PRs closed 2026-09-26 to 09-30, while prod wrote into dev's DB,
- * stayed open on prod (iFixit/ops#1055 in PR jail). The hourly repair now
+ * stayed open on prod (iFixit/ops#1055, counted against their owners' open-PR limits). The hourly repair now
  * catches these; this fixes them without waiting for a deploy.
  *
  * It lists the open pulls of every repo the DB holds open pulls in and, with

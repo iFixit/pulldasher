@@ -123,10 +123,17 @@ export function Settings({
    const triggerRef = useRef<HTMLButtonElement>(null);
    const { armed: armReset, run: runReset } = useArmedConfirm();
 
+   // which section to scroll to and focus once open: a Group's id
+   const [section, setSection] = useState<string | null>(null);
+
    // open on demand — the code-regions tip's "Set them up" action dispatches
-   // this so a reader can jump straight here from the board
+   // this so a reader can jump straight here from the board; a CustomEvent
+   // whose detail names a Group's id opens at that group (Finish line's cog)
    useEffect(() => {
-      const openIt = () => setOpen(true);
+      const openIt = (e: Event) => {
+         setSection(typeof (e as CustomEvent).detail === 'string' ? (e as CustomEvent).detail : null);
+         setOpen(true);
+      };
       window.addEventListener('pd2:open-settings', openIt);
       return () => window.removeEventListener('pd2:open-settings', openIt);
    }, []);
@@ -134,7 +141,7 @@ export function Settings({
    useEffect(() => {
       if (!open) return;
       const onKey = (e: KeyboardEvent) => {
-         // a dialog above this one (PR jail) handled it
+         // a dialog above this one (Finish line) handled it
          if (e.defaultPrevented) return;
          if (e.key === 'Escape') setOpen(false);
          // aria-modal promises a focus trap; without this, Tab walks out of
@@ -161,12 +168,20 @@ export function Settings({
       // this blocks scroll
       const prevOverflow = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
-      // focus the panel so Escape and tabbing land inside it
+      // focus the panel so Escape and tabbing land inside it, or the first
+      // control of the section it was opened at
       panelRef.current?.focus();
+      if (section) {
+         const target = panelRef.current?.querySelector<HTMLElement>(`#${section}`);
+         target?.scrollIntoView({ block: 'start' });
+         target?.querySelector<HTMLElement>('button, input')?.focus({ preventScroll: true });
+         setSection(null);
+      }
       return () => {
          document.removeEventListener('keydown', onKey);
          document.body.style.overflow = prevOverflow;
       };
+      // section is read once, when it opens, so it isn't a dependency
    }, [open]);
 
    // return focus to the cog when the panel closes — but only after a real
@@ -331,73 +346,6 @@ export function Settings({
                            />
                         </Field>
                         <Field
-                           label="PR jail"
-                           hint="Automatic pops up your list of open PRs when you have too many, or one has been open too long. Manual only shows the lock in the header, to open when you like. Off hides both."
-                        >
-                           <Segmented
-                              ariaLabel="PR jail"
-                              value={s.jailMode}
-                              options={[
-                                 ['auto', 'Automatic'],
-                                 ['manual', 'Manual'],
-                                 ['off', 'Off'],
-                              ]}
-                              onChange={jailMode => set({ jailMode })}
-                           />
-                        </Field>
-                        <Field
-                           label="PR jail: open PRs"
-                           hint="PR jail pops up when you have more than this many open PRs of your own (bots and deploy holds never count). It comes back only when that gets worse, at most every 4 hours."
-                        >
-                           <NumberField
-                              value={s.jailMaxOpen}
-                              min={1}
-                              max={50}
-                              suffix="PRs"
-                              onChange={jailMaxOpen => set({ jailMaxOpen })}
-                           />
-                        </Field>
-                        <Field
-                           label="PR jail: days open"
-                           hint="It also pops up when any of them has been open longer than this."
-                        >
-                           <NumberField
-                              value={s.jailMaxDays}
-                              min={1}
-                              max={365}
-                              suffix="days"
-                              onChange={jailMaxDays => set({ jailMaxDays })}
-                           />
-                        </Field>
-                        <Field
-                           label="PR jail: count drafts"
-                           hint="Off leaves your draft PRs out of both limits."
-                        >
-                           <Segmented
-                              ariaLabel="count drafts toward PR jail"
-                              value={s.jailCountDrafts ? 'on' : 'off'}
-                              options={[
-                                 ['off', 'Off'],
-                                 ['on', 'On'],
-                              ]}
-                              onChange={v => set({ jailCountDrafts: v === 'on' })}
-                           />
-                        </Field>
-                        <Field
-                           label="See PR jail"
-                           hint="Shows it now with your open PRs, whatever the limits say."
-                        >
-                           <QuietButton
-                              onClick={() => {
-                                 // close Settings first so the jail isn't stacked on it
-                                 setOpen(false);
-                                 window.dispatchEvent(new Event('pd2:preview-jail'));
-                              }}
-                           >
-                              Preview PR jail
-                           </QuietButton>
-                        </Field>
-                        <Field
                            label="Nudge me about a review I said I’d do"
                            hint="When a review you said you’d do starts nagging you to finish it or drop it. It doesn't expire on a timer; it clears when the review is submitted, dropped, or you're removed on GitHub."
                         >
@@ -442,6 +390,88 @@ export function Settings({
                               ]}
                               onChange={v => set({ hoverDelayMs: Number(v) })}
                            />
+                        </Field>
+                     </Group>
+
+                     <Group title="Finish line" id="finish-line">
+                        <span className="text-xs text-ink-3">
+                           A count in the header of your own open PRs past your limits, and a list of
+                           them to merge or close. Only you see it.
+                        </span>
+                        <Field
+                           label="Show it as"
+                           hint="Pop up opens the list by itself when you go over, at most every 4 hours and only when things got worse. Header count only waits for you to click the flag. Off hides both."
+                        >
+                           <Segmented
+                              ariaLabel="show Finish line as"
+                              value={s.finishLineMode}
+                              options={[
+                                 ['auto', 'Pop up'],
+                                 ['manual', 'Header count only'],
+                                 ['off', 'Off'],
+                              ]}
+                              onChange={finishLineMode => set({ finishLineMode })}
+                           />
+                        </Field>
+                        <Field
+                           label="Open PRs"
+                           hint="You’re over when you have more than this many open PRs of your own. Bots and PRs held for a deploy never count."
+                        >
+                           <NumberField
+                              value={s.finishLineMaxOpen}
+                              min={1}
+                              max={50}
+                              suffix="PRs"
+                              onChange={finishLineMaxOpen => set({ finishLineMaxOpen })}
+                           />
+                        </Field>
+                        <Field
+                           label="Days open"
+                           hint="...or when any of them has been open longer than this."
+                        >
+                           <NumberField
+                              value={s.finishLineMaxDays}
+                              min={1}
+                              max={365}
+                              suffix="days"
+                              onChange={finishLineMaxDays => set({ finishLineMaxDays })}
+                           />
+                        </Field>
+                        <Field label="Count drafts" hint="Off leaves your drafts out of both limits.">
+                           <Segmented
+                              ariaLabel="count drafts toward Finish line"
+                              value={s.finishLineCountDrafts ? 'on' : 'off'}
+                              options={[
+                                 ['off', 'Off'],
+                                 ['on', 'On'],
+                              ]}
+                              onChange={v => set({ finishLineCountDrafts: v === 'on' })}
+                           />
+                        </Field>
+                        <Field
+                           label="Make me hold to close it"
+                           hint="On, Esc and the close button do nothing: you hold a button down for two seconds instead."
+                        >
+                           <Segmented
+                              ariaLabel="make me hold to close Finish line"
+                              value={s.finishLineHoldToClose ? 'on' : 'off'}
+                              options={[
+                                 ['off', 'Off'],
+                                 ['on', 'On'],
+                              ]}
+                              onChange={v => set({ finishLineHoldToClose: v === 'on' })}
+                           />
+                        </Field>
+                        <Field label="See it now" hint="Opens the list with your open PRs, whatever the limits say.">
+                           <QuietButton
+                              onClick={() => {
+                                 // close Settings first so the list isn't stacked on it
+                                 setOpen(false);
+                                 window.dispatchEvent(new Event('pd2:preview-finish-line'));
+                              }}
+                           >
+                              Preview
+                           </QuietButton>
                         </Field>
                      </Group>
 

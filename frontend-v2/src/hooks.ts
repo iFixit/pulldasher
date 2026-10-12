@@ -1,6 +1,6 @@
 import { type RefObject, useEffect, useLayoutEffect } from 'react';
 
-/** A modal dialog is open (PR jail, Settings): the board's own keys stand
+/** A modal dialog is open (Finish line, Settings): the board's own keys stand
  * down, so `/` or `j` can't move focus behind the scrim. */
 export const modalOpen = () => document.querySelector('[aria-modal="true"]') != null;
 

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { derive, type DerivedPull } from '../../../shared/model/status';
 import type { PullData } from '../../../shared/types';
 import { DEFAULT_SETTINGS, setSettings } from '../settings';
-import { JailMode } from './JailMode';
+import { FinishLine } from './FinishLine';
 
 // React's act() warns unless the environment says it's a test
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -63,7 +63,7 @@ let root: Root | null = null;
 const host = document.createElement('div');
 document.body.append(host);
 // most of these watch it pop up, and close it the old way, by holding
-beforeEach(() => setSettings({ jailMode: 'auto', jailHoldToClose: true }));
+beforeEach(() => setSettings({ finishLineMode: 'auto', finishLineHoldToClose: true }));
 afterEach(() => {
    act(() => root?.unmount());
    root = null;
@@ -73,34 +73,42 @@ afterEach(() => {
 
 function render(pulls: DerivedPull[]) {
    const r = (root ??= createRoot(host));
-   act(() => r.render(<JailMode pulls={pulls} me="me" extraBots={new Set()} initialized />));
+   act(() => r.render(<FinishLine pulls={pulls} me="me" extraBots={new Set()} initialized />));
 }
 
-const why = () => document.getElementById('jail-why')?.textContent;
+const why = () => document.getElementById('finish-why')?.textContent;
+const ask = () => document.getElementById('finish-ask')?.textContent;
 const listed = () => document.querySelectorAll('[role="dialog"] li').length;
 const dialog = () => document.querySelector('[role="dialog"]');
-const countdown = () => document.querySelector('#jail-title span')?.textContent;
+const countdown = () => document.getElementById('finish-title')?.textContent;
+const badge = () => document.querySelector<HTMLButtonElement>('[aria-label*="to the finish line"]');
+const esc = () =>
+   act(() => {
+      document.body.dispatchEvent(
+         new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+      );
+   });
 const headers = () => [...document.querySelectorAll('[role="dialog"] h3')].map(h => h.textContent);
 
-describe('JailMode while the cell is down', () => {
+describe('FinishLine while it is up', () => {
    it('follows new PRs and merges live', () => {
       const first = many(8);
       render(first);
-      expect(why()).toMatch(/^8 open PRs/);
+      expect(why()).toMatch(/^You have 8 open PRs/);
       expect(listed()).toBe(8);
 
       // a new PR arrives over the socket
       render([...first, pull()]);
-      expect(why()).toMatch(/^9 open PRs/);
+      expect(why()).toMatch(/^You have 9 open PRs/);
       expect(listed()).toBe(9);
 
-      expect(countdown()).toBe('2 to go');
+      expect(countdown()).toBe('2 to the finish line');
 
       // merges bring you under the limits: it says so, then lets you go
       vi.useFakeTimers();
       render(first.slice(0, 3));
-      expect(why()).toBe('You’re out. Nice work.');
-      expect(countdown()).toBe('Free');
+      expect(why()).toBe('Your open PRs are all under your limits. Nice work.');
+      expect(countdown()).toBe('You’re at the finish line');
       expect(listed()).toBe(0);
       act(() => vi.advanceTimersByTime(2500));
       expect(dialog()).toBeNull();
@@ -114,48 +122,50 @@ describe('JailMode while the cell is down', () => {
       expect(document.querySelector('[role="dialog"] li a')?.textContent).toContain(
          ready.data.title
       );
-      expect(why()).toBe('8 open PRs. Parole at 7. Merge your ready one and you’re out.');
+      expect(why()).toBe(
+         'You have 8 open PRs, over the limit of 7. Only you see this: it’s about your own PRs, and nobody else is told.'
+      );
+      expect(ask()).toBe('Merge or close 1 of these to finish. Start with the one ready to merge.');
    });
 
    it('only shows the badge until you turn the popup on', () => {
-      setSettings({ jailMode: DEFAULT_SETTINGS.jailMode });
+      setSettings({ finishLineMode: DEFAULT_SETTINGS.finishLineMode });
       render(many(9));
       expect(dialog()).toBeNull();
-      expect(document.querySelector('[aria-label^="PR jail"]')).not.toBeNull();
+      expect(badge()).not.toBeNull();
    });
 
-   it('only shows the badge when PR jail is manual', () => {
-      setSettings({ jailMode: 'manual' });
+   it('only shows the badge when the popup is off', () => {
+      setSettings({ finishLineMode: 'manual' });
       render(many(9));
       expect(document.querySelector('[role="dialog"]')).toBeNull();
-      const badge = document.querySelector<HTMLButtonElement>('[aria-label^="PR jail"]');
-      expect(badge).not.toBeNull();
-      act(() => badge?.click());
-      expect(why()).toMatch(/^9 open PRs/);
+      expect(badge()?.getAttribute('aria-label')).toMatch(/^2 to the finish line: You have 9/);
+      act(() => badge()?.click());
+      expect(why()).toMatch(/^You have 9 open PRs/);
    });
 
-   it('stays away, badge and all, when PR jail is off', () => {
-      setSettings({ jailMode: 'off' });
+   it('stays away, badge and all, when it is off', () => {
+      setSettings({ finishLineMode: 'off' });
       render(many(9));
       expect(document.querySelector('[role="dialog"]')).toBeNull();
-      expect(document.querySelector('[aria-label^="PR jail"]')).toBeNull();
+      expect(badge()).toBeNull();
    });
 
-   it('lets you out only when the button is held down, by key or pointer', () => {
+   it('with the hold setting, closes only when the button is held down', () => {
       vi.useFakeTimers();
       render(many(8));
-      const snooze = [
+      const hold = [
          ...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button'),
-      ].find(b => b.textContent?.includes('Hold to get back to work'));
+      ].find(b => b.textContent?.includes('Hold to close'));
       // it has focus from the start, so the keyboard can hold it right away
-      expect(document.activeElement).toBe(snooze);
+      expect(document.activeElement).toBe(hold);
       const key = (type: string, k = 'Enter') =>
-         act(() => snooze?.dispatchEvent(new KeyboardEvent(type, { key: k, bubbles: true })));
+         act(() => hold?.dispatchEvent(new KeyboardEvent(type, { key: k, bubbles: true })));
       // a tap of Enter does nothing but say to hold it; neither does Esc
       key('keydown');
       act(() => vi.advanceTimersByTime(200));
       key('keyup');
-      expect(snooze?.textContent).toBe('Hold it down');
+      expect(hold?.textContent).toBe('Hold it down');
       act(() => vi.advanceTimersByTime(3000));
       act(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
       expect(dialog()).not.toBeNull();
@@ -170,11 +180,11 @@ describe('JailMode while the cell is down', () => {
       vi.useFakeTimers();
       const nine = many(9);
       render(nine);
-      expect(countdown()).toBe('2 to go');
+      expect(countdown()).toBe('2 to the finish line');
       render(nine.slice(1));
-      expect(countdown()).toBe('1 to go');
+      expect(countdown()).toBe('1 to the finish line');
       // still there for the slide, then gone
-      expect(document.querySelectorAll('.jail-row-leave')).toHaveLength(1);
+      expect(document.querySelectorAll('.finish-row-leave')).toHaveLength(1);
       expect(listed()).toBe(9);
       act(() => vi.advanceTimersByTime(450));
       expect(listed()).toBe(8);
@@ -215,10 +225,10 @@ describe('JailMode while the cell is down', () => {
       );
    });
 
-   it('lets a screen reader or voice control out with a lone click', () => {
+   it('lets a screen reader or voice control close the hold with a lone click', () => {
       render(many(8));
       const hold = [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(
-         b => b.textContent?.includes('Hold to get back to work')
+         b => b.textContent?.includes('Hold to close')
       );
       // a mouse click carries detail 1 and does nothing
       act(() => hold?.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 })));
@@ -228,7 +238,7 @@ describe('JailMode while the cell is down', () => {
       expect(dialog()).toBeNull();
    });
 
-   it('keeps Esc from reaching anything behind it', () => {
+   it('with the hold setting, keeps Esc from closing it or reaching anything behind it', () => {
       render(many(8));
       let reached = false;
       const behind = (e: KeyboardEvent) => {
@@ -249,9 +259,9 @@ describe('JailMode while the cell is down', () => {
       vi.useFakeTimers();
       const nine = many(9);
       render(nine);
-      const shownAt = JSON.parse(localStorage.getItem('pd2.jail') ?? 'null').at;
+      const shownAt = JSON.parse(localStorage.getItem('pd2.finishLine') ?? 'null').at;
       render(nine.slice(0, 3));
-      expect(JSON.parse(localStorage.getItem('pd2.jail') ?? 'null')).toEqual({
+      expect(JSON.parse(localStorage.getItem('pd2.finishLine') ?? 'null')).toEqual({
          at: shownAt,
          count: 0,
          over: [],
@@ -278,17 +288,27 @@ describe('JailMode while the cell is down', () => {
       expect(modalOpen()).toBe(true);
    });
 
-   it('opens the preview every time Settings asks', () => {
+   it('opens the preview every time Settings asks, or the URL says #finish=1', () => {
       render(many(2));
       expect(dialog()).toBeNull();
-      act(() => window.dispatchEvent(new Event('pd2:preview-jail')));
+      act(() => window.dispatchEvent(new Event('pd2:preview-finish-line')));
       expect(dialog()).not.toBeNull();
+      act(() => document.querySelector<HTMLButtonElement>('[data-hold]')?.dispatchEvent(
+         new MouseEvent('click', { bubbles: true, detail: 0 })
+      ));
+      expect(dialog()).toBeNull();
+      act(() => {
+         location.hash = 'finish=1';
+         window.dispatchEvent(new HashChangeEvent('hashchange'));
+      });
+      expect(dialog()).not.toBeNull();
+      location.hash = '';
    });
 
    it('a quick Space tap is not a lone click, even where the browser clicks on keyup', () => {
       render(many(8));
       const hold = [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(
-         b => b.textContent?.includes('Hold to get back to work')
+         b => b.textContent?.includes('Hold to close')
       );
       act(() => {
          hold?.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
@@ -300,10 +320,10 @@ describe('JailMode while the cell is down', () => {
    });
 
    it('keeps the last showing while it doesn’t know who you are', () => {
-      localStorage.setItem('pd2.jail', JSON.stringify({ at: Date.now(), count: 9, over: [] }));
+      localStorage.setItem('pd2.finishLine', JSON.stringify({ at: Date.now(), count: 9, over: [] }));
       const r = (root ??= createRoot(host));
-      act(() => r.render(<JailMode pulls={many(9)} me="" extraBots={new Set()} initialized />));
-      expect(localStorage.getItem('pd2.jail')).not.toBeNull();
+      act(() => r.render(<FinishLine pulls={many(9)} me="" extraBots={new Set()} initialized />));
+      expect(localStorage.getItem('pd2.finishLine')).not.toBeNull();
       expect(dialog()).toBeNull();
    });
 
@@ -311,10 +331,10 @@ describe('JailMode while the cell is down', () => {
       // another window wrote the record after this one loaded
       const r = (root ??= createRoot(host));
       act(() =>
-         r.render(<JailMode pulls={many(8)} me="me" extraBots={new Set()} initialized={false} />)
+         r.render(<FinishLine pulls={many(8)} me="me" extraBots={new Set()} initialized={false} />)
       );
-      localStorage.setItem('pd2.jail', JSON.stringify({ at: Date.now(), count: 8, over: [] }));
-      act(() => r.render(<JailMode pulls={many(8)} me="me" extraBots={new Set()} initialized />));
+      localStorage.setItem('pd2.finishLine', JSON.stringify({ at: Date.now(), count: 8, over: [] }));
+      act(() => r.render(<FinishLine pulls={many(8)} me="me" extraBots={new Set()} initialized />));
       expect(dialog()).toBeNull();
    });
 
@@ -335,5 +355,55 @@ describe('JailMode while the cell is down', () => {
       document.body.dispatchEvent(new Event('drop', { bubbles: true }));
       render(many(9));
       expect(dialog()).not.toBeNull();
+   });
+
+   it('closes on Esc or the close button, and stays away until things get worse', () => {
+      setSettings({ finishLineHoldToClose: false });
+      const nine = many(9);
+      render(nine);
+      // focus starts on the close button; there's no hold button
+      expect(document.activeElement?.getAttribute('aria-label')).toBe('close');
+      expect(document.querySelector('[data-hold]')).toBeNull();
+      esc();
+      expect(dialog()).toBeNull();
+      render([...nine, pull()]); // worse, minutes later: within the 4 hours
+      expect(dialog()).toBeNull();
+      act(() => badge()?.click());
+      expect(dialog()).not.toBeNull();
+      act(() => document.querySelector<HTMLButtonElement>('[data-close]')?.click());
+      expect(dialog()).toBeNull();
+   });
+
+   it('the cog closes it and opens Settings at its own settings', () => {
+      setSettings({ finishLineHoldToClose: false });
+      const asked: unknown[] = [];
+      const listen = (e: Event) => asked.push((e as CustomEvent).detail);
+      window.addEventListener('pd2:open-settings', listen);
+      render(many(9));
+      act(() =>
+         document
+            .querySelector<HTMLButtonElement>('[aria-label="Finish line settings"]')
+            ?.click()
+      );
+      window.removeEventListener('pd2:open-settings', listen);
+      expect(asked).toEqual(['finish-line']);
+      expect(dialog()).toBeNull();
+   });
+});
+
+describe('Settings, opened from the cog', () => {
+   it('scrolls to and focuses the Finish line settings', async () => {
+      const { Settings } = await import('./Settings');
+      const scrolled = vi.fn();
+      Element.prototype.scrollIntoView = scrolled;
+      const r = (root ??= createRoot(host));
+      act(() => r.render(<Settings onGoToTeam={() => undefined} />));
+      act(() => {
+         window.dispatchEvent(new CustomEvent('pd2:open-settings', { detail: 'finish-line' }));
+      });
+      const section = document.getElementById('finish-line');
+      expect(scrolled.mock.contexts[0]).toBe(section);
+      expect(section?.contains(document.activeElement)).toBe(true);
+      expect(document.activeElement?.textContent).toBe('Pop up');
    });
 });
