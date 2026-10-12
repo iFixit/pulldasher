@@ -435,12 +435,11 @@ export const VERBS: Record<Call['kind'], [string, string]> = {
 };
 
 /**
- * What one click on a section does to its rows, or did, in the day each
- * row's own button says: "Promise all 52 by Oct 31", "Promised 52 by Oct
- * 31". Rows whose answers differ say each one and how many ("Promise 5 by
- * Oct 31 and mark
- * 3 done"), and rows going through their own target dates
- * count together.
+ * What one click on a section does to its rows, or did, in the words each
+ * row's own button says: "Promise all 52 by the end of Oct", "Promised 52
+ * by the end of Oct". Rows whose answers differ say each one and how many
+ * ("Promise 5 by the end of Oct and mark 3 done"), and rows going through
+ * their own target dates count together.
  */
 export function bulkWords(
    made: readonly Call[],
@@ -461,9 +460,7 @@ export function bulkWords(
       const verb = VERBS[call.kind][tense === 'do' ? 0 : 1];
       const tail =
          call.kind === 'commit'
-            ? ` by ${
-                 !call.target ? dayWords(call.end) : count > 1 ? 'their target dates' : call.through
-              }`
+            ? ` by ${call.target && count > 1 ? 'their target dates' : call.through}`
             : call.kind === 'done' || call.kind === 'ongoing'
             ? ` ${call.kind}`
             : '';
@@ -481,7 +478,9 @@ export function answerWords(call: Call, plan: RoadmapItem | null): string {
    const now = plan?.status;
    switch (call.kind) {
       case 'commit': {
-         const day = dayWords(call.end);
+         // the receipt's words and the end buttons' ("End of Oct"): one
+         // date said one way
+         const day = call.through;
          return !plan
             ? `Promise to finish by ${day}`
             : now === 'parked' || now === 'done' || now === 'dropped'

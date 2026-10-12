@@ -130,7 +130,7 @@ describe('a section whose rows all ask the same thing', () => {
          end: '2026-10-31',
          through: 'the end of Oct',
       };
-      expect(bulkWords(Array<Call>(7).fill(oct), 'do')).toBe('Promise all 7 by Oct 31');
+      expect(bulkWords(Array<Call>(7).fill(oct), 'do')).toBe('Promise all 7 by the end of Oct');
    });
 
    it('gives each row an outlined answer, unmarked, and every other answer a click away', () => {
