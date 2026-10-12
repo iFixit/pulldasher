@@ -101,7 +101,7 @@ export function homeWords(home: Pick<Initiative, 'name' | 'kind'> | null | undef
 }
 
 /** An initiative's span and counts as its band says them, in ink: "Jul 13
- * to Nov 1 · 1 with an end · 3 ongoing", or "Ended Sep 30", or nothing for
+ * to Nov 1 · 1 plan with an end date · 3 ongoing", or "Ended Sep 30", or nothing for
  * one with no plans. Dates come from its projects' plans (initiativeSpan). */
 export function spanWords(
    projects: readonly string[],
@@ -125,7 +125,7 @@ export function spanWords(
       span.end
          ? `${day(span.start)} to ${day(span.end)}${past ? `, ${n(past, 'week')} past` : ''}`
          : `Since ${day(span.start)}`,
-      span.with_end ? `${span.with_end} with an end` : '',
+      span.with_end ? `${n(span.with_end, 'plan')} with an end date` : '',
       span.ongoing ? `${span.ongoing} ongoing` : '',
    ];
    return parts.filter(Boolean).join(' · ');

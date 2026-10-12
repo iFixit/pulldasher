@@ -444,7 +444,7 @@ export function InitiativePage({
          <EmptyState
             variant="search"
             title="No initiative by that name"
-            sub={`No initiative has the slug ${slug}.`}
+            sub="No initiative is at this link."
          />
       );
    }
@@ -546,7 +546,10 @@ export function InitiativePage({
       ? [['Health', owed ? `${n(owed, 'question')} on Decide` : 'nothing owed']]
       : [
            ['Span', spanLine(span, live.length)],
-           ['Ends', endWords(span)],
+           // a closed one's head says how it closed; its end isn't estimated
+           ...(initiative.status === 'open'
+              ? [['Ends', endWords(span)] as [string, string]]
+              : []),
            [
               'Health',
               [healthWords(live), owed ? `${n(owed, 'question')} on Decide` : '']

@@ -180,7 +180,7 @@ describe('the words', () => {
          plan(4, 'c', { start: '2026-01-05', status: 'parked' }),
       ];
       expect(spanWords(['a', 'b', 'c'], plans, NOW)).toBe(
-         'Jun 1 to Nov 1 · 1 with an end · 1 ongoing'
+         'Jun 1 to Nov 1 · 1 plan with an end date · 1 ongoing'
       );
       // open with every plan stopped: not "Ended", which reads as closed
       expect(spanWords(['b'], plans, NOW)).toBe('Nothing under way since Jun 14');
@@ -204,10 +204,10 @@ describe('the words', () => {
    it('says when an initiative’s latest end has gone by, so it never reads as finished', () => {
       // Oct 11: its plan was due Sep 27
       const plans = [plan(1, 'a', { start: '2026-08-17', weeks: 6 })];
-      expect(spanWords(['a'], plans, NOW)).toBe('Aug 17 to Sep 27, 2 weeks past · 1 with an end');
+      expect(spanWords(['a'], plans, NOW)).toBe('Aug 17 to Sep 27, 2 weeks past · 1 plan with an end date');
       // a day later it's 15 days: 3 weeks, as the plan's own row rounds
       expect(spanWords(['a'], plans, NOW + 86400 * 1000)).toBe(
-         `Aug 17 to Sep 27, ${weeksPast('2026-09-27', '2026-10-12')} weeks past · 1 with an end`
+         `Aug 17 to Sep 27, ${weeksPast('2026-09-27', '2026-10-12')} weeks past · 1 plan with an end date`
       );
       expect(weeksPast('2026-09-27', '2026-10-12')).toBe(3);
    });

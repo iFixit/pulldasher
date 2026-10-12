@@ -639,6 +639,14 @@ describe('an initiative’s page', () => {
       // its PRs are open: it's still going, so not folded under Done or dropped
       expect(el.textContent).not.toContain('Done or dropped');
       expect(el.textContent).toMatch(/Health.*1 question on Decide/);
+      // closed: its head says how; no estimated end beside the reopen question
+      expect(el.textContent).not.toContain('Ends');
+   });
+
+   it('says no initiative is at a link that names none, in plain words', () => {
+      const el = page('gone');
+      expect(el.textContent).toContain('No initiative is at this link.');
+      expect(el.textContent).not.toContain('slug');
    });
 
    it('asks each project’s own question on its row', () => {
