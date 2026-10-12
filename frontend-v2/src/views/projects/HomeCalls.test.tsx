@@ -750,6 +750,10 @@ describe('a project page’s home line', () => {
       expect(el.textContent?.match(/FixBot chat/g)).toHaveLength(1);
       expect(el.textContent).toContain('Filed in FixBot chat.');
       click(el, 'Undo');
+      // said before it saves, so a second click finds no Undo to press
+      expect(el.querySelector('[role="status"]')?.textContent).toBe(
+         'Put cache back in Site speed.'
+      );
       await settle();
       expect(said.at(-1)).toBe('Put cache back in Site speed');
       // Undo's words hold the receipt's place with nothing to click; File
@@ -848,6 +852,16 @@ describe('a pick left in a chooser that closed', () => {
       // the row asks again, from a fresh chooser: nothing carries the old pick
       click(el, 'Track it');
       expect((el.querySelector('select') as HTMLSelectElement).value).not.toBe('fixbot');
+   });
+});
+
+describe('filing into an initiative someone closed since', () => {
+   it('says so and reads the initiatives again, so the choosers stop offering it', async () => {
+      const r = await act(() => fileProject('cache', 'catalog', { expect: 'site-speed' }));
+      expect(r).toEqual({
+         error: expect.stringContaining('that initiative is closed'),
+      });
+      expect(calls.filter(c => c.path === '/initiatives' && c.method === 'GET')).toHaveLength(1);
    });
 });
 
