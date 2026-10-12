@@ -59,7 +59,7 @@ function Card({
    onOpen: () => void;
    onPerson: (login: string) => void;
 }) {
-   const bucket = bucketOf(item, today);
+   const bucket = nnlBucket(item, today, call);
    // the timeline's own warnings, in its words and with its one amber piece
    const w = planWarnings(
       item,
@@ -116,6 +116,17 @@ function Card({
          </div>
       </li>
    );
+}
+
+/** Which column a plan is in: bucketOf, and Now for a done, dropped or
+ * parked plan Decide asks about, since its work goes on and a row Decide
+ * asks about always shows. */
+export function nnlBucket(
+   item: Pick<RoadmapItem, 'status' | 'start'>,
+   today: string,
+   call: PlanCall | null | undefined
+): 'now' | 'next' | 'later' | null {
+   return bucketOf(item, today) ?? (call ? 'now' : null);
 }
 
 /**
@@ -180,7 +191,7 @@ export function NowNextLater({
       <>
          <div className="grid gap-x-4 gap-y-6 sm:grid-cols-3">
             {BUCKETS.map(([bucket, title, sub]) => {
-               const list = items.filter(i => bucketOf(i, today) === bucket);
+               const list = items.filter(i => nnlBucket(i, today, calls.get(i.id)) === bucket);
                const split =
                   lanes &&
                   lanes

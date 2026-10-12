@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { RoadmapItem } from '../../../../shared/model/roadmap';
 import { savedWords, standingsOf, teamWords } from './Roadmap';
+import { nnlBucket } from './NowNextLater';
 
 const plan: RoadmapItem = {
    id: 5,
@@ -71,5 +72,16 @@ describe('standingsOf', () => {
          { slug: 'mysql-8', item: plan, reasons: [{ kind: 'at_risk' }] },
       ]);
       expect(Object.fromEntries(lanes)).toEqual({ docs: 'plan', plp: 'call', idx: 'call' });
+   });
+});
+
+describe('Now, next and later', () => {
+   const call = { kind: 'reopened' as const, text: 'Done, still worked on', question: 'Is it still done?', title: '' };
+   it('shows a stopped plan Decide asks about under Now, and others in none', () => {
+      expect(nnlBucket({ ...plan, status: 'done' }, '2026-10-12', call)).toBe('now');
+      expect(nnlBucket({ ...plan, status: 'done' }, '2026-10-12', null)).toBeNull();
+      expect(nnlBucket({ ...plan, status: 'planned', start: '2027-06-07' }, '2026-10-12', null)).toBe(
+         'later'
+      );
    });
 });

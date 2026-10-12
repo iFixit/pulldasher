@@ -24,7 +24,6 @@ import { dayStart, firstOpenDay, utcDay } from '../../../../shared/model/project
 import {
    addWeeks,
    blockersOf,
-   bucketOf,
    checkRoadmapFields,
    DONE_WHEN_MAX,
    END_KINDS,
@@ -139,7 +138,7 @@ import {
    type Standing,
 } from './RoadmapLanes';
 import { LoadChart } from './LoadChart';
-import { NowNextLater } from './NowNextLater';
+import { nnlBucket, NowNextLater } from './NowNextLater';
 import {
    NarrowChip,
    openPlan,
@@ -3614,7 +3613,7 @@ export function Roadmap({
                      </Rows>
                   </div>
                )}
-               {q && !nnlPlans.some(i => bucketOf(i, today)) ? (
+               {q && !nnlPlans.some(i => nnlBucket(i, today, planCalls.get(i.id))) ? (
                   <Rows>{nothingMatches('on the roadmap')}</Rows>
                ) : (
                   <NowNextLater
