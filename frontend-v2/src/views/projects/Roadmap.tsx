@@ -1252,6 +1252,7 @@ function PlanRow({
    call,
    open,
    onOpen,
+   onOpenPlan,
    onPerson,
    onOpenProject,
    onMove,
@@ -1276,6 +1277,8 @@ function PlanRow({
    open: boolean;
    /** open its details */
    onOpen: () => void;
+   /** open another plan's details: the one a clash waits on */
+   onOpenPlan: (id: number) => void;
    onPerson: (login: string) => void;
    onOpenProject: (slug: string) => void;
    /** a drag or an arrow key moved or resized it */
@@ -1471,19 +1474,27 @@ function PlanRow({
                      )}
                   </span>
                   {rest && (
-                     // plain words, dotted since their hover explains: the
-                     // bar and the name open the plan. What the answer in its
-                     // details is read with, so a reader hears the reason too
-                     <span
+                     // dotted since their hover explains; a click does the
+                     // natural thing: a question opens the details with its
+                     // answers, a clash the plan it waits on. Out of the Tab
+                     // order, since the bar and the name open the plan. What
+                     // the answer in its details is read with, so a reader
+                     // hears the reason too
+                     <button
+                        type="button"
+                        tabIndex={-1}
                         id={`roadmap-words-${item.id}`}
                         title={rest.title}
-                        className="self-start text-[11px] text-ink-3 underline decoration-dotted underline-offset-2"
+                        onClick={() =>
+                           w.call || !w.waits ? onOpen() : onOpenPlan(w.waits.opens.id)
+                        }
+                        className="hit pressable self-start rounded border-0 bg-transparent p-0 text-left text-[11px] text-ink-3 underline decoration-dotted underline-offset-2 hover:text-brand"
                      >
                         <span className="sr-only">{rest.title}</span>
                         <span aria-hidden>
                            <SaidWords said={rest} />
                         </span>
-                     </span>
+                     </button>
                   )}
                </span>
             </span>
@@ -2934,6 +2945,7 @@ export function Roadmap({
                   call={planCalls.get(item.id) ?? null}
                   open={isOpen}
                   onOpen={() => open(item.id, 'plan')}
+                  onOpenPlan={openFromReceipt}
                   onPerson={person}
                   onOpenProject={slug => navigate({ project: slug })}
                   onMove={to => moved(item, to)}

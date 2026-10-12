@@ -171,6 +171,9 @@ const NAV = {
 
 const settle = () => act(() => new Promise(resolve => setTimeout(resolve, 0)));
 
+/** where the Roadmap asked to go */
+const went: Partial<ProjectsNav>[] = [];
+
 /** The Roadmap with the initiatives as the board holds them, as the app
  * passes them, so a move shows in the next render. */
 function Live({ nav }: { nav: ProjectsNav }) {
@@ -182,7 +185,7 @@ function Live({ nav }: { nav: ProjectsNav }) {
          untracked={new Set(['ops'])}
          teamMembers={{}}
          nav={nav}
-         navigate={() => undefined}
+         navigate={to => went.push(to)}
          decisions={[]}
       />
    );
@@ -376,6 +379,23 @@ describe('the Roadmap by initiative', () => {
       const el = await mount({ item: 2 });
       const band = lane(el, 'fixbot').querySelector('details') as HTMLDetailsElement;
       expect(band.open).toBe(true);
+   });
+
+   it('opens the plan a clash waits on when its words are clicked', async () => {
+      // Cache warmer starts before Image CDN, which it waits on, is done
+      const was = PLANS[2];
+      PLANS[2] = { ...was, waits_on: [1] };
+      try {
+         await loadRoadmap();
+         const el = await mount();
+         const words = el.querySelector('#roadmap-words-3') as HTMLButtonElement;
+         expect(words.textContent).toContain('Starts before Image CDN is done');
+         went.length = 0;
+         act(() => words.click());
+         expect(went.at(-1)).toMatchObject({ item: 1 });
+      } finally {
+         PLANS[2] = was;
+      }
    });
 
    it('links the initiative’s page with a real address', async () => {

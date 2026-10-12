@@ -48,6 +48,7 @@ function Card({
    today,
    call,
    onOpen,
+   onOpenPlan,
    onPerson,
 }: {
    item: RoadmapItem;
@@ -57,6 +58,8 @@ function Card({
    /** the call Decide asks about it */
    call: PlanCall | null;
    onOpen: () => void;
+   /** open another plan: the one a clash waits on */
+   onOpenPlan: (id: number) => void;
    onPerson: (login: string) => void;
 }) {
    const bucket = nnlBucket(item, today, call);
@@ -91,11 +94,17 @@ function Card({
             <Dotted>
                {[
                   rest && (
-                     // plain words: the card and its name open the plan
+                     // a click opens the plan, as the card does, or for a
+                     // clash, the plan it waits on
                      <span
                         key="rest"
                         title={rest.title}
-                        className="underline decoration-dotted underline-offset-2"
+                        onClick={
+                           !w.call && w.waits
+                              ? only(() => onOpenPlan((w.waits as { opens: RoadmapItem }).opens.id))
+                              : undefined
+                        }
+                        className="underline decoration-dotted underline-offset-2 hover:text-brand"
                      >
                         <SaidWords said={rest} />
                      </span>
@@ -182,6 +191,7 @@ export function NowNextLater({
                today={today}
                call={calls.get(item.id) ?? null}
                onOpen={() => onOpen(item.id)}
+               onOpenPlan={onOpen}
                onPerson={onPerson}
             />
          ))}
