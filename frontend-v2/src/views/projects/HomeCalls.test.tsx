@@ -1274,7 +1274,9 @@ describe('the one chooser, wherever a project is filed', () => {
       act(() => {
          el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
       });
-   const frame = () => act(() => new Promise(resolve => setTimeout(resolve, 40)));
+   // the next frame: frames run in order, so the one the code asked for ran
+   const frame = () =>
+      act(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));
 
    it('reads "File in [ ] File" on Decide’s row and "File in [ ] File Cancel" where it opens', () => {
       const unfiled = render({ slug: 'new-thing', item: null, reasons: [{ kind: 'unfiled' }] });

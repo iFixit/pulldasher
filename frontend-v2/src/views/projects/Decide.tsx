@@ -1088,7 +1088,7 @@ function CallStrip({
             // back to it, else the calls Change opened
             e.preventDefault();
             e.stopPropagation();
-            if (onCancel) return onCancel();
+            if (!more) return onCancel?.();
             flushSync(() => setMore(false));
             moreRef.current?.focus();
          }}
