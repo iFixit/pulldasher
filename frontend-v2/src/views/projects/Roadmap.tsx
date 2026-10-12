@@ -3120,6 +3120,8 @@ export function Roadmap({
             load={null}
             lined={false}
             defaultOpen={false}
+            // under the initiative lanes, its label starts where theirs do
+            gutter={byInitiative ? <span aria-hidden className="block w-[17px]" /> : undefined}
          >
             {showPlans && planRows(notTrackedPlans, notTrackedPlans, { ranked: false })}
             {inFlightRows(notTrackedLoose)}

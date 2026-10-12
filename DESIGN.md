@@ -578,8 +578,8 @@ icon with a class bolted on.
 - **A plan's row at rest is one line: rank and name.** A second line only
   when Decide asks something, and then only its question, in amber with a
   dotted underline, its reason on hover; or, in ink, a clash with what it
-  waits on, by rank ("Starts before #2 is done", the name on hover), since
-  order is the roadmap's own business. So a row's height says it wants
+  waits on, by name ("Starts before Shopify sync is done"): a row number
+  reads differently in every grouping, so it would need a legend. So a row's height says it wants
   you, and amber on the Roadmap means Decide's questions only. An update
   owed ("Update due", "No update yet") is said where the lead looks, the
   Overview's Plan column and the opened plan, and a health word with
@@ -850,8 +850,14 @@ icon with a class bolted on.
      first, as a click on the band would.
 
   Inside a lane its rows are numbered by their place there (1, 2, 3), under
-  the band's own rank; a row's priority on the whole roadmap is in its
+  the band's own number; a row's priority on the whole roadmap is in its
   grip's label and the number's hover, never a second number beside it.
+  "Priority" is the one word for order, for lanes and rows alike, on grips,
+  hovers and receipts; a receipt names the number its row shows ("Moved
+  Cache warmer to priority 1 in Site speed"). A band with no grip keeps
+  the grip's column, so every label starts at one x. A closed initiative
+  says "Closed as done Sep 20" everywhere; an open one whose plans all
+  stopped says "Nothing under way since Sep 20".
   "Unsorted" is the one word for a project filed nowhere, on every band,
   chooser, hover and split (the sentence form is "filed nowhere"). A plan
   with no project can't be filed, so it sits in its own "No project yet"
