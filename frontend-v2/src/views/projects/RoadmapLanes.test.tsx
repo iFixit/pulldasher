@@ -357,6 +357,21 @@ describe('the Not tracked lane', () => {
       }
    });
 
+   it('says on Now, next, later where its asked plan is, its name the way to the question', async () => {
+      const grew: DecideRow = {
+         slug: 'ops',
+         item: null,
+         reasons: [{ kind: 'untracked_grew', since: 31, baseline: 2 }],
+      };
+      const el = await mount({ scale: 'now' }, { decisions: [grew] });
+      expect(el.textContent).toContain(
+         'Runbooks is Not tracked, so it’s in no column here, but Decide asks about it.'
+      );
+      went.length = 0;
+      act(() => [...el.querySelectorAll('button')].find(b => b.textContent === 'Runbooks')?.click());
+      expect(went.at(-1)).toMatchObject({ item: 5 });
+   });
+
    it('rests closed when nothing in it is asked about', async () => {
       const el = await mount();
       const fold = el.querySelector(

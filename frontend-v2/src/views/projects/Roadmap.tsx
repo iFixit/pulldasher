@@ -3737,6 +3737,7 @@ export function Roadmap({
                      today={today}
                      calls={planCalls}
                      unplanned={unplanned.length}
+                     asked={notTrackedPlans.filter(i => planCalls.has(i.id))}
                      onOpen={(id, focus) => openFromReceipt(id, focus)}
                      onPerson={person}
                      onTimeline={() =>

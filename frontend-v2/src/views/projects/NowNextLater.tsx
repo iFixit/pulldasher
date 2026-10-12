@@ -155,6 +155,7 @@ export function NowNextLater({
    today,
    calls,
    unplanned,
+   asked = [],
    onOpen,
    onPerson,
    onTimeline,
@@ -174,6 +175,9 @@ export function NowNextLater({
    calls: ReadonlyMap<number, PlanCall>;
    /** projects being worked on with no plan, which have no column here */
    unplanned: number;
+   /** Not tracked plans Decide asks about: no place in the order, so no
+    * column, but said, with the way to their question */
+   asked?: RoadmapItem[];
    /** a plan, open on the timeline; 'plan' puts the focus on its Plan
     * line (a question or a clash), not on an answer */
    onOpen: (id: number, focus?: 'plan') => void;
@@ -237,6 +241,20 @@ export function NowNextLater({
                );
             })}
          </div>
+         {/* the timeline's Not tracked lane asks about these; here they'd
+             have no column, so where they are is said */}
+         {asked.length > 0 && (
+            <p className="m-0 mt-4 text-xs text-ink-3">
+               {asked.map((item, k) => (
+                  <span key={item.id}>
+                     {k ? (k === asked.length - 1 ? ' and ' : ', ') : ''}
+                     <FactLink onClick={() => onOpen(item.id, 'plan')}>{item.name}</FactLink>
+                  </span>
+               ))}{' '}
+               {asked.length === 1 ? 'is Not tracked, so it’s' : 'are Not tracked, so they’re'} in
+               no column here, but Decide asks about {asked.length === 1 ? 'it' : 'them'}.
+            </p>
+         )}
          {/* without them, the columns would read as all the work */}
          {unplanned > 0 && (
             <p className="m-0 mt-4 text-xs text-ink-3">
