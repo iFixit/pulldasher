@@ -47,8 +47,11 @@ import {
    devDays,
    LAST_14_DAYS,
    NO_PLAN,
+   GOAL,
+   NOT_TRACKED_GLOSS,
 } from '../../model/words';
-import { DecideCall, planRow, reasonWords } from './Decide';
+import { askedInitiative, askOf, DecideCall, planRow, reasonWords } from './Decide';
+import { bandGloss as initiativeGloss } from '../../model/initiativeBoard';
 import {
    BY_PRS_WHY,
    BY_PRS_WHY_NO_REPO,
@@ -789,13 +792,39 @@ function download(items: readonly PortfolioItem[]) {
    URL.revokeObjectURL(url);
 }
 
-/** A band's gloss when the list is grouped: what put its projects there. */
-function bandGloss(by: string, title: string, initiative?: Initiative): string {
+/** Decide's question about an initiative itself, inside its band: the
+ * question in amber and its answers, as the Roadmap's lane shows it. */
+function InitiativeAsk({ row, goal }: { row: DecideRow; goal: string }) {
+   return (
+      <div className="border-t border-secondary px-3.5 py-2 text-[13px]">
+         {row.reasons.length > 0 && (
+            <p className="m-0 max-w-[70ch] text-ink-2">
+               {goal && (
+                  <span className="block">
+                     <span className="text-ink-3">{GOAL}:</span> {goal}
+                  </span>
+               )}
+               <span className="text-warn">{askOf(row.reasons[0]).question}</span>
+            </p>
+         )}
+         <DecideCall row={row} />
+      </div>
+   );
+}
+
+/** A band's gloss when the list is grouped: what put its projects there.
+ * An initiative's is the Roadmap band's (initiativeBoard.ts bandGloss). */
+function bandGloss(
+   by: string,
+   title: string,
+   initiative?: Initiative,
+   items: readonly PortfolioItem[] = []
+): string {
    if (by === 'initiative') {
-      if (!initiative) return 'Projects in no initiative yet. Decide asks where each one goes.';
-      const owner = initiative.owner ? ` Owner: ${initiative.owner}.` : '';
-      const closed = initiative.status === 'open' ? '' : ` Closed as ${initiative.status}.`;
-      return `${initiative.goal || initiative.name}${owner}${closed}`;
+      if (!initiative) return 'Projects filed nowhere yet. Decide asks where each one goes.';
+      const slugs = new Set(initiative.projects.map(f => f.project));
+      const working = items.filter(i => slugs.has(i.slug) && i.status === 'live').length;
+      return initiativeGloss(initiative, slugs.size, working);
    }
    if (title.startsWith('No ')) return `Projects with ${title.toLowerCase()}`;
    if (by === 'parent') return `${title}, and the projects that are part of it`;
@@ -1068,6 +1097,7 @@ export function Portfolio(
 ) {
    const {
       items,
+      calls,
       placeOf = item => item,
       nameOf,
       teams,
@@ -1116,7 +1146,21 @@ export function Portfolio(
    // with no initiatives yet (a server before they're loaded), the default
    // grouping is no grouping, not one band called Unsorted
    const by = nav.group === 'initiative' && !initiatives.length ? 'none' : nav.group;
-   const groups = groupItems(shown, by, nameOf, teams, initiatives);
+   // an initiative Decide asks about keeps its band, its question inside
+   const initiativeAsks = new Map(
+      calls.flatMap(r => {
+         const id = askedInitiative(r);
+         return id != null && !r.slug ? [[id, r] as const] : [];
+      })
+   );
+   const groups = groupItems(
+      shown,
+      by,
+      nameOf,
+      teams,
+      initiatives,
+      new Set(initiativeAsks.keys())
+   );
    // the Not tracked ones by the same tab and find, in a ledger of their own
    const notTracked = sortItems(
       untrackedItems.filter(
@@ -1298,15 +1342,22 @@ export function Portfolio(
                         key={g.title}
                         count={g.items.length}
                         label={g.title}
-                        gloss={bandGloss(by, g.title, g.initiative)}
+                        gloss={bandGloss(by, g.title, g.initiative, items)}
                         detail={bandDetail(g.initiative)}
                         // logins keep their case
                         caps={by !== 'lead'}
+                        keepEmpty={!!g.initiative && initiativeAsks.has(g.initiative.id)}
                         id={`portfolio:${by}:${
                            g.initiative?.slug ?? g.title.replace(/\s+/g, '-')
                         }`}
                         defaultOpen
                      >
+                        {g.initiative && initiativeAsks.has(g.initiative.id) && (
+                           <InitiativeAsk
+                              row={initiativeAsks.get(g.initiative.id) as DecideRow}
+                              goal={g.initiative.goal}
+                           />
+                        )}
                         <ProjectTable
                            key={`${nav.status}:${g.title}`}
                            label={`Projects: ${g.title}`}
@@ -1333,7 +1384,7 @@ export function Portfolio(
             <Fold
                count={notTracked.length}
                label="Not tracked"
-               gloss="Projects set not tracked: personal and team workflow nobody reports on. They count in no tile, tab or question, but Decide asks again if one doubles in size."
+               gloss={NOT_TRACKED_GLOSS}
                id="portfolio:not-tracked"
             >
                <ProjectTable
