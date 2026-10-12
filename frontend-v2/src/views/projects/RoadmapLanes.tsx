@@ -11,7 +11,7 @@ import type { Initiative } from '../../../../shared/model/initiatives';
 import { isUnderWay, type RoadmapItem } from '../../../../shared/model/roadmap';
 import { FactLink, QuietButton } from '../../components/bits';
 import { Icon } from '../../components/Icon';
-import { holdInPlace } from '../../components/holdInPlace';
+import { guardAt, settle } from '../../components/settle';
 import { Fold, openFold, useFoldState } from '../../components/Lane';
 import { askedInitiative, askOf } from '../../model/decideCalls';
 import {
@@ -56,9 +56,9 @@ export interface PlanRun {
 }
 
 /** Keep the receipt with this key where it is on screen through `write`
- * (holdInPlace): an Undo that sends its row or lane back up or down. */
+ * (settle): an Undo that sends its row or lane back up or down. */
 export function keepInPlace(key: string, write: (held?: number) => void): void {
-   holdInPlace(() => document.querySelector<HTMLElement>(`[data-receipt="${key}"]`), write);
+   settle(() => document.querySelector<HTMLElement>(`[data-receipt="${key}"]`), write);
 }
 
 /** The initiatives as the board has them, just after a write. */
@@ -419,6 +419,9 @@ export function initiativeLanes(c: LaneContext) {
       onDragLeave: () => setOverLane(o => (o === key ? null : o)),
       onDrop: (e: DragEvent) => {
          e.preventDefault();
+         // a drop is a press: what it moves under the pointer can't be
+         // clicked until the pointer moves
+         guardAt(e.clientX, e.clientY);
          setOverLane(null);
          if (draggingLane != null) {
             const moving = allRanked.find(i => i.id === draggingLane);

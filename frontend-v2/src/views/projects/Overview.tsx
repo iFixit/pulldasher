@@ -3,6 +3,7 @@ import { n } from '../../../../shared/format';
 import { STALL_DAYS, type DecideRow } from '../../../../shared/model/decide';
 import type { Today } from '../../../../shared/model/projects';
 import type { Initiative } from '../../../../shared/model/initiatives';
+import { PRESS_GUARD } from '../../components/settle';
 import { FactLink, LoadFailed } from '../../components/bits';
 import { Fold, FoldRows, laneShown, RestGroup, SubDoor } from '../../components/Lane';
 import type { RowOptions } from '../../components/Row';
@@ -563,7 +564,7 @@ export function Overview({
    const outside = today.misc.length + today.unsorted.length;
    const allOpen = today.live.reduce((sum, g) => sum + g.open.length, 0) + outside;
    return (
-      <div className="flex flex-col gap-6">
+      <div {...PRESS_GUARD} className="flex flex-col gap-6">
          {data === null && (
             <LoadFailed
                what="the project issues, so projects show by their label"

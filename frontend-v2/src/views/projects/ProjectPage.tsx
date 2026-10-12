@@ -30,6 +30,7 @@ import {
    Segmented,
    textInputClass,
 } from '../../components/bits';
+import { PRESS_GUARD } from '../../components/settle';
 import { Icon } from '../../components/Icon';
 import { foldDomId, openFold, SubDoor } from '../../components/Lane';
 import type { RowOptions } from '../../components/Row';
@@ -772,7 +773,7 @@ export function ProjectPage({
    const activityKey = lastActivity && issueKey(lastActivity.pr);
 
    return (
-      <>
+      <div {...PRESS_GUARD} className="contents">
          <p role="status" aria-live="polite" className="sr-only">
             {said}
          </p>
@@ -1217,6 +1218,6 @@ export function ProjectPage({
                headerExtra={rangePicker}
             />
          </div>
-      </>
+      </div>
    );
 }

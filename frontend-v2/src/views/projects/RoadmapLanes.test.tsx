@@ -9,6 +9,7 @@ import { loadInitiatives, useInitiativesValue } from '../../model/initiativesDat
 import { loadRoadmap } from '../../model/roadmapData';
 import type { ProjectsNav } from './parts';
 import { Roadmap } from './Roadmap';
+import { clearHolds } from '../../components/settle';
 
 // React's act() warns unless the environment says it's a test
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -149,6 +150,7 @@ beforeEach(async () => {
    calls.length = 0;
 });
 afterEach(() => {
+   clearHolds();
    // an unmounted tree stops listening to the stores the next test writes
    act(() => root?.unmount());
    root = null;
@@ -236,11 +238,15 @@ const receipts = (el: HTMLElement, words: string) =>
       .length;
 const writes = () => calls.filter(c => c.method !== 'GET');
 
-/** A drag from `from`, over and onto `to`, as the browser sends it. */
-function drag(from: Element, to: Element): { refused: boolean } {
+/** A drag from `from`, over and onto `to`, as the browser sends it,
+ * dropped at `at` on the screen. */
+function drag(from: Element, to: Element, at = { clientX: 0, clientY: 0 }): { refused: boolean } {
    const data = { effectAllowed: '', setData: () => undefined, getData: () => '' };
    const event = (type: string) =>
-      Object.assign(new Event(type, { bubbles: true, cancelable: true }), { dataTransfer: data });
+      Object.assign(new Event(type, { bubbles: true, cancelable: true }), {
+         dataTransfer: data,
+         ...at,
+      });
    act(() => {
       from.dispatchEvent(event('dragstart'));
    });
@@ -551,5 +557,140 @@ describe('the Roadmap by initiative', () => {
          a => a.textContent === 'Initiative page'
       );
       expect(link?.getAttribute('href')).toContain('initiative=site-speed');
+   });
+});
+
+/** A mouse's press at a point onto `el`, whatever sits there now. */
+const pressAt = (el: Element, x: number, y: number) =>
+   act(() => {
+      const at = { bubbles: true, cancelable: true, clientX: x, clientY: y };
+      for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup'])
+         el.dispatchEvent(new MouseEvent(type, at));
+      el.dispatchEvent(new MouseEvent('click', { ...at, detail: 1 }));
+   });
+const pointerTo = (x: number, y: number) =>
+   act(() => {
+      document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: x, clientY: y }));
+   });
+
+describe('after a click on the Roadmap', () => {
+   /** Lay the page out as a browser would, as far as these tests look: a
+    * sticky header 120 px tall, and every receipt at `receiptTop`. */
+   function layout(receiptTop: () => number) {
+      const header = document.createElement('div');
+      header.className = 'sticky';
+      header.style.position = 'sticky';
+      header.style.top = '0px';
+      document.body.prepend(header);
+      const box = (top: number, height: number) =>
+         ({ top, bottom: top + height, left: 0, right: 800, width: 800, height, x: 0, y: top }) as DOMRect;
+      const real = HTMLElement.prototype.getBoundingClientRect;
+      HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
+         if (this === header) return box(0, 120);
+         if (this.closest('[data-receipt]')) return box(receiptTop(), 30);
+         return box(0, 0);
+      };
+      const scrolled: number[] = [];
+      const spy = vi.spyOn(window, 'scrollBy').mockImplementation(((_x: number, y: number) => {
+         scrolled.push(y);
+      }) as typeof window.scrollBy);
+      return {
+         scrolled,
+         restore: () => {
+            HTMLElement.prototype.getBoundingClientRect = real;
+            spy.mockRestore();
+            header.remove();
+         },
+      };
+   }
+
+   const fileFromDetails = async (el: HTMLElement, plan: string, to: string) => {
+      const details = el.querySelector(`[aria-label="${plan}: its plan"]`) as HTMLElement;
+      act(() => details.querySelector<HTMLButtonElement>('[aria-label^="File elsewhere"]')?.click());
+      const select = details.querySelector('select') as HTMLSelectElement;
+      act(() => {
+         select.value = to;
+         select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      act(() => [...details.querySelectorAll('button')].find(b => b.textContent === 'File')?.click());
+      await settle();
+      await settle();
+   };
+
+   it('shows a details filing’s receipt below the sticky header when its lane is above', async () => {
+      // the receipt lands in Site speed's lane, above, scrolled under the header
+      const page = layout(() => 50);
+      try {
+         const el = await mount({ item: 2 });
+         await fileFromDetails(el, 'Answer search', 'site-speed');
+         expect((document.activeElement as HTMLElement).textContent).toBe(
+            'Filed Answer search in Site speed.'
+         );
+         // brought down to just below the header, and no further
+         expect(page.scrolled.at(-1)).toBe(50 - 120 - 8);
+      } finally {
+         page.restore();
+      }
+   });
+
+   it('shows a details filing’s receipt above the window’s bottom when its lane is below', async () => {
+      const page = layout(() => innerHeight + 200);
+      try {
+         const el = await mount({ item: 3 });
+         await fileFromDetails(el, 'Cache warmer', 'fixbot');
+         expect((document.activeElement as HTMLElement).textContent).toBe(
+            'Filed Cache warmer in FixBot chat.'
+         );
+         expect(page.scrolled.at(-1)).toBe(200 + 30 + 8);
+      } finally {
+         page.restore();
+      }
+   });
+
+   it('holds a drop’s point: the Undo that slid there takes no press until the pointer moves', async () => {
+      const el = await mount();
+      drag(el.querySelector('#roadmap-grip-1') as HTMLElement, lane(el, 'fixbot'), {
+         clientX: 240,
+         clientY: 400,
+      });
+      await settle();
+      expect(el.textContent).toContain('Filed Image CDN in FixBot chat.');
+      const undo = [...el.querySelectorAll('button')].find(
+         b => b.textContent === 'Undo'
+      ) as HTMLButtonElement;
+      const sent = writes().length;
+      // a second press where the drop let go, with the pointer still
+      pressAt(undo, 240, 400);
+      await settle();
+      expect(writes()).toHaveLength(sent);
+      pointerTo(400, 600);
+      pressAt(undo, 240, 400);
+      await settle();
+      expect(writes()).toHaveLength(sent + 1);
+      expect(el.textContent).toContain('Put Image CDN back in Site speed');
+   });
+
+   it('keeps a second Undo on one receipt as still as the first, and leaves no style on the page', async () => {
+      const el = await mount();
+      const grip = () => el.querySelector('#roadmap-lane-grip-2') as HTMLElement;
+      for (const k of [1, 2]) {
+         act(() => {
+            grip().dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+         });
+         await settle();
+         const undo = [...el.querySelectorAll('button')].find(
+            b => b.getAttribute('aria-label') === 'Undo: Moved FixBot chat to priority 1'
+         ) as HTMLButtonElement;
+         // a pointer's Undo, each time somewhere new
+         pressAt(undo, 100 * k, 100 * k);
+         await settle();
+         expect(el.textContent).toContain('Put FixBot chat back at priority 2');
+         const receipt = el.querySelector('[data-receipt="initiative:2"]') as HTMLElement;
+         expect(receipt.style.marginTop).toBe('');
+         expect(receipt.style.transition).toBe('');
+         expect(document.body.getAttribute('style')).toBeNull();
+         pointerTo(900, 900);
+      }
+      expect(writes().filter(c => c.path === '/initiatives/2/move')).toHaveLength(4);
    });
 });

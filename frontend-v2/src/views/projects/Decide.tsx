@@ -47,7 +47,7 @@ import {
    Segmented,
    textInputClass,
 } from '../../components/bits';
-import { holdInPlace } from '../../components/holdInPlace';
+import { focusResult, PRESS_GUARD, settle } from '../../components/settle';
 import { Icon } from '../../components/Icon';
 import { ClosedRow } from '../../components/ClosedRow';
 import { Fold, GroupHeader, Rows, SubDoor, Truncated } from '../../components/Lane';
@@ -671,6 +671,15 @@ export function DecideCall({
    const [undid, setUndid] = useState<{ height: number; held: boolean } | null>(null);
    const putBackRef = useRef<HTMLParagraphElement>(null);
    const tabbing = useRef(false);
+   // the held words go; the focus they had moves to the row's answer
+   const letGo = () => {
+      const had = !!putBackRef.current?.contains(document.activeElement);
+      flushSync(() => setUndid(u => (u?.held ? { height: 0, held: false } : u)));
+      if (had)
+         rootRef.current
+            ?.querySelector<HTMLElement>('[data-decide-focus]')
+            ?.focus({ preventScroll: true });
+   };
    // the height the row had when a click here changed it, kept as the least
    // it has, so the rows below never slide under the pointer, a phone's
    // wrapped lines included
@@ -691,10 +700,11 @@ export function DecideCall({
       const lost = document.activeElement === document.body && view !== 'ask';
       if (!refocus.current && !lost) return;
       refocus.current = false;
-      // after an Undo, its held words; j and k still land on the answer
-      (
+      // after an Undo, its held words; j and k still land on the answer.
+      // Shown below the sticky headers, wherever the row went
+      focusResult(
          putBackRef.current ?? rootRef.current?.querySelector<HTMLElement>('[data-decide-focus]')
-      )?.focus();
+      );
    }, [view]);
    const act = (fn: () => void) => () => {
       refocus.current = true;
@@ -811,8 +821,10 @@ export function DecideCall({
                   <QuietButton
                      onClick={act(() =>
                         // its words where Undo was, even when a count above
-                        // the row changes with it (a section's, on a phone)
-                        holdInPlace(
+                        // the row changes with it (a section's, on a phone);
+                        // they go once the pointer moves away or the next
+                        // action starts, the focus back on the row's answer
+                        settle(
                            () => rootRef.current,
                            () => {
                               setUndid({
@@ -820,7 +832,8 @@ export function DecideCall({
                                  held: true,
                               });
                               undoCall(rowKey(row));
-                           }
+                           },
+                           letGo
                         )
                      )}
                      aria-label={`Undo the decision on ${name}`}
@@ -2361,7 +2374,7 @@ export function Decide({
          reasons: [],
       };
    return (
-      <section className="mb-7">
+      <section {...PRESS_GUARD} className="mb-7">
          <div className="mb-4">
             <GroupHeader
                title={`${heading}${whose}`}

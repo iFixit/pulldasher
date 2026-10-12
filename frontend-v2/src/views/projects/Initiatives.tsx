@@ -19,6 +19,7 @@ import {
 import { EmptyState, FactLink, QuietButton, textInputClass } from '../../components/bits';
 import { Fold, Rows } from '../../components/Lane';
 import { Icon } from '../../components/Icon';
+import { focusResult, PRESS_GUARD } from '../../components/settle';
 import { fileProject, updateInitiative, type Home } from '../../model/initiativesData';
 import { closedWords, homeChoices } from '../../model/initiativeBoard';
 import { dayWords } from '../../model/projectData';
@@ -87,7 +88,7 @@ export function HomeLine({
    const moveId = useId();
    const doneRef = useRef<HTMLSpanElement>(null);
    useEffect(() => {
-      if (receipt) doneRef.current?.focus();
+      if (receipt) focusResult(doneRef.current);
    }, [receipt]);
    const choices = homeChoices(initiatives);
    const say = (r: MoveReceipt) => {
@@ -569,7 +570,7 @@ export function InitiativePage({
               : []),
         ];
    return (
-      <>
+      <div {...PRESS_GUARD} className="contents">
          <div className="mb-6">
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                <h2 className="m-0 text-xl font-semibold leading-7">{initiative.name}</h2>
@@ -665,6 +666,6 @@ export function InitiativePage({
                </p>
             )}
          </section>
-      </>
+      </div>
    );
 }

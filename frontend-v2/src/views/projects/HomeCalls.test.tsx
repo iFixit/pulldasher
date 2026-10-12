@@ -9,6 +9,7 @@ import { fileProject, loadInitiatives } from '../../model/initiativesData';
 import type { PortfolioItem } from '../../model/portfolio';
 import { HomeLine, InitiativePage } from './Initiatives';
 import { clearHomePicks, InitiativeSwitch } from './HomeCalls';
+import { clearHolds } from '../../components/settle';
 import { NO_PROJECT, UNSORTED } from '../../model/initiativeBoard';
 import { PROJECT_SLUG } from '../../../../shared/model/roadmap';
 import type { ProjectsNav } from './parts';
@@ -161,6 +162,7 @@ const roots: Root[] = [];
 afterEach(() => {
    act(() => roots.splice(0).forEach(r => r.unmount()));
    clearHomePicks();
+   clearHolds();
    host?.remove();
    host = null;
    calls.length = 0;
@@ -205,6 +207,14 @@ const fileButton = (el: HTMLElement) =>
 /** a callback the test doesn't watch */
 const nothing = () => undefined;
 const settle = () => act(() => new Promise(resolve => setTimeout(resolve, 0)));
+/** A mouse's press at a point onto `el`, whatever sits there now. */
+const pressAt = (el: Element, x: number, y: number) =>
+   act(() => {
+      const at = { bubbles: true, cancelable: true, clientX: x, clientY: y };
+      for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup'])
+         el.dispatchEvent(new MouseEvent(type, at));
+      el.dispatchEvent(new MouseEvent('click', { ...at, detail: 1 }));
+   });
 
 describe('a row that asks about an initiative', () => {
    const goal: DecideRow = {
@@ -576,6 +586,50 @@ describe('a plan with no project', () => {
          path: '/roadmap/5',
          body: { project: null, undo: { updated_at: 1, status_at: null } },
       });
+   });
+});
+
+describe('a double-click on Link', () => {
+   const row: DecideRow = { slug: null, item: unlinked, reasons: [{ kind: 'no_project' }] };
+
+   it('links once: its second press reaches nothing, and the focus is on the receipt', async () => {
+      // under the press guard, as on every view that shows Decide's rows
+      const el = mount(
+         <div data-press-guard="">
+            <DecideCall row={row} />
+         </div>
+      );
+      const select = el.querySelector('select') as HTMLSelectElement;
+      act(() => {
+         select.value = 'cache';
+         select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      const link = [...el.querySelectorAll('button')].find(b =>
+         b.textContent?.startsWith('Link')
+      ) as HTMLButtonElement;
+      pressAt(link, 300, 200);
+      await settle();
+      expect(el.textContent).toContain('Linked to cache');
+      expect(document.activeElement?.textContent).toContain('Linked to cache');
+      const sent = calls.length;
+      // a row joined above, so Undo (or the plan's name) slid under the
+      // pointer: the second press of the double-click finds it, and does nothing
+      const undo = [...el.querySelectorAll('button')].find(
+         b => b.textContent === 'Undo'
+      ) as HTMLButtonElement;
+      pressAt(undo, 300, 200);
+      await settle();
+      expect(calls.length).toBe(sent);
+      expect(document.activeElement?.textContent).toContain('Linked to cache');
+      // once the pointer has moved away and back, Undo is a click again
+      act(() => {
+         document.dispatchEvent(
+            new MouseEvent('pointermove', { bubbles: true, clientX: 400, clientY: 300 })
+         );
+      });
+      pressAt(undo, 300, 200);
+      await settle();
+      expect(calls.at(-1)).toMatchObject({ method: 'PATCH', body: { project: null } });
    });
 });
 
@@ -989,6 +1043,50 @@ describe('Undo on a row', () => {
          slot.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
          (el.querySelector('button') as HTMLButtonElement).focus();
       });
+      expect(el.textContent).not.toContain('Put ops back as it was.');
+   });
+
+   it('lets its words go when the pointer moves away, the focus back on the answer', async () => {
+      const el = mount(
+         <div data-press-guard="">
+            <DecideCall row={grew} />
+         </div>
+      );
+      click(el, 'Keep not tracked');
+      await settle();
+      const undo = [...el.querySelectorAll('button')].find(
+         b => b.textContent === 'Undo'
+      ) as HTMLButtonElement;
+      pressAt(undo, 120, 80);
+      await settle();
+      expect(el.textContent).toContain('Put ops back as it was.');
+      // a wobble keeps them; moving off lets them go
+      const move = (x: number, y: number) =>
+         act(() => {
+            document.dispatchEvent(
+               new MouseEvent('pointermove', { bubbles: true, clientX: x, clientY: y })
+            );
+         });
+      move(122, 81);
+      expect(el.textContent).toContain('Put ops back as it was.');
+      move(400, 300);
+      expect(el.textContent).not.toContain('Put ops back as it was.');
+      expect(document.activeElement?.textContent).toBe('Keep not trackedSuggested');
+   });
+
+   it('lets its words go when the next action starts', async () => {
+      const el = mount(
+         <div data-press-guard="">
+            <DecideCall row={grew} />
+         </div>
+      );
+      click(el, 'Keep not tracked');
+      await settle();
+      click(el, 'Undo');
+      await settle();
+      expect(el.textContent).toContain('Put ops back as it was.');
+      // the next answer, by key: the words go before it lands
+      click(el, 'Track it');
       expect(el.textContent).not.toContain('Put ops back as it was.');
    });
 

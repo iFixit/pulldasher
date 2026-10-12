@@ -54,6 +54,7 @@ import {
    Segmented,
    textInputClass,
 } from '../../components/bits';
+import { focusResult, guardAt, PRESS_GUARD } from '../../components/settle';
 import { Icon } from '../../components/Icon';
 import {
    eyebrowText,
@@ -2801,6 +2802,8 @@ export function Roadmap({
          onDrop: (e: DragEvent) => {
             e.preventDefault();
             e.stopPropagation();
+            // a drop is a press: nothing it moves there takes a click yet
+            guardAt(e.clientX, e.clientY);
             const dropped = ordered.find(i => i.id === dragging);
             setDragging(null);
             setDropTarget(null);
@@ -2953,7 +2956,8 @@ export function Roadmap({
       if (!want) return;
       refocus.current = null;
       const el = want.map(id => document.getElementById(id)).find(Boolean);
-      el?.focus();
+      // the receipt beside it shows too, below the sticky headers
+      focusResult(el, receipt && document.querySelector<HTMLElement>(`[data-receipt="${receipt.key}"]`));
    });
 
    const planRows = (
@@ -3401,7 +3405,7 @@ export function Roadmap({
    );
 
    return (
-      <section className="mb-7">
+      <section {...PRESS_GUARD} className="mb-7">
          {/* the timeline's toolbar and column names stay in place while its
              rows scroll, from sm up; on a phone they'd eat the screen */}
          <div
