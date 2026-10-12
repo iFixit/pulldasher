@@ -786,7 +786,7 @@ export function DecideCall({
                <span aria-hidden>
                   {shown.filed && shown.filedBefore
                      ? `${
-                          shown.filed.untracked ? 'Set not tracked' : `Filed in ${shown.filed.name}`
+                          shown.filed.untracked ? 'Marked Not tracked' : `Filed in ${shown.filed.name}`
                        }; the plan didn’t save.`
                      : 'Didn’t save.'}
                   {shown.why}

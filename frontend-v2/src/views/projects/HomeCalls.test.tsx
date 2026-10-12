@@ -523,7 +523,7 @@ describe('the words for where a project belongs', () => {
       // by the home's kind, never its slug: any Not tracked initiative
       expect(
          answerWords({ kind: 'file', to: 'shelf', name: 'Shelf', untracked: true }, null)
-      ).toBe('Set not tracked');
+      ).toBe('Mark Not tracked');
       expect(answerWords({ kind: 'link', project: 'pp', name: 'Parts pages' }, null)).toBe(
          'Link to Parts pages'
       );

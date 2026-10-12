@@ -161,7 +161,7 @@ export const SECTIONS: {
       kinds: ['untracked_grew'],
       title: 'Not tracked, but growing',
       more: [
-         'Set Not tracked, and since then it has opened as many PRs as it had before, and 30 or more. Keep it not tracked and the count starts again, or track it in an initiative.',
+         'Marked Not tracked, and since then it has opened as many PRs as it had before, and 30 or more. Keep it not tracked and the count starts again, or track it in an initiative.',
       ],
    },
 ];
@@ -505,7 +505,7 @@ export function answerWords(call: Call, plan: RoadmapItem | null): string {
       case 'ongoing':
          return 'Mark ongoing';
       case 'file':
-         return call.untracked ? 'Set not tracked' : `File in ${call.name}`;
+         return call.untracked ? 'Mark Not tracked' : `File in ${call.name}`;
       case 'keep_untracked':
          return 'Keep not tracked';
       case 'link':
@@ -739,7 +739,7 @@ export function callWords(
       }
       case 'file':
          return call.untracked
-            ? 'Set not tracked, so it counts nowhere. Decide asks again if it grows.'
+            ? 'Marked Not tracked, so it counts nowhere. Decide asks again if it grows.'
             : `Filed in ${call.name}.`;
       case 'link': {
          // what the link did, by where that project is filed now
