@@ -413,6 +413,21 @@ describe('File elsewhere in a plan’s details', () => {
    });
 });
 
+describe('a plan’s details while Decide asks where its project goes', () => {
+   it('offer filing once: the Plan line’s File, and no File elsewhere', async () => {
+      // Cache warmer's project is filed nowhere
+      server = START.map(i =>
+         i.slug === 'site-speed' ? { ...i, projects: i.projects.filter(f => f.project !== 'cache') } : i
+      );
+      await loadInitiatives();
+      const unfiled: DecideRow = { slug: 'cache', item: null, reasons: [{ kind: 'unfiled' }] };
+      const el = await mount({ item: 3 }, { decisions: [unfiled] });
+      const details = el.querySelector('[aria-label="Cache warmer: its plan"]') as HTMLElement;
+      expect(details.querySelector('[aria-label^="File cache"]')).not.toBeNull();
+      expect(details.querySelector('[aria-label^="File elsewhere"]')).toBeNull();
+   });
+});
+
 describe('the Roadmap by initiative', () => {
    it('opens a linked plan’s details without putting the focus on an end to promise', async () => {
       // nobody has clicked or pressed a key on the page yet

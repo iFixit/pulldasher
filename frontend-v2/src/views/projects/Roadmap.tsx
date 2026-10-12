@@ -128,7 +128,7 @@ import {
    NO_PROJECT_YET,
 } from '../../model/words';
 import { DecideCall, useCallsMadeHere } from './Decide';
-import { askOf, reasonWords } from '../../model/decideCalls';
+import { askOf, isHomeReason, reasonWords } from '../../model/decideCalls';
 import { HomeLine } from './Initiatives';
 import {
    initiativeLanes,
@@ -1054,6 +1054,15 @@ function PlanPanel({
                            initiatives={initiatives}
                            navigate={navigate}
                            onFile={onFile}
+                           // filing is offered once: the Plan line's answer
+                           // files it while Decide asks where it goes
+                           movable={
+                              !row.reasons.some(
+                                 r =>
+                                    isHomeReason(r) ||
+                                    (r.kind === 'new' && !homesOf(initiatives).has(project))
+                              )
+                           }
                         />
                      ) : (
                         <span className="text-[13px] text-ink-3">
