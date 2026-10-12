@@ -2980,8 +2980,11 @@ export function Roadmap({
       // way): it waits for the render that draws it
       if (!el) return;
       refocus.current = null;
-      // the receipt beside it shows too, below the sticky headers
-      focusResult(el, receipt && document.querySelector<HTMLElement>(`[data-receipt="${receipt.key}"]`));
+      // the receipt beside it shows too, below the sticky headers, from
+      // the top of its row, so a plan's name is never what's hidden
+      const said = receipt && document.querySelector<HTMLElement>(`[data-receipt="${receipt.key}"]`);
+      const row = said?.closest<HTMLElement>('[data-roadmap-row]');
+      focusResult(el, said, row?.firstElementChild as HTMLElement | null);
    });
 
    const planRows = (

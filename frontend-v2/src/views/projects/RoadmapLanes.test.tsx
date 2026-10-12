@@ -668,7 +668,8 @@ const pointerTo = (x: number, y: number) =>
 
 describe('after a click on the Roadmap', () => {
    /** Lay the page out as a browser would, as far as these tests look: a
-    * sticky header 120 px tall, and every receipt at `receiptTop`. */
+    * sticky header 120 px tall, every receipt at `receiptTop`, its row's
+    * line 40 px above it, and nothing else with a box. */
    function layout(receiptTop: () => number) {
       const header = document.createElement('div');
       header.className = 'sticky';
@@ -681,7 +682,9 @@ describe('after a click on the Roadmap', () => {
       HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
          if (this === header) return box(0, 120);
          if (this.closest('[data-receipt]')) return box(receiptTop(), 30);
-         return box(0, 0);
+         if (this.parentElement?.matches('[data-roadmap-row]') && this === this.parentElement.firstElementChild)
+            return box(receiptTop() - 40, 40);
+         return { ...box(0, 0), width: 0, right: 0 } as DOMRect;
       };
       const scrolled: number[] = [];
       const spy = vi.spyOn(window, 'scrollBy').mockImplementation(((_x: number, y: number) => {
@@ -719,8 +722,9 @@ describe('after a click on the Roadmap', () => {
          expect((document.activeElement as HTMLElement).textContent).toBe(
             'Filed Answer search in Site speed.'
          );
-         // brought down to just below the header, and no further
-         expect(page.scrolled.at(-1)).toBe(50 - 120 - 8);
+         // brought down to just below the header with its row's line, and
+         // no further
+         expect(page.scrolled.at(-1)).toBe(50 - 40 - 120 - 8);
       } finally {
          page.restore();
       }
