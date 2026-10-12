@@ -9,6 +9,12 @@ import { modalOpen } from '../hooks';
  * row and not only the ones drawn. Rows hidden in a closed fold are
  * skipped. Typing in a field never moves.
  *
+ * One rule for where it lands: the row's first `target` that can take the
+ * focus. A target that's off (an answer waiting on its chooser) is passed
+ * over for the row's first control that isn't a field (its name), since j
+ * typed in a select would pick an option. A row with nowhere to land is
+ * stepped past, so j and k reach every row from every row.
+ *
  * It listens before the board's own j and k (useBoardHotkeys, which steps
  * between PR links) and claims the key, so a list's rows win wherever both
  * would answer: an opened Overview row shows board rows inside it.
@@ -16,7 +22,7 @@ import { modalOpen } from '../hooks';
 export function useRowKeys(row: string, target: string) {
    useEffect(() => {
       const focusRow = (el: HTMLElement) => {
-         el.querySelector<HTMLElement>(target)?.focus({ preventScroll: true });
+         landingIn(el, target)?.focus({ preventScroll: true });
          // by hand: inside a rounded box (overflow hidden), scrollIntoView
          // drops the row's scroll margin, which is what keeps it below the
          // sticky headers
@@ -53,8 +59,7 @@ export function useRowKeys(row: string, target: string) {
                more.click();
                requestAnimationFrame(() => {
                   const now = drawn();
-                  const from = now.indexOf(rows[at]);
-                  const to = now[from + 1];
+                  const to = seek(now, now.indexOf(rows[at]), 1);
                   if (to) focusRow(to);
                });
                return;
@@ -68,18 +73,41 @@ export function useRowKeys(row: string, target: string) {
                !!from &&
                from !== document.body &&
                !!(from.compareDocumentPosition(r) & Node.DOCUMENT_POSITION_FOLLOWING);
-            const next =
-               step > 0
-                  ? rows.find(after) ?? rows[0]
-                  : [...rows].reverse().find(r => !after(r)) ?? rows[rows.length - 1];
-            focusRow(next);
+            // the first row after the focus for j, the last one before it for k
+            const before = rows.filter(r => !after(r)).length;
+            const first = step > 0 ? before : before - 1;
+            const next = seek(rows, first - step, step) ?? seek(rows, step > 0 ? -1 : rows.length, step);
+            if (next) focusRow(next);
             return;
          }
-         focusRow(rows[Math.min(Math.max(at + step, 0), rows.length - 1)]);
+         // past the last row (or the first), it stays
+         const next = seek(rows, at, step);
+         if (next) focusRow(next);
+      };
+      /** the next row from `at` going `step` that has somewhere to land */
+      const seek = (rows: HTMLElement[], at: number, step: number) => {
+         for (let i = at + step; i >= 0 && i < rows.length; i += step)
+            if (landingIn(rows[i], target)) return rows[i];
+         return undefined;
       };
       // capture: ahead of the board's hotkeys, which stand down for a key
       // claimed here (hooks.ts checks defaultPrevented)
       document.addEventListener('keydown', onKey, true);
       return () => document.removeEventListener('keydown', onKey, true);
    }, [row, target]);
+}
+
+/** A control that isn't off and is drawn. */
+const pressable = (el: HTMLElement) => !el.matches(':disabled') && el.getClientRects().length > 0;
+
+/** The controls a row can land on when its target is off: never a field. */
+const CONTROL = 'button, a[href], [role="button"], [tabindex]:not([tabindex="-1"])';
+
+/** Where j or k lands in a row: its first target that can take the focus,
+ * else its first control that isn't a field, else nowhere. */
+export function landingIn(row: HTMLElement, target: string): HTMLElement | undefined {
+   return (
+      [...row.querySelectorAll<HTMLElement>(target)].find(pressable) ??
+      [...row.querySelectorAll<HTMLElement>(CONTROL)].find(pressable)
+   );
 }
