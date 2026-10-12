@@ -979,7 +979,7 @@ function PlanPanel({
                   project={linked}
                   opened
                   // the row's words above ask the question its answer answers
-                  describedBy={asked ? `roadmap-words-${item.id}` : undefined}
+                  describedBy={asked ? `roadmap-why-${item.id}` : undefined}
                />
             </dd>
             {/* what finished looks like, so "Done?" has something to check;
@@ -1501,21 +1501,25 @@ function PlanRow({
                      // order, since the bar and the name open the plan. What
                      // the answer in its details is read with, so a reader
                      // hears the reason too
-                     <button
-                        type="button"
-                        tabIndex={-1}
-                        id={`roadmap-words-${item.id}`}
-                        title={rest.title}
-                        onClick={() =>
-                           w.call || !w.waits ? onOpen('plan') : onOpenPlan(w.waits.opens.id)
-                        }
-                        className="hit pressable self-start rounded border-0 bg-transparent p-0 text-left text-[11px] text-ink-3 underline decoration-dotted underline-offset-2 hover:text-brand"
-                     >
-                        <span className="sr-only">{rest.title}</span>
-                        <span aria-hidden>
+                     <>
+                        <button
+                           type="button"
+                           tabIndex={-1}
+                           id={`roadmap-words-${item.id}`}
+                           // named by the words it shows, the reason read after
+                           aria-describedby={`roadmap-why-${item.id}`}
+                           title={rest.title}
+                           onClick={() =>
+                              w.call || !w.waits ? onOpen('plan') : onOpenPlan(w.waits.opens.id)
+                           }
+                           className="hit pressable self-start rounded border-0 bg-transparent p-0 text-left text-[11px] text-ink-3 underline decoration-dotted underline-offset-2 hover:text-brand"
+                        >
                            <SaidWords said={rest} />
+                        </button>
+                        <span hidden id={`roadmap-why-${item.id}`}>
+                           {rest.title}
                         </span>
-                     </button>
+                     </>
                   )}
                </span>
             </span>

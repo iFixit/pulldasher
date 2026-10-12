@@ -260,7 +260,14 @@ describe('a row’s question or clash', () => {
    it('opens the details with the focus on the Plan line, the answers a Tab away', async () => {
       const asked: DecideRow = { slug: 'answers', item: PLANS[1], reasons: [{ kind: 'off_track' }] };
       const el = await mount({}, { decisions: [asked], goes: true });
-      act(() => el.querySelector<HTMLButtonElement>('#roadmap-words-2')?.click());
+      // named by the words it shows; the reason is its description
+      const words = el.querySelector<HTMLButtonElement>('#roadmap-words-2') as HTMLButtonElement;
+      expect(words.getAttribute('aria-label')).toBeNull();
+      expect(words.querySelector('.sr-only')).toBeNull();
+      const why = document.getElementById(words.getAttribute('aria-describedby') as string);
+      expect(why?.hidden).toBe(true);
+      expect(why?.textContent).toBe(words.title);
+      act(() => words.click());
       await settle();
       expect(focusedId()).toBe('roadmap-plan-2');
       // an Enter there answers nothing
