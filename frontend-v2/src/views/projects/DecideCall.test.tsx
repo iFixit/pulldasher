@@ -5,7 +5,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { DecideReason } from '../../../../shared/model/decide';
 import type { RoadmapItem } from '../../../../shared/model/roadmap';
 import type { DecideRow } from '../../../../shared/model/decide';
-import { askAll, bulkWords, type Call, DecideCall, sharedAsk } from './Decide';
+import { DecideCall } from './Decide';
+import { askAll, bulkWords, type Call, sharedAsk } from '../../model/decideCalls';
 
 // React's act() warns unless the environment says it's a test
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

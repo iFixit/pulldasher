@@ -13,21 +13,23 @@ import type { IssueCounts, ProjectIssue } from '../../../shared/model/work';
 import type { PullData } from '../../../shared/types';
 import type { RoadmapItem, RoadmapUpdate } from '../../../shared/model/roadmap';
 import {
-   answerOf,
-   bulkWords,
-   callWords,
    capOwed,
-   endsFor,
    filledIn,
    keepCalls,
    planRow,
-   reasonWords,
    teamOrder,
    whyNot,
-   writeFor,
-   type Call,
    type Made,
 } from '../views/projects/Decide';
+import {
+   answerOf,
+   bulkWords,
+   callWords,
+   endsFor,
+   reasonWords,
+   writeFor,
+   type Call,
+} from './decideCalls';
 import { teamLoad } from './teamLoad';
 
 const today = '2026-09-30';

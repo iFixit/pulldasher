@@ -50,7 +50,8 @@ import {
    GOAL,
    NOT_TRACKED_GLOSS,
 } from '../../model/words';
-import { askedInitiative, askOf, DecideCall, planRow, reasonWords } from './Decide';
+import { DecideCall, planRow } from './Decide';
+import { askedInitiative, askOf, reasonWords } from '../../model/decideCalls';
 import { bandGloss as initiativeGloss } from '../../model/initiativeBoard';
 import {
    BY_PRS_WHY,

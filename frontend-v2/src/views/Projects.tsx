@@ -30,7 +30,8 @@ import { ONE_OFFS } from '../model/words';
 /** how long a burst of changes on the server settles before one refetch */
 const CHANGE_SETTLE_MS = 2000;
 import { DateRangePicker } from './projects/DateRangePicker';
-import { AllItemsContext, Decide, decideRows, useKeptCalls } from './projects/Decide';
+import { Decide, decideRows, useKeptCalls } from './projects/Decide';
+import { AllItemsContext } from '../model/decideCalls';
 import { InitiativePage } from './projects/Initiatives';
 import { Overview } from './projects/Overview';
 import { People } from './projects/People';

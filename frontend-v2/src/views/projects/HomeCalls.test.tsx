@@ -7,17 +7,11 @@ import type { Initiative } from '../../../../shared/model/initiatives';
 import type { RoadmapItem } from '../../../../shared/model/roadmap';
 import { loadInitiatives } from '../../model/initiativesData';
 import type { PortfolioItem } from '../../model/portfolio';
-import { HomeLine, InitiativePage, InitiativeSwitch } from './Initiatives';
+import { HomeLine, InitiativePage } from './Initiatives';
+import { InitiativeSwitch } from './HomeCalls';
 import type { ProjectsNav } from './parts';
-import {
-   AllItemsContext,
-   answerWords,
-   callWords,
-   DecideCall,
-   DecideRowView,
-   keepCalls,
-   type Made,
-} from './Decide';
+import { DecideCall, DecideRowView, keepCalls, type Made } from './Decide';
+import { AllItemsContext, answerWords, callWords } from '../../model/decideCalls';
 
 // React's act() warns unless the environment says it's a test
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
