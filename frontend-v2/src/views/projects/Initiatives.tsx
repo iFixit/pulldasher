@@ -100,15 +100,14 @@ export function HomeLine({
       say({
          words: `Filed in ${toName}`,
          undo: async () => {
+            // said at once, in Undo's place, so a second click lands on words
+            setPick(before.initiative ?? '');
+            say({ words: `Put ${projectName} back in ${homeName(home)}`, settled: true });
             const back = await fileProject(slug, before.initiative, {
                set_at: before.set_at,
                baseline_prs: before.baseline_prs,
             });
             if ('error' in back) say({ words: back.error.replace(/\.$/, ''), failed: true });
-            else {
-               setPick(before.initiative ?? '');
-               say({ words: `Put ${projectName} back in ${homeName(home)}`, settled: true });
-            }
          },
       });
    };

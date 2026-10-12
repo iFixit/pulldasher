@@ -750,6 +750,10 @@ describe('a project page’s home line', () => {
       // elsewhere comes back after them, on the line below
       const status = el.querySelector('[role="status"]') as HTMLElement;
       expect(status.textContent).toBe('Put cache back in Site speed.');
+      // said before it saves, so a second click finds no Undo to press
+      expect(el.querySelector('[role="status"]')?.textContent).toBe(
+         'Put cache back in Site speed.'
+      );
       expect(status.querySelector('button')).toBeNull();
       expect(buttons(el)).toEqual(['File elsewhere']);
       expect(document.activeElement?.textContent).toBe('Put cache back in Site speed.');
