@@ -107,6 +107,9 @@ beforeAll(() => {
             });
          }
          if (path === '/initiatives' && method === 'GET') return reply({ initiatives: server });
+         const saved = path.match(/^\/roadmap\/(\d+)$/);
+         if (saved && method === 'PATCH')
+            return reply({ item: { ...PLANS.find(p => p.id === Number(saved[1])), ...body } });
          const move = path.match(/^\/initiatives\/(\d+)\/move$/);
          if (move && refuse.move) {
             const error = refuse.move;
@@ -670,7 +673,9 @@ const pointerTo = (x: number, y: number) =>
    });
 
 describe('a bar let go over another lane', () => {
-   it('moves nothing, and says the grip is what files it', async () => {
+   /** Drag Image CDN's bar `dx` px and let go over FixBot chat's lane: the
+    * preview's left edge while it moves, as a percentage of the track. */
+   async function dragOver(dx: number) {
       const el = await mount();
       const bar = el.querySelector('#roadmap-bar-1') as HTMLElement;
       const other = lane(el, 'fixbot');
@@ -679,25 +684,43 @@ describe('a bar let go over another lane', () => {
          .mockReturnValue({ left: 0, right: 700, width: 700, top: 0, bottom: 20, height: 20 } as DOMRect);
       // the pointer ends over FixBot chat's lane
       document.elementFromPoint = () => other;
+      const left = () => parseFloat(bar.style.left);
+      const before = left();
+      let during = before;
       try {
          const at = (x: number) => ({ bubbles: true, cancelable: true, clientX: x, clientY: 300 });
          act(() => {
             bar.dispatchEvent(new MouseEvent('pointerdown', at(100)));
          });
-         const before = parseFloat(bar.style.left);
          act(() => {
-            window.dispatchEvent(new MouseEvent('pointermove', at(160)));
+            window.dispatchEvent(new MouseEvent('pointermove', at(100 + dx)));
          });
-         // the preview followed the pointer: the drag's math ran
-         expect(parseFloat(bar.style.left)).toBeGreaterThan(before);
+         during = left();
          act(() => {
-            window.dispatchEvent(new MouseEvent('pointerup', at(160)));
+            window.dispatchEvent(new MouseEvent('pointerup', at(100 + dx)));
          });
          await settle();
       } finally {
          rect.mockRestore();
          delete (document as Partial<Document>).elementFromPoint;
       }
+      return { el, before, during };
+   }
+
+   it('moves only its dates, in its own lane, and says the grip files it', async () => {
+      const { el, before, during } = await dragOver(60);
+      // the preview followed the pointer: the drag's math ran
+      expect(during).toBeGreaterThan(before);
+      expect(writes().map(w => [w.method, w.path])).toEqual([['PATCH', '/roadmap/1']]);
+      expect(el.textContent).toContain(
+         ', in its own lane. To put it in another, drag its grip, left of its name'
+      );
+      expect(lane(el, 'site-speed').querySelector('#roadmap-bar-1')).not.toBeNull();
+   });
+
+   it('moves nothing when its dates didn’t change', async () => {
+      const { el, before, during } = await dragOver(6);
+      expect(during).toBe(before);
       expect(writes()).toEqual([]);
       expect(el.textContent).toContain(
          'Nothing moved: a bar moves its dates. To put it in another lane, drag its grip, left of its name.'

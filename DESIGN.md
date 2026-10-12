@@ -931,8 +931,10 @@ icon with a class bolted on.
   what it takes back: "Undo: " and its receipt's words.
 - **One drag, one change.** A bar moves a plan's dates; its grip moves it
   to another lane (files it, by initiative). A bar let go over another
-  lane moves nothing and says the grip is what files it, since filing
-  there too would change its dates and its project's home at once.
+  lane moves the dates its preview showed and stays in its own lane, and
+  the receipt says the grip is what files it, since filing there too
+  would change its dates and its project's home at once (a drag that
+  drifts onto the next lane keeps its date change).
 - **A question on the Roadmap is a row's amber words.** An initiative's
   own question (Did it reach its goal?) sits on a row like a plan's, its
   answers outlined at the row's end, not filled under a paragraph. On a

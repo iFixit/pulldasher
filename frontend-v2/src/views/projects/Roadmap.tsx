@@ -1315,7 +1315,8 @@ function PlanRow({
    onPerson: (login: string) => void;
    onOpenProject: (slug: string) => void;
    /** a drag or an arrow key moved or resized it */
-   onMove: (to: Span) => void;
+   /** `elsewhere`: let go over another lane, which it stays out of */
+   onMove: (to: Span, elsewhere?: boolean) => void;
    /** its bar was let go over another lane, so nothing moved */
    onOtherLane: () => void;
    /** bring a day into view: the plan is outside the weeks shown */
@@ -1395,11 +1396,14 @@ function PlanRow({
          window.removeEventListener('keydown', cancel);
          setPreview(null);
          // let go over another lane: a bar moves dates, and filing it there
-         // as well would make one drag two changes, so it moves nothing
+         // as well would make one drag two changes, so it keeps its lane and
+         // moves only the dates its preview showed
          const lane = trackRef.current?.closest('[data-lane-id]');
          const over = document.elementFromPoint?.(ev.clientX, ev.clientY)?.closest('[data-lane-id]');
-         if (!cancelled && dragged.current && lane && over && over !== lane) onOtherLane();
-         else if (!cancelled) commit(latest);
+         const elsewhere = dragged.current && !!lane && !!over && over !== lane;
+         const changed = latest.start !== item.start || latest.weeks !== item.weeks;
+         if (!cancelled && changed) onMove(latest, elsewhere);
+         else if (!cancelled && elsewhere) onOtherLane();
          // the click that comes with letting go has been heard by then
          setTimeout(() => {
             dragged.current = false;
@@ -2650,7 +2654,7 @@ export function Roadmap({
          ...keep,
       });
    };
-   const moved = (item: RoadmapItem, to: Span) => {
+   const moved = (item: RoadmapItem, to: Span, keptLane = false) => {
       const key = `plan:${item.id}`;
       const going = planRun(key);
       const start: PlanRun =
@@ -2673,7 +2677,9 @@ export function Roadmap({
          );
          say({
             key,
-            words: cleared ? `${words}, which clears its “${cleared}”` : words,
+            words: `${cleared ? `${words}, which clears its “${cleared}”` : words}${
+               keptLane ? ', in its own lane. To put it in another, drag its grip, left of its name' : ''
+            }`,
             undo: () => {
                run.current = null;
                refocus.current = [`roadmap-bar-${item.id}`, `roadmap-grip-${item.id}`];
@@ -3026,7 +3032,7 @@ export function Roadmap({
                   onOpenPlan={id => openFromReceipt(id, 'plan')}
                   onPerson={person}
                   onOpenProject={slug => navigate({ project: slug })}
-                  onMove={to => moved(item, to)}
+                  onMove={(to, elsewhere) => moved(item, to, elsewhere && ranked)}
                   onOtherLane={() =>
                      say({
                         key,
