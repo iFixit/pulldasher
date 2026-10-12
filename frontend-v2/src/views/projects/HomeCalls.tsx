@@ -218,7 +218,10 @@ export function HomeChooser({
             // a long name never pushes the page sideways on a phone
             className={`h-8 min-w-0 max-w-full px-2 text-[13px] text-ink ${textInputClass}`}
          >
-            {!chooser.chosen && !unsorted && <option value="">Choose where it goes</option>}
+            {/* nothing offered is chosen (a home that closed since) */}
+            {!chosen && !(unsorted && chooser.chosen === '') && (
+               <option value={chooser.chosen}>Choose where it goes</option>
+            )}
             {chooser.choices.map(i => (
                <option key={i.slug} value={i.slug}>
                   {i.name}

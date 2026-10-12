@@ -808,11 +808,16 @@ describe('an initiative’s page', () => {
 });
 
 describe('a project page’s home line', () => {
-   it('puts the chooser in place of its home, and File waits for another pick', () => {
+   it('opens the chooser below its home, as Decide does, and File waits for another pick', () => {
       const el = mount(<HomeLine slug="cache" initiatives={INITIATIVES} navigate={nothing} />);
       expect(el.textContent).toContain('in Site speed');
       click(el, 'File elsewhere');
-      expect(el.textContent).not.toContain('in Site speed');
+      // the home and its opener stay; the opener says it's open
+      expect(el.textContent).toContain('in Site speed');
+      const opener = [...el.querySelectorAll('button')].find(b =>
+         b.textContent?.startsWith('File elsewhere')
+      );
+      expect(opener?.getAttribute('aria-expanded')).toBe('true');
       const move = [...el.querySelectorAll('button')].find(b => b.textContent === 'File');
       expect(move?.disabled).toBe(true);
       const select = el.querySelector('select') as HTMLSelectElement;
@@ -823,6 +828,31 @@ describe('a project page’s home line', () => {
       });
       expect([...select.options].at(-1)?.textContent).toBe('Unsorted');
       expect(move?.disabled).toBe(false);
+   });
+
+   it('starts a project in a closed initiative on Choose where it goes', () => {
+      // akeneo is filed in Catalog, which is closed, so no option carries it
+      const el = mount(<HomeLine slug="akeneo" initiatives={INITIATIVES} navigate={nothing} />);
+      click(el, 'File elsewhere');
+      const select = el.querySelector('select') as HTMLSelectElement;
+      expect(select.selectedOptions[0]?.textContent).toBe('Choose where it goes');
+      const move = [...el.querySelectorAll('button')].find(b => b.textContent === 'File');
+      expect(move?.disabled).toBe(true);
+      // the first offered home is a change of the select, so File comes on
+      act(() => {
+         select.value = 'site-speed';
+         select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      expect(move?.disabled).toBe(false);
+      expect(move?.getAttribute('aria-label')).toBe('File akeneo in Site speed');
+   });
+
+   it('closes the chooser from its opener, the opener kept', () => {
+      const el = mount(<HomeLine slug="cache" initiatives={INITIATIVES} navigate={nothing} />);
+      click(el, 'File elsewhere');
+      click(el, 'File elsewhere');
+      expect(el.querySelector('select')).toBeNull();
+      expect(el.textContent).toContain('in Site speed');
    });
 
    it('offers no File elsewhere while Decide’s question on the page files it', () => {

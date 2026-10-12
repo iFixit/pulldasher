@@ -53,9 +53,10 @@ interface MoveReceipt {
 /**
  * Where a project lives, in its page's head: "in Release safety · File
  * elsewhere", "Not tracked · …", or "Unsorted · …". The initiative's name
- * opens its page. File elsewhere opens a chooser in place of those words
- * (never a popover): the homes in rank order, Not tracked last, and
- * Unsorted; File, on once the pick differs, files it there and leaves a
+ * opens its page. File elsewhere stays, as on Decide, and opens the chooser
+ * on the line below (never a popover): the homes in rank order, Not
+ * tracked last, and Unsorted, starting on "Choose where it goes" when its
+ * home is closed; File, on once the pick differs, files it there and leaves a
  * receipt with Undo, which puts back the home it had with its time and
  * count. Undo's own words then hold the receipt's place, and File
  * elsewhere comes back on the line below, never under the pointer.
@@ -118,10 +119,14 @@ export function HomeLine({
          },
       });
    };
+   const close = () => {
+      setMoving(false);
+      requestAnimationFrame(() => document.getElementById(moveId)?.focus());
+   };
    return (
       <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-ink-3">
          {/* the receipt names the new home; saying it beside would repeat it */}
-         {moving || (receipt && !receipt.failed) ? null : home ? (
+         {receipt && !receipt.failed ? null : home ? (
             home.kind === 'untracked' ? (
                <span>Not tracked</span>
             ) : (
@@ -137,22 +142,6 @@ export function HomeLine({
             )
          ) : (
             <span>{UNSORTED_WORD}</span>
-         )}
-         {moving && (
-            <HomeChooser
-               name={projectName}
-               autoFocus
-               unsorted
-               chooser={{ chosen: pick, choices, setPick }}
-               file={{
-                  onFile: () => void move(),
-                  disabled: (pick || null) === (home?.slug ?? null),
-               }}
-               onCancel={() => {
-                  setMoving(false);
-                  requestAnimationFrame(() => document.getElementById(moveId)?.focus());
-               }}
-            />
          )}
          {receipt && (
             <span role="status" className="inline-flex items-center gap-2 text-ink-2">
@@ -174,13 +163,16 @@ export function HomeLine({
                )}
             </span>
          )}
-         {movable && !moving && (!receipt || receipt.settled) && (
+         {movable && (moving || !receipt || receipt.settled) && (
             <>
                {/* after an Undo, on its own line below the words */}
                {receipt && <span aria-hidden className="basis-full" />}
+               {/* as on Decide: it stays, and opens the chooser below */}
                <QuietButton
                   id={moveId}
+                  aria-expanded={moving}
                   onClick={() => {
+                     if (moving) return setMoving(false);
                      setReceipt(null);
                      setPick(home?.slug ?? '');
                      setMoving(true);
@@ -190,6 +182,24 @@ export function HomeLine({
                   File elsewhere
                </QuietButton>
             </>
+         )}
+         {moving && (
+            <span className="basis-full">
+               <HomeChooser
+                  name={projectName}
+                  autoFocus
+                  unsorted
+                  chooser={{ chosen: pick, choices, setPick }}
+                  file={{
+                     onFile: () => void move(),
+                     // on once the pick is a home it can go to, other than its own
+                     disabled:
+                        pick === (home?.slug ?? '') ||
+                        !(pick === '' || choices.some(i => i.slug === pick)),
+                  }}
+                  onCancel={close}
+               />
+            </span>
          )}
       </span>
    );
