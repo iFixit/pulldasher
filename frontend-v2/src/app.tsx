@@ -65,7 +65,7 @@ import { Stats } from './views/Stats';
 import type { ProjectsNav } from './views/Projects';
 import { Search } from './views/Search';
 import { Settings } from './components/Settings';
-import { JailMode } from './components/JailMode';
+import { FinishLine } from './components/FinishLine';
 
 export type { Lens };
 
@@ -1158,7 +1158,12 @@ export function App() {
                   >
                      v1 board
                   </a>
-                  <JailMode pulls={pulls} me={me} extraBots={extraBots} initialized={initialized} />
+                  <FinishLine
+                     pulls={pulls}
+                     me={me}
+                     extraBots={extraBots}
+                     initialized={initialized}
+                  />
                   <NotificationPanel
                      records={liveHistory}
                      onClear={clearHistory}

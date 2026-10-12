@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { CircleHelp, Heart, Star } from 'lucide-react';
+import { CircleHelp, Flag, Heart, Star } from 'lucide-react';
 import { HeaderIconButton } from './bits';
 import { Icon } from './Icon';
 import { Popover } from './Popover';
@@ -157,6 +157,24 @@ export function Legend() {
             <Item
                term={<span className="text-xs font-medium text-brand">I’ll review</span>}
                def="hover a row for its verbs. It adds you as a reviewer on the PR, so GitHub and the board both show you’re on it; the row moves to Waiting on you until you submit, drop it, or are removed"
+            />
+         </Group>
+
+         <Group title="Finish line">
+            <Item
+               term={
+                  <span className="inline-flex items-center gap-1 text-ink-2">
+                     <Icon icon={Flag} size={13} className="text-ink-3" />
+                     <span>
+                        <span className="tabular-nums">2</span> to finish
+                     </span>
+                  </span>
+               }
+               def="shows in the header when your own open PRs pass your limits (by default more than 7 open, or one open over 14 days): how many to merge or close. Click it for the list, ready ones first. Only you see it; nobody else is told"
+            />
+            <Item
+               term={<span className="text-ink-2">Settings</span>}
+               def="under Finish line, or the cog in the list: Pop up opens the list by itself when you go over (off by default), Header count only waits for a click, Off hides it. Esc or ✕ closes it, unless you’ve chosen to hold to close"
             />
          </Group>
 

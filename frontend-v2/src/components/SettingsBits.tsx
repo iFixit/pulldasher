@@ -6,9 +6,22 @@ import { Icon } from './Icon';
 /** A labelled group of controls inside a settings surface (the Settings panel
  * or the bell's nudge-settings view) — one definition so both render the
  * section chrome identically. */
-export function Group({ title, children }: { title: string; children: ReactNode }) {
+export function Group({
+   title,
+   id,
+   children,
+}: {
+   title: string;
+   /** a target to open Settings at (see Settings' pd2:open-settings) */
+   id?: string;
+   children: ReactNode;
+}) {
    return (
-      <section className="border-t border-secondary px-4 py-2.5 first:border-t-0">
+      <section
+         id={id}
+         // scroll-mt: lands clear of the panel's sticky header when opened at it
+         className="scroll-mt-14 border-t border-secondary px-4 py-2.5 first:border-t-0"
+      >
          <h3 className="m-0 mb-2 text-xs font-semibold tracking-wide text-ink-3 uppercase">
             {title}
          </h3>
