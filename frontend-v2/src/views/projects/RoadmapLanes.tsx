@@ -62,14 +62,31 @@ export interface PlanRun {
  * press lands on them.
  */
 export function keepInPlace(key: string, write: (held?: number) => void): void {
-   const at = () => document.querySelector(`[data-receipt="${key}"]`)?.getBoundingClientRect();
-   const was = at();
+   const receipt = () => document.querySelector<HTMLElement>(`[data-receipt="${key}"]`);
+   const was = receipt()?.getBoundingClientRect();
    // the words keep the receipt's height, so a shorter line never leaves
    // the next row where Undo was
    flushSync(() => write(was?.height));
-   const now = at();
-   if (was && now && now.top !== was.top) window.scrollBy(0, now.top - was.top);
+   const el = receipt();
+   const now = el?.getBoundingClientRect();
+   if (!was || !el || !now || now.top === was.top) return;
+   window.scrollBy(0, now.top - was.top);
+   // moved up near the page's top, where there's no scrolling up to follow
+   // it: a gap above the words holds them under the pointer through a
+   // double or triple click, then closes
+   const short = was.top - el.getBoundingClientRect().top;
+   if (short < 1) return;
+   el.style.marginTop = `${short}px`;
+   setTimeout(() => {
+      const still = matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      el.style.transition = still ? '' : 'margin-top 200ms ease-out';
+      el.style.marginTop = '';
+   }, HOLD_MS);
 }
+
+/** How long Undo's words wait under the pointer before they rejoin their
+ * row: past a triple click. */
+const HOLD_MS = 900;
 
 /** The initiatives as the board has them, just after a write. */
 const readInitiativesNow = () => readInitiatives().initiatives ?? [];
