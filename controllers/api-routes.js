@@ -253,7 +253,9 @@ export const API_ROUTES = [
       method: 'post',
       path: '/api/v1/initiatives',
       handlers: [canWrite, initiativesController.create],
-      does: 'Add an initiative, ranked last: {slug, name, goal?, owner?, kind?}; 409 when the slug is taken',
+      does:
+         'Add an initiative, ranked last: {slug, name, goal?, owner?, kind?}; 409 when the slug is taken, or ' +
+         'when one of kind upkeep or untracked already exists (there is one of each)',
    },
    {
       method: 'put',
@@ -272,7 +274,8 @@ export const API_ROUTES = [
       path: '/api/v1/initiatives/:id',
       handlers: [canWrite, initiativesController.update],
       does:
-         'Change its name, goal, owner or status (open, done, dropped). Closing is a 409 naming the projects in it ' +
+         'Change its name, goal, owner or status (open, done, dropped). Only kind `initiative` closes (409 for ' +
+         'upkeep and untracked). Closing is a 409 naming the projects in it ' +
          'still going (`live`: a plan under way or open PRs). {status: "open", restate: true} is Keep open; ' +
          '{undo: {updated_at, status_at}} puts back the times a change replaced',
    },

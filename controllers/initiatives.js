@@ -85,12 +85,26 @@ export default {
    },
 
    /** POST /initiatives {slug, name, goal?, owner?, kind?} -- a new one,
-    * ranked last. 201 with it; 409 when the slug is taken. */
+    * ranked last. 201 with it; 409 when the slug is taken, or when a home
+    * of a special kind (Not tracked, upkeep) already exists: there's one of
+    * each. */
    create: function (req, res) {
       const checked = checkInitiativeFields(req.body, { partial: false });
       if (checked.error) return res.status(400).json({ error: checked.error });
-      createInitiative(checked.fields, req.roadmapLogin)
+      const kind = checked.fields.kind ?? 'initiative';
+      // ponytail: two creates racing can both pass; a unique key on a
+      // generated column if anyone ever scripts them
+      (kind === 'initiative' ? Promise.resolve([]) : listInitiatives())
+         .then(all => {
+            if (all.some(i => i.kind === kind)) return { special: true };
+            return createInitiative(checked.fields, req.roadmapLogin);
+         })
          .then(async made => {
+            if (made.special) {
+               return res
+                  .status(409)
+                  .json({ error: `there is already a home of kind ${kind}: there's one of each` });
+            }
             if (made.taken) {
                return res.status(409).json({ error: 'another initiative has that slug' });
             }
@@ -101,7 +115,7 @@ export default {
 
    /**
     * PATCH /initiatives/:id {name?, goal?, owner?, status?} -- changes just
-    * those. Closing (done or dropped) is refused with 409 while a project
+    * those. Only an initiative of kind `initiative` closes (409 otherwise). Closing (done or dropped) is refused with 409 while a project
     * in it has a plan under way or PRs open, naming them (`live`), so the
     * person moves or finishes each first. `restate: true` with the status
     * it has stamps the status anew (Keep open); `undo: {updated_at,
@@ -117,6 +131,11 @@ export default {
          const was = await getInitiative(id);
          if (!was) return res.status(404).json({ error: 'no such initiative' });
          const closing = checked.fields.status && checked.fields.status !== 'open';
+         // Not tracked and upkeep are homes that never end: closed, they'd
+         // refuse every filing Decide makes into them
+         if (closing && was.kind !== 'initiative') {
+            return res.status(409).json({ error: `a home of kind ${was.kind} is never closed` });
+         }
          if (closing && was.status === 'open') {
             const live = await liveProjects(was);
             if (live.length) {

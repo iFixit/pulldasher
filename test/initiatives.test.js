@@ -264,6 +264,21 @@ test('an initiative closes only once nothing in it is going', async () => {
    assert.ok(closed.body.initiative.status_at > 0);
 });
 
+test('Not tracked and upkeep are one of each and never close', async () => {
+   const shelf = (await make('shelf', { kind: 'untracked' })).body.initiative.id;
+   const klo = (await make('klo', { kind: 'upkeep' })).body.initiative.id;
+   assert.equal((await make('shelf-2', { kind: 'untracked' })).status, 409);
+   assert.equal((await make('klo-2', { kind: 'upkeep' })).status, 409);
+   assert.equal((await make('more')).status, 201);
+   for (const id of [shelf, klo]) {
+      const refused = await call('PATCH', `/initiatives/${id}`, { status: 'dropped' });
+      assert.equal(refused.status, 409);
+      // still open, and its other fields still change
+      const renamed = await call('PATCH', `/initiatives/${id}`, { name: 'Renamed', status: 'open' });
+      assert.deepEqual([renamed.status, renamed.body.initiative.status], [200, 'open']);
+   }
+});
+
 test('an initiative with a finished plan whose PRs are still open does not close', async () => {
    const saved = config.projects;
    config.projects = { repo: 'test/projects' };
