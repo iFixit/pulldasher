@@ -857,3 +857,29 @@ describe('Undo on a row', () => {
       expect(buttons(el)).toEqual(['Keep not trackedSuggested', 'Track it']);
    });
 });
+
+describe('a plan linked to a project', () => {
+   const row: DecideRow = { slug: null, item: unlinked, reasons: [{ kind: 'no_project' }] };
+   it('says where the link put it: in that project’s initiative, or Unsorted and asked', () => {
+      const words = (project: string) =>
+         callWords({ kind: 'link', project, name: project }, row, undefined, '2026-10-11');
+      expect(words('cache')).toBe('Linked to cache, so it’s in Site speed.');
+      expect(words('ops')).toBe('Linked to ops, so it’s Not tracked.');
+      expect(words('lonely')).toBe('Linked to lonely. It’s Unsorted, so Decide asks where it goes.');
+   });
+
+   it('names the Unsorted row it becomes by its project', () => {
+      const el = mount(
+         <DecideRowView
+            row={{ slug: 'lonely', item: unlinked, reasons: [{ kind: 'unfiled' }] }}
+            decided={false}
+            // a project with no issue is named by its plan elsewhere
+            project={{ ...person('lonely', ['zed']), name: 'Checkout redesign' }}
+            team={null}
+            nav={{} as ProjectsNav}
+            navigate={nothing}
+         />
+      );
+      expect(el.querySelector('button')?.textContent).toBe('Lonely');
+   });
+});

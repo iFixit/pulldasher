@@ -24,7 +24,7 @@ import {
    type RoadmapFields,
    type RoadmapItem,
 } from '../../../shared/model/roadmap';
-import type { PortfolioItem } from './portfolio';
+import { slugName, type PortfolioItem } from './portfolio';
 import { dayWords } from './projectData';
 import { commitEnds, type CommitEnd } from './roadmapTime';
 import { readInitiatives } from './initiativesData';
@@ -229,7 +229,16 @@ export const rowKey = (row: DecideRow) =>
       ? `initiative:${askedInitiative(row)}`
       : `${row.slug ?? ''}:${row.item?.id ?? ''}`;
 export const kindsOf = (row: DecideRow) => row.reasons.map(r => r.kind).join(',');
-export const nameOf = (row: DecideRow, project?: Pick<PortfolioItem, 'name'>) =>
+export const nameOf = (
+   row: DecideRow,
+   project?: Pick<PortfolioItem, 'name'> & Partial<Pick<PortfolioItem, 'project'>>
+) =>
+   // a row asking where a project goes is named by the project, never its
+   // plan: its issue's name, or its label's words (a project with no issue
+   // otherwise takes its plan's name)
+   (row.slug && primaryOf(row)?.kind === 'unfiled'
+      ? project?.project?.name ?? slugName(row.slug)
+      : null) ??
    row.item?.name ??
    project?.name ??
    row.slug ??
@@ -728,8 +737,15 @@ export function callWords(
          return call.untracked
             ? 'Set not tracked, so it counts nowhere. Decide asks again if it grows.'
             : `Filed in ${call.name}.`;
-      case 'link':
-         return `Linked to ${call.name}, so it goes where that project is filed.`;
+      case 'link': {
+         // what the link did, by where that project is filed now
+         const home = homesOf(readInitiatives().initiatives ?? []).get(call.project)?.initiative;
+         return !home
+            ? `Linked to ${call.name}. It’s ${UNSORTED_WORD}, so Decide asks where it goes.`
+            : home.kind === 'untracked'
+            ? `Linked to ${call.name}, so it’s Not tracked.`
+            : `Linked to ${call.name}, so it’s in ${home.name}.`;
+      }
       case 'keep_untracked':
          return 'Kept not tracked. Its count starts again, so Decide asks only if it doubles again.';
       case 'close':
