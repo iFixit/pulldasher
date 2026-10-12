@@ -240,10 +240,15 @@ export function keepCalls(
    // other view keeps the plan in sight, while this row keeps its receipt
    const pending = new Set<string>();
    const back: DecideRow[] = [];
+   // a home call taken back while its Undo saves: the row still reads as
+   // answered, so it's shown as it was asked, in the same place, where its
+   // Undo's words hold the receipt's slot
+   const asked = new Map<string, DecideRow>();
    for (const [key, m] of made) {
       const again = byKey.get(key);
       if (m.state !== 'made') {
          if (!again && m.row.reasons.length) back.push(m.row);
+         else if (again && m.state === 'undone' && answeredHome(m, again)) asked.set(key, m.row);
       } else if (!again || kindsOf(again) === kindsOf(m.row)) {
          settled.set(key, m);
       } else if (answeredHome(m, again)) {
@@ -256,7 +261,7 @@ export function keepCalls(
       ...back,
    ].sort(compareRows);
    const all = [
-      ...owed.filter(row => !settled.has(rowKey(row))),
+      ...owed.filter(row => !settled.has(rowKey(row))).map(row => asked.get(rowKey(row)) ?? row),
       ...[...settled.values()].map(m => m.row),
    ].sort(compareRows);
    return { owed, all, settled };

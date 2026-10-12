@@ -12,8 +12,21 @@ import { clearHomePicks, InitiativeSwitch } from './HomeCalls';
 import { NO_PROJECT, UNSORTED } from '../../model/initiativeBoard';
 import { PROJECT_SLUG } from '../../../../shared/model/roadmap';
 import type { ProjectsNav } from './parts';
-import { DecideCall, DecideRowView, keepCalls, SectionCalls, type Made } from './Decide';
-import { AllItemsContext, answerWords, callWords } from '../../model/decideCalls';
+import {
+   DecideCall,
+   DecideRowView,
+   keepCalls,
+   SectionCalls,
+   useKeptCalls,
+   type Made,
+} from './Decide';
+import {
+   AllItemsContext,
+   answerWords,
+   callWords,
+   rowKey,
+   sectionOf,
+} from '../../model/decideCalls';
 
 // React's act() warns unless the environment says it's a test
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -891,6 +904,84 @@ describe('Undo on a row', () => {
       await settle();
       expect(calls.length).toBe(sent);
       expect(buttons(el)).toEqual(['Keep not trackedSuggested', 'Track it']);
+   });
+
+   const both: DecideRow = {
+      slug: 'akeneo',
+      item: { ...created, id: 8, project: 'akeneo', status: 'done', status_at: 10 },
+      reasons: [
+         { kind: 'reopened', open: 3, late: 0, as: 'done', by: 'roadmap' },
+         { kind: 'reopened_in_closed', initiative: 3, as: 'done' },
+      ],
+   };
+   const planOnly: DecideRow = { ...both, reasons: [both.reasons[0]] };
+   /** Decide's rows in their sections, as the queue reads now. */
+   function Sections({ queue }: { queue: DecideRow[] }) {
+      const { all } = useKeptCalls(queue);
+      const sections = [...new Set(all.map(sectionOf))];
+      return (
+         <>
+            {sections.map(k => (
+               <section key={k}>
+                  {all
+                     .filter(r => sectionOf(r) === k)
+                     .map(r => (
+                        <DecideRowView
+                           key={rowKey(r)}
+                           row={r}
+                           decided={false}
+                           project={undefined}
+                           team={null}
+                           nav={{} as ProjectsNav}
+                           navigate={nothing}
+                        />
+                     ))}
+               </section>
+            ))}
+         </>
+      );
+   }
+
+   it('holds a reopen’s Undo words in place while the initiative is still open', async () => {
+      host = document.createElement('div');
+      document.body.append(host);
+      const root = createRoot(host);
+      roots.push(root);
+      const show = (queue: DecideRow[]) =>
+         act(() =>
+            root.render(
+               <AllItemsContext.Provider value={ITEMS}>
+                  <Sections queue={queue} />
+               </AllItemsContext.Provider>
+            )
+         );
+      const el = host;
+      show([both]);
+      click(el, 'Reopen Catalog');
+      await settle();
+      // reopened: the queue asks only about the plan now
+      show([planOnly]);
+      const undo = [...el.querySelectorAll('button')].find(
+         b => b.textContent === 'Undo'
+      ) as HTMLButtonElement;
+      const row = undo.closest('[data-decide-row]') as HTMLElement;
+      const held = () =>
+         [...row.querySelectorAll('p')].find(p => p.textContent === 'Put New thing back as it was.');
+      act(() => undo.click());
+      // the Undo is saving, so the queue still reads it reopened: the row
+      // keeps its place, its words where the receipt was
+      show([planOnly]);
+      expect(row.isConnected).toBe(true);
+      expect(held()).toBeDefined();
+      await settle();
+      await settle();
+      // closed again, it asks both on the same row, the words before the answers
+      show([both]);
+      expect(row.isConnected).toBe(true);
+      const answer = row.querySelector('[role="toolbar"] button') as HTMLButtonElement;
+      expect(answer.textContent).toBe('Reopen CatalogSuggested');
+      expect(held()?.compareDocumentPosition(answer)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+      expect(document.activeElement).toBe(held());
    });
 });
 
