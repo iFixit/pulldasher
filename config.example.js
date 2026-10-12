@@ -140,6 +140,11 @@ module.exports = {
       developerTeams: {
          Store: ['login1', 'login2'],
       },
+      // Repos whose projects are Not tracked until someone files them in an
+      // initiative: a project whose every labeled PR is in one of these
+      // leaves Decide, the counts and capacity. One PR in another repo ends
+      // it. Omit or [] for none.
+      // untrackedRepos: ['owner/ops'], // or just 'ops'
    },
 
    // The usual MySQL stuff. Like every other MySQL webapp, basically.

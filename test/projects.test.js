@@ -326,6 +326,12 @@ function pullRow(number, owner, over = {}) {
 
 // the roadmap_items rows the stubbed db answers with; a test sets its own
 let roadmapRows = [];
+// the initiatives tables, and what the not-tracked reads find in
+// pull_labels joined to pulls: each label's repos, and each PR's open time
+let initiativeRows = [];
+let filingRows = [];
+let labelRepos = [];
+let labelDates = [];
 
 const label = (title, number) => new Label({ name: title }, number, 'test/repo-a', 'job-bot');
 
@@ -364,7 +370,7 @@ before(() => {
    seed(pullRow(15, 'alice', { state: 'closed', date_closed: now - DAY, date_merged: now - DAY }), [
       label('project:alpha', 15),
    ]);
-   mock.method(db, 'query', async sql => {
+   mock.method(db, 'query', async (sql, params) => {
       if (sql.startsWith('SELECT i.* FROM issues')) {
          return [
             issueRow({ number: 7, title: 'Alpha work', assignee: 'alice' }),
@@ -417,6 +423,12 @@ before(() => {
             // alice reviewing her own PR, dropped by windowStats (not reviewsFromRows)
             { reviewer: 'alice', repo: 'test/repo-a', number: 11, author: 'alice', at: now - DAY },
          ];
+      }
+      if (sql.includes('FROM `initiatives`')) return initiativeRows;
+      if (sql.includes('FROM `initiative_projects`')) return filingRows;
+      if (sql.startsWith('SELECT l.`title`, p.`repo`')) return labelRepos;
+      if (sql.startsWith('SELECT l.`title`, p.`date`')) {
+         return labelDates.filter(r => params[0].includes(r.title));
       }
       if (sql.includes('FROM `roadmap_items`')) return roadmapRows;
       if (sql.includes('FROM `roadmap_updates`')) return [];
@@ -704,4 +716,154 @@ test('/api/v1/decide asks "past its end?" by the team’s day, as the board’s 
    // Monday in California too
    assert.equal(await pastEnd(Date.UTC(2026, 8, 28, 8)), true);
    roadmapRows = [];
+});
+
+/** An initiatives row, and a filing in it, as lib/initiatives.js selects them. */
+const initiativeRow = (id, slug, kind = 'initiative', over = {}) => ({
+   id,
+   slug,
+   name: slug,
+   kind,
+   goal: '',
+   owner_login: 'dana',
+   priority: id,
+   status: 'open',
+   status_at: null,
+   created_by: null,
+   created_at: null,
+   updated_by: null,
+   updated_at: null,
+   ...over,
+});
+const filingRow = (project, initiative_id, over = {}) => ({
+   project,
+   initiative_id,
+   set_by: 'dana',
+   set_at: 1000,
+   baseline_prs: 0,
+   ...over,
+});
+/** `n` PRs labeled for `slug`, opened at `at` */
+const prsOf = (slug, n, at) => Array.from({ length: n }, () => ({ title: `project:${slug}`, date: at }));
+
+function withInitiatives(rows, filings, run) {
+   initiativeRows = rows;
+   filingRows = filings;
+   return run().finally(() => {
+      initiativeRows = [];
+      filingRows = [];
+      labelDates = [];
+      labelRepos = [];
+   });
+}
+
+test('with no initiatives, nothing is not tracked and nothing changes', async () => {
+   const data = await get('/projects-data');
+   assert.deepEqual([data.body.untracked, data.body.grew, data.body.grew_counts], [[], [], {}]);
+   const { body } = await get('/api/v1/projects');
+   const alpha = body.projects.find(p => p.slug === 'alpha');
+   assert.deepEqual([alpha.initiative, alpha.tracked, alpha.grew], [null, true, false]);
+});
+
+test('/projects-data and /api/v1/projects say each project’s home, tracking and growth', async () => {
+   const now = Math.floor(Date.now() / 1000);
+   await withInitiatives(
+      [initiativeRow(1, 'site-speed'), initiativeRow(2, 'not-tracked', 'untracked')],
+      [filingRow('beta', 1), filingRow('alpha', 2, { set_at: now - 30 * DAY, baseline_prs: 30 })],
+      async () => {
+         // 29 PRs since it was set not tracked: short of its 30 then
+         labelDates = [...prsOf('alpha', 29, now - DAY), ...prsOf('alpha', 40, now - 60 * DAY)];
+         let data = await get('/projects-data');
+         assert.deepEqual([data.body.untracked, data.body.grew], [['alpha'], []]);
+         labelDates.push(...prsOf('alpha', 1, now - DAY));
+         data = await get('/projects-data');
+         assert.deepEqual(data.body.grew, ['alpha']);
+         assert.deepEqual(data.body.grew_counts, { alpha: { since: 30, baseline: 30 } });
+         const { body } = await get('/api/v1/projects');
+         const record = slug => body.projects.find(p => p.slug === slug);
+         assert.deepEqual(
+            [record('alpha').initiative, record('alpha').tracked, record('alpha').grew],
+            ['not-tracked', false, true]
+         );
+         assert.deepEqual([record('beta').initiative, record('beta').tracked], ['site-speed', true]);
+      }
+   );
+});
+
+test('a project whose PRs are all in an untrackedRepos repo is not tracked until filed', async () => {
+   config.projects.untrackedRepos = ['repo-a'];
+   try {
+      labelRepos = [
+         { title: 'project:alpha', repo: 'test/repo-a' },
+         { title: 'project:beta', repo: 'test/repo-a' },
+         { title: 'project:beta', repo: 'test/repo-b' },
+         { title: 'project:misc', repo: 'test/repo-a' },
+         { title: 'project:gamma', repo: 'test/repo-a' },
+      ];
+      await withInitiatives([initiativeRow(1, 'site-speed')], [filingRow('gamma', 1)], async () => {
+         const { body } = await get('/projects-data');
+         // beta has a PR elsewhere; gamma is filed; misc is never a project
+         assert.deepEqual(body.untracked, ['alpha']);
+      });
+   } finally {
+      delete config.projects.untrackedRepos;
+   }
+});
+
+test('/api/v1/decide leaves not-tracked projects out, but asks about the ones that grew', async () => {
+   const now = Math.floor(Date.now() / 1000);
+   // alpha has 2 open PRs and a merge: `new` while tracked
+   await withInitiatives(
+      [initiativeRow(2, 'not-tracked', 'untracked')],
+      [filingRow('alpha', 2, { set_at: now - DAY })],
+      async () => {
+         const quiet = await get('/api/v1/decide');
+         assert.ok(!quiet.body.decisions.some(d => d.project === 'alpha'));
+         // with a plan that ended long ago it still asks nothing
+         roadmapRows = [roadmapRow()];
+         const planned = await get('/api/v1/decide');
+         assert.ok(!planned.body.decisions.some(d => d.project === 'alpha'));
+         roadmapRows = [];
+         labelDates = prsOf('alpha', 30, now);
+         const grown = await get('/api/v1/decide');
+         const row = grown.body.decisions.find(d => d.project === 'alpha');
+         assert.equal(row.name, 'Alpha work');
+         assert.equal(row.open, 2);
+         assert.deepEqual(row.reasons, [{ kind: 'untracked_grew', since: 30, baseline: 0 }]);
+         assert.deepEqual(row.initiative, { id: 2, slug: 'not-tracked', name: 'not-tracked', owner: 'dana' });
+      }
+   );
+});
+
+test('/api/v1/decide asks where an unfiled project goes once an initiative exists', async () => {
+   roadmapRows = [roadmapRow({ end_kind: 'soft', updated_at: Math.floor(Date.now() / 1000) })];
+   await withInitiatives([initiativeRow(1, 'site-speed')], [], async () => {
+      const { body } = await get('/api/v1/decide');
+      const row = body.decisions.find(d => d.project === 'alpha');
+      assert.deepEqual(row.reasons, [{ kind: 'unfiled' }]);
+      assert.equal(row.initiative, null);
+   });
+   roadmapRows = [];
+});
+
+test('/api/v1/load leaves not-tracked projects out, past and ahead', async () => {
+   roadmapRows = [];
+   await withInitiatives(
+      [initiativeRow(2, 'not-tracked', 'untracked')],
+      [filingRow('alpha', 2, { set_at: Math.floor(Date.now() / 1000) })],
+      async () => {
+         const { body } = await get('/api/v1/load');
+         assert.deepEqual({ on: body.this_week.on_plan, off: body.this_week.off_plan }, { on: 0, off: 0 });
+         assert.equal(body.weeks.at(-1).off_plan, 0);
+         assert.ok(body.weeks.every(w => w.on_plan === 0 && w.off_plan === 0));
+         // and with a plan, it isn't on plan either, as it would be tracked
+         roadmapRows = [roadmapRow({ start: body.this_week.week, end_kind: 'soft' })];
+         const planned = await get('/api/v1/load');
+         assert.equal(planned.body.this_week.on_plan, 0);
+         filingRows = [];
+         const tracked = await get('/api/v1/load');
+         assert.equal(tracked.body.this_week.on_plan, 1);
+         roadmapRows = [];
+      }
+   );
 });

@@ -15,6 +15,7 @@ import {
    restoreItem,
    updateItem,
 } from '../lib/roadmap.js';
+import { listInitiatives, trackedOnly, untrackedSlugs } from '../lib/initiatives.js';
 import { sharedValue } from '../lib/ttl-cache.js';
 import { loadPullLinks, loadWork } from '../lib/work.js';
 import {
@@ -62,6 +63,24 @@ const latelyNow = sharedValue(LATELY_MS, async () => {
    return latelyBySlug(today, work?.pace ?? {}, ongoing, now);
 });
 
+/** Which projects are Not tracked (lib/initiatives.js untrackedSlugs), kept
+ * as long as what they did lately and forgotten with it. */
+const untrackedNow = sharedValue(LATELY_MS, async () => {
+   const settings = projectSettings();
+   return settings ? untrackedSlugs(settings, await listInitiatives()) : new Set();
+});
+
+/** The not-tracked projects (untrackedNow); none when the read fails, so a
+ * database without the initiatives tables still reads its roadmap. */
+export async function untrackedProjects() {
+   try {
+      return await untrackedNow.get();
+   } catch (err) {
+      console.error('roadmap: reading which projects are not tracked failed:', err);
+      return new Set();
+   }
+}
+
 /** What each project did lately (latelyNow); empty when the reads fail:
  * every plan is then judged by its updates alone, as before. */
 async function lately() {
@@ -79,14 +98,19 @@ async function lately() {
  * a script says what the board says: `in_progress` (marked so, or planned
  * with its PRs moving since its start: inProgress) and `standing`, where its
  * updates stand (updateStanding: owed, vouched or current), judged by the
- * team's day.
+ * team's day. `untracked` says its project is Not tracked, set before
+ * the standing is read, so a not-tracked plan owes nothing.
  */
 async function sent(items) {
-   const bySlug = await lately();
+   const [bySlug, untracked] = await Promise.all([lately(), untrackedProjects()]);
    const now = Date.now() / 1000;
    const today = teamDay(now);
    return items.map(item => {
-      const read = { ...item, lately: (item.project && bySlug.get(item.project)) || null };
+      const read = {
+         ...item,
+         untracked: Boolean(item.project && untracked.has(item.project)),
+         lately: (item.project && bySlug.get(item.project)) || null,
+      };
       return {
          ...read,
          in_progress: inProgress(read),
@@ -132,6 +156,7 @@ const standingNow = sharedValue(STANDING_MS, async () => {
  * issues and their links, changed it (app.js). */
 export function forgetProjectCaches() {
    latelyNow.forget();
+   untrackedNow.forget();
    standingNow.forget();
 }
 
@@ -228,20 +253,24 @@ export default {
       const now = Math.floor(Date.now() / 1000);
       respondOrError(
          res,
-         listItems().then(sent).then(items => ({
-            server_time: now,
-            leads: updatesOwed(items, now, teamDay(now)).map(({ lead, owed }) => ({
-               lead,
-               plans: owed.map(({ item, kind, days }) => ({
-                  id: item.id,
-                  name: item.name,
-                  project: item.project,
-                  // never updated, or not for a while
-                  owes: kind === 'missing' ? 'a first update' : 'a new update',
-                  days,
+         Promise.all([listItems().then(sent), untrackedProjects()]).then(([all, untracked]) => {
+            // not-tracked plans owe nothing
+            const { items } = trackedOnly(untracked, { items: all });
+            return {
+               server_time: now,
+               leads: updatesOwed(items, now, teamDay(now)).map(({ lead, owed }) => ({
+                  lead,
+                  plans: owed.map(({ item, kind, days }) => ({
+                     id: item.id,
+                     name: item.name,
+                     project: item.project,
+                     // never updated, or not for a while
+                     owes: kind === 'missing' ? 'a first update' : 'a new update',
+                     days,
+                  })),
                })),
-            })),
-         })),
+            };
+         }),
          'updates query failed'
       );
    },

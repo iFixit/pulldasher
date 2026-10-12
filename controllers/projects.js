@@ -10,6 +10,7 @@ import {
    todayFromBoard,
 } from '../lib/projects.js';
 import { listItems } from '../lib/roadmap.js';
+import { tracking, trackedOnly } from '../lib/initiatives.js';
 import {
    attachIssue,
    detachIssue,
@@ -83,13 +84,14 @@ function load(req, res) {
       res.status(400).json({ error: window.error || 'project must be one project slug' });
       return null;
    }
-   return Promise.all([loadProjects(settings), loadPullLinks(settings)]).then(
-      ([projects, linked]) =>
+   return Promise.all([loadProjects(settings), loadPullLinks(settings), tracking(settings)]).then(
+      ([projects, linked, tracked]) =>
          loadWindow(settings, window.start, window.end, only, linked).then(
             ({ spans, reviews }) => ({
                settings,
                projects,
                linked,
+               tracked,
                stats: windowStats(spans, window.start, window.end, {
                   teamOf: settings.teamOf,
                   reviews,
@@ -103,9 +105,11 @@ function load(req, res) {
  * One record per project for the API: what its issue says, where it stands
  * today, and its numbers for the window. Live projects first in Today's order,
  * then quiet ones, then the rest (done, dropped, or only in the window's
- * history) by slug.
+ * history) by slug. Each says its initiative (its home's slug, or null),
+ * whether it's tracked, and whether it grew while not tracked
+ * (lib/initiatives.js tracking).
  */
-function projectRecords(projects, today, stats, prefix) {
+function projectRecords(projects, today, stats, prefix, { homes, untracked, grown }) {
    const bySlug = new Map(projects.map(p => [p.slug, p]));
    const groups = new Map();
    const standing = new Map();
@@ -141,6 +145,9 @@ function projectRecords(projects, today, stats, prefix) {
             : null,
          ongoing: p ? p.ongoing : false,
          parents: p ? p.parents : [],
+         initiative: homes.get(slug)?.initiative.slug ?? null,
+         tracked: !untracked.has(slug),
+         grew: grown.has(slug),
          lead: p ? p.lead : null,
          target: p ? p.target : null,
          fields: p ? p.fields : null,
@@ -182,13 +189,16 @@ export default {
     * `project`), and which projects each of the board's PRs links. The tab
     * builds Today itself from the live socket pulls, so it moves with the
     * board, and by the same rule as here. Session-authed like /stats-history.
+    * `untracked` lists the Not tracked slugs, `grew` the ones of those Decide
+    * asks about again, with `grew_counts` (PRs `since` it was set not
+    * tracked, against `baseline`) by slug.
     */
    getBoardData: function (req, res) {
       const loaded = load(req, res);
       if (!loaded) return;
       respondOrError(
          res,
-         loaded.then(({ settings, projects, linked, stats }) => {
+         loaded.then(({ settings, projects, linked, tracked, stats }) => {
             // the PRs Today is built from: the board's open and recently closed
             const onBoard = new Set(pullManager.getPulls().map(p => key(p.data).toLowerCase()));
             return {
@@ -198,6 +208,9 @@ export default {
                teams_from: settings.teamsFrom,
                decide_rotation: settings.decideRotation,
                ongoing: settings.ongoing,
+               untracked: [...tracked.untracked].sort(),
+               grew: [...tracked.grown.keys()].sort(),
+               grew_counts: Object.fromEntries(tracked.grown),
                projects,
                pull_links: Object.fromEntries(
                   Object.entries(linked).filter(([pull]) => onBoard.has(pull))
@@ -223,7 +236,7 @@ export default {
       if (!loaded) return;
       respondOrError(
          res,
-         loaded.then(({ settings, projects, linked, stats }) => {
+         loaded.then(({ settings, projects, linked, tracked, stats }) => {
             const now = Date.now() / 1000;
             const pulls = pullManager.getPulls();
             const today = todayFromBoard(pulls, projects, settings.prefix, now, linked);
@@ -232,7 +245,7 @@ export default {
                start: stats.start,
                end: stats.end,
                label_prefix: settings.prefix,
-               projects: projectRecords(projects, today, stats, settings.prefix),
+               projects: projectRecords(projects, today, stats, settings.prefix, tracked),
                misc: {
                   open: today.misc.map(d => key(d.data)),
                   window: stats.projects[MISC_SLUG] || null,
@@ -479,8 +492,9 @@ export default {
    /**
     * GET /api/v1/decide -- the decisions owed now, worst first: what the
     * board's Decide view lists (shared/model/decide.ts). Each row names the
-    * project, its roadmap item if it has one, and why it needs a call. A
-    * roadmap write clears it: see `decide` in GET /api/v1.
+    * project, its roadmap item if it has one, its initiative, and why it
+    * needs a call. A roadmap write clears it: see `decide` in GET /api/v1.
+    * Not-tracked projects are left out, but for the ones that grew.
     */
    getDecide: function (req, res) {
       const settings = projectSettings();
@@ -488,21 +502,33 @@ export default {
          res.status(404).json({ error: 'projects are not set up on this Pulldasher' });
          return;
       }
-      const load = Promise.all([loadProjects(settings), listItems(), loadPullLinks(settings)]).then(
-         ([projects, plans, linked]) =>
-            loadWork(settings, { plans, projects }).then(work => [projects, plans, work, linked])
+      const load = Promise.all([
+         loadProjects(settings),
+         listItems(),
+         loadPullLinks(settings),
+         tracking(settings),
+      ]).then(([projects, plans, linked, tracked]) =>
+         loadWork(settings, { plans, projects }).then(work => [projects, plans, work, linked, tracked])
       );
       respondOrError(
          res,
-         load.then(([projects, items, work, linked]) => {
+         load.then(([projects, allItems, work, linked, tracked]) => {
             const now = Date.now() / 1000;
             const pulls = pullManager.getPulls();
-            const today = todayFromBoard(pulls, projects, settings.prefix, now, linked);
+            const fullToday = todayFromBoard(pulls, projects, settings.prefix, now, linked);
+            const { today, items } = trackedOnly(tracked.untracked, {
+               today: fullToday,
+               items: allItems,
+            });
             const bySlug = new Map(projects.map(p => [p.slug, p]));
-            const open = new Map(today.live.map(g => [g.slug, g.open.length]));
+            // from the full set: a grown project's row says its open PRs too
+            const open = new Map(fullToday.live.map(g => [g.slug, g.open.length]));
+            const byId = new Map(tracked.initiatives.map(i => [i.id, i]));
             const rows = decideQueue({
                live: decideProjects(today),
                items,
+               initiatives: tracked.initiatives,
+               grown: [...tracked.grown].map(([slug, g]) => ({ slug, ...g })),
                closed: closedIssues(projects),
                planCounts: new Map(
                   work.plans.map(p => [
@@ -529,10 +555,20 @@ export default {
                runs_next_week: decideTurn(settings.decideRotation, addWeeks(day, 1)),
                decisions: rows.map(({ slug, item, reasons }) => {
                   const p = slug ? bySlug.get(slug) : undefined;
+                  // the initiative a goal_reached row asks about, or the project's home
+                  const asked = reasons.find(r => r.kind === 'goal_reached');
+                  const home = asked
+                     ? byId.get(asked.initiative)
+                     : slug
+                     ? tracked.homes.get(slug)?.initiative
+                     : undefined;
                   return {
                      project: slug,
-                     name: item?.name ?? p?.name ?? slug,
-                     lead: item?.lead ?? p?.lead ?? null,
+                     name: item?.name ?? p?.name ?? slug ?? home?.name ?? null,
+                     lead: item?.lead ?? p?.lead ?? (asked ? home?.owner ?? null : null),
+                     initiative: home
+                        ? { id: home.id, slug: home.slug, name: home.name, owner: home.owner }
+                        : null,
                      open: slug ? open.get(slug) ?? 0 : 0,
                      item: item && {
                         id: item.id,
@@ -593,10 +629,15 @@ export default {
             : Promise.resolve({});
       respondOrError(
          res,
-         Promise.all([loadProjects(settings), listItems(), history, links]).then(
-            ([projects, items, past, linked]) => {
+         Promise.all([loadProjects(settings), listItems(), history, links, tracking(settings)]).then(
+            ([projects, allItems, allPast, linked, tracked]) => {
                const pulls = pullManager.getPulls();
-               const today = todayFromBoard(pulls, projects, settings.prefix, now, linked);
+               // not-tracked projects leave the load, past and ahead
+               const { today, items, bySlug: past } = trackedOnly(tracked.untracked, {
+                  today: todayFromBoard(pulls, projects, settings.prefix, now, linked),
+                  items: allItems,
+                  bySlug: allPast,
+               });
                const spans = spansFrom(past, liveStarts(today), window.start);
                // the projects with no plan that owe a decision count ahead
                const closed = closedIssues(projects);

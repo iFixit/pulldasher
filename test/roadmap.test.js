@@ -830,3 +830,64 @@ test('the project standing needs a signed-in session, like the board’s other r
    authManager.setupRoutes({ get: path => gated.push(path) });
    assert.ok(gated.includes('/project-standing'));
 });
+
+test('a not-tracked plan says so, owes no update, and leaves updates-owed', async () => {
+   const old = Date.UTC(2026, 0, 5) / 1000;
+   const plan = (id, project) => ({
+      id,
+      name: `Plan ${id}`,
+      project,
+      team: null,
+      lead_login: 'dana',
+      status: 'active',
+      origin: null,
+      start: '2026-01-05',
+      weeks: 60,
+      priority: id,
+      notes: '',
+      waits_on: null,
+      updated_by: 'dana',
+      updated_at: old,
+      created_at: old,
+   });
+   rows.push(plan(1, 'alpha'), plan(2, 'beta'));
+   await withProjects([], async () => {
+      const base = projectQuery;
+      projectQuery = sql => {
+         if (sql.includes('FROM `initiatives`')) {
+            return [{ id: 2, slug: 'not-tracked', name: 'Not tracked', kind: 'untracked', priority: 0, status: 'open' }];
+         }
+         if (sql.includes('FROM `initiative_projects`')) {
+            return [{ project: 'alpha', initiative_id: 2, set_by: null, set_at: 1, baseline_prs: 0 }];
+         }
+         return base(sql);
+      };
+      forgetProjectCaches();
+      const { body } = await call('GET', '/roadmap', undefined, {});
+      const by = id => body.items.find(i => i.id === id);
+      assert.deepEqual([by(1).untracked, by(1).standing], [true, null]);
+      assert.deepEqual([by(2).untracked, by(2).standing], [false, 'owed']);
+      const owed = await call('GET', '/updates-owed', undefined, {});
+      assert.deepEqual(
+         owed.body.leads.flatMap(l => l.plans.map(p => p.id)),
+         [2]
+      );
+   });
+});
+
+test('the roadmap still reads when the initiatives tables can’t be', async () => {
+   rows.push({ id: 1, name: 'Plan', project: 'alpha', status: 'active', start: '2026-01-05', weeks: 4, priority: 0 });
+   await withProjects([], async () => {
+      const base = projectQuery;
+      projectQuery = sql => {
+         if (sql.includes('`initiative')) throw new Error("Table 'initiatives' doesn't exist");
+         return base(sql);
+      };
+      forgetProjectCaches();
+      const errors = mock.method(console, 'error', () => {});
+      const { status, body } = await call('GET', '/roadmap', undefined, {});
+      errors.mock.restore();
+      assert.equal(status, 200);
+      assert.equal(body.items[0].untracked, false);
+   });
+});
