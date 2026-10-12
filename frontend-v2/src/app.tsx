@@ -12,7 +12,15 @@ import {
 import { ago, closedEpoch, n, pullKey, shortRepo } from '../../shared/format';
 import type { ActionStateKey } from './model/actions';
 import { actionState, askedOf } from './model/actions';
-import { DEFAULT_RANGE, DEFAULT_SORT, LENS_LABELS, ORIGIN_KEYS, ZOOM_KEY, type Lens } from './lens';
+import {
+   DEFAULT_GROUP,
+   DEFAULT_RANGE,
+   DEFAULT_SORT,
+   LENS_LABELS,
+   ORIGIN_KEYS,
+   ZOOM_KEY,
+   type Lens,
+} from './lens';
 import type { DerivedPull } from '../../shared/model/status';
 import { matchesWeightFilter } from '../../shared/model/status';
 import { buildParentLookup } from './model/stack';
@@ -147,9 +155,11 @@ function readHash(): HashState {
             (['decide', 'roadmap', 'people', 'retro'] as const).find(v => v === p.get('view')) ??
             'overview',
          project: p.get('project') || null,
+         initiative: p.get('initiative') || null,
+         within: p.get('within') || null,
          range: p.get('range') || DEFAULT_RANGE,
          status: p.get('status') || 'live',
-         group: p.get('group') || 'none',
+         group: p.get('group') || DEFAULT_GROUP,
          sort: p.get('sort') || DEFAULT_SORT,
          find: p.get('find') ?? '',
          scale: p.get('scale') === 'month' ? 'month' : p.get('scale') === 'now' ? 'now' : 'quarter',
@@ -165,7 +175,9 @@ function readHash(): HashState {
          zoom: ZOOM_KEY.test(p.get('zoom') ?? '') ? p.get('zoom') : null,
          team: p.get('team') || null,
          origin: ORIGIN_KEYS.find(o => o === p.get('origin')) ?? null,
-         by: (['origin', 'author', 'repo'] as const).find(b => b === p.get('by')) ?? 'team',
+         by:
+            (['initiative', 'origin', 'author', 'repo'] as const).find(b => b === p.get('by')) ??
+            'team',
          kind: (['writing', 'reviewing'] as const).find(k => k === p.get('kind')) ?? 'all',
          who: p.get('who') || null,
          only: p.get('only') || null,
@@ -188,9 +200,11 @@ function buildHash(s: HashState): string {
    if (s.drafts) p.set('drafts', s.drafts);
    if (s.projects.view !== 'overview') p.set('view', s.projects.view);
    if (s.projects.project) p.set('project', s.projects.project);
+   if (s.projects.initiative) p.set('initiative', s.projects.initiative);
+   if (s.projects.within) p.set('within', s.projects.within);
    if (s.projects.range !== DEFAULT_RANGE) p.set('range', s.projects.range);
    if (s.projects.status !== 'live') p.set('status', s.projects.status);
-   if (s.projects.group !== 'none') p.set('group', s.projects.group);
+   if (s.projects.group !== DEFAULT_GROUP) p.set('group', s.projects.group);
    if (s.projects.sort !== DEFAULT_SORT) p.set('sort', s.projects.sort);
    if (s.projects.find) p.set('find', s.projects.find);
    if (s.projects.scale !== 'quarter') p.set('scale', s.projects.scale);
@@ -440,6 +454,8 @@ export function App() {
    const view = {
       lens,
       project: projectsNav.project,
+      initiative: projectsNav.initiative,
+      within: projectsNav.within,
       projectsView: projectsNav.view,
       // zooming the roadmap in or out is a view change too, so Back undoes it
       zoom: projectsNav.zoom,
@@ -872,14 +888,14 @@ export function App() {
       setQuery('');
       setLens(id);
       // the Projects tab, clicked from a project page, goes back to the list
-      if (id === 'projects') setProjectsNav(cur => ({ ...cur, project: null }));
+      if (id === 'projects') setProjectsNav(cur => ({ ...cur, project: null, initiative: null }));
    }, []);
    // a PR's project, from its state popover anywhere on the board: the
    // Projects tab opens on that project's page, the board's filters kept
    const onProject = useCallback((slug: string) => {
       setQuery('');
       setLens('projects');
-      setProjectsNav(cur => ({ ...cur, project: slug }));
+      setProjectsNav(cur => ({ ...cur, project: slug, initiative: null }));
    }, []);
    // and the Team lens shows the result
    const onPerson = useCallback(

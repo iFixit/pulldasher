@@ -11,6 +11,11 @@ export const DEFAULT_RANGE = '30d';
  * reads it); Last activity's own key is `last`. */
 export const DEFAULT_SORT = 'idle';
 
+/** What the URL holds when nobody picked how the Overview's list and the
+ * Roadmap split their rows: by initiative, so both open on the short list
+ * of ranked initiatives. Kept here for the same reason. */
+export const DEFAULT_GROUP = 'initiative';
+
 /** A roadmap zoom's key in the URL, "2026-Q4" or "2026-10", checked here for
  * the same reason (model/roadmapTime.ts reads it). */
 export const ZOOM_KEY = /^(\d{4})-(?:Q([1-4])|(0[1-9]|1[0-2]))$/;

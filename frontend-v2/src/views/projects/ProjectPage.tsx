@@ -57,7 +57,17 @@ import {
    NO_UPDATE_YET,
    UPDATE_DUE,
 } from '../../model/words';
-import { answerWords, planRow, reasonParts, usePlanCalls, type Call } from './Decide';
+import {
+   answerWords,
+   DecideCall,
+   isHomeReason,
+   planRow,
+   reasonParts,
+   usePlanCalls,
+   type Call,
+} from './Decide';
+import { HomeLine } from './Initiatives';
+import type { Initiative } from '../../../../shared/model/initiatives';
 import { BacklogSection } from './BacklogSection';
 import {
    flagText,
@@ -469,6 +479,8 @@ export function ProjectPage({
    navigate,
    item,
    plans,
+   initiatives = null,
+   untracked = false,
    ongoingSaved,
    opts,
    onPerson,
@@ -491,6 +503,10 @@ export function ProjectPage({
    item: PortfolioItem | undefined;
    /** the roadmap's plans, null while they load */
    plans: readonly RoadmapItem[] | null;
+   /** the initiatives, for its home line; null while they load */
+   initiatives?: readonly Initiative[] | null;
+   /** it's Not tracked: it owes nothing, and counts nowhere */
+   untracked?: boolean;
    /** the projects marked ongoing on the board (not by label) */
    ongoingSaved: string[];
    /** how the board draws its PR rows */
@@ -652,9 +668,14 @@ export function ProjectPage({
       row.item?.update && update && row.item.update.at === update.at
          ? { ...row.item, update: { ...row.item.update, body: '' } }
          : row.item;
+   // where it belongs is asked by its home line; the Plan fields answer the rest
+   const primaryOf = (row: DecideRow) =>
+      row.reasons.reduce((a, r) => (RANK[r.kind] < RANK[a.kind] ? r : a));
+   const homeAsks = calls.filter(row => row.reasons.length && isHomeReason(primaryOf(row)));
+   const planAsks = asks.filter(row => !isHomeReason(primaryOf(row)));
    // each row asks one question, its worst reason's (the one its strip
    // outlines the answer to), after the facts of all of them
-   const asked = asks.map(row => {
+   const asked = planAsks.map(row => {
       const primary = row.reasons.reduce((a, r) => (RANK[r.kind] < RANK[a.kind] ? r : a));
       const sentences = [primary, ...row.reasons.filter(r => r !== primary)].map(r =>
          // the page's Status already says there's no plan
@@ -662,7 +683,7 @@ export function ProjectPage({
       );
       return {
          key: `${row.slug ?? ''}:${row.item?.id ?? ''}`,
-         name: asks.length > 1 && row.item ? `${row.item.name}: ` : '',
+         name: planAsks.length > 1 && row.item ? `${row.item.name}: ` : '',
          facts: sentences.map(s => s.facts).join(' '),
          question: sentences[0].question,
       };
@@ -677,7 +698,7 @@ export function ProjectPage({
       !asks.some(row => row.reasons.some(r => r.kind === update.health));
    // Decide's rows here, asked or decided; a call made under the plan, where
    // Decide asked nothing, keeps its receipt there
-   const decideRows = calls.filter(row => row.reasons.length);
+   const decideRows = calls.filter(row => row.reasons.length && !isHomeReason(primaryOf(row)));
    // the row the Plan fields answer: Decide's, while it asks, else the plan's
    const fieldRow = decideRows[0] ?? planRow(slug, plan, calls);
    const org = project?.repo.split('/')[0] ?? 'iFixit';
@@ -820,6 +841,37 @@ export function ProjectPage({
                   )}
                </span>
             </div>
+            {initiatives && initiatives.length > 0 && (
+               <div className="mt-1">
+                  <HomeLine
+                     slug={slug}
+                     initiatives={initiatives}
+                     navigate={navigate}
+                     onSaid={setSaid}
+                  />
+                  {/* where it belongs, when Decide asks: its question and answers */}
+                  {homeAsks.map(row => {
+                     const parts = reasonParts(primaryOf(row), row.item);
+                     return (
+                        <div
+                           key={row.reasons.map(r => r.kind).join()}
+                           className="mt-1.5 text-[13px]"
+                        >
+                           <p className="m-0 max-w-[70ch] text-ink-2">
+                              {parts.facts} <span className="text-warn">{parts.question}</span>
+                           </p>
+                           <DecideCall row={row} project={item} />
+                        </div>
+                     );
+                  })}
+                  {untracked && !homeAsks.length && (
+                     <p className="m-0 mt-0.5 max-w-[70ch] text-xs text-ink-3">
+                        Not tracked: it counts in no tile, load or question
+                        {plans && planFor(slug, plans) ? ', and its plan owes no update' : ''}.
+                     </p>
+                  )}
+               </div>
+            )}
             <div
                className={`mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-ink-3 ${DOTTED}`}
             >

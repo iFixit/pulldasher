@@ -10,6 +10,8 @@ import {
 import { ArrowDown, ArrowUp, ChevronRight } from 'lucide-react';
 import { n, pullKey, shortRepo } from '../../../../shared/format';
 import { MISC_SLUG } from '../../../../shared/model/projects';
+import { homesOf, type Initiative } from '../../../../shared/model/initiatives';
+import { byRank } from '../../model/initiativesData';
 import { ORIGIN_WORD, planFor, type RoadmapItem } from '../../../../shared/model/roadmap';
 import type { DerivedPull } from '../../../../shared/model/status';
 import type { PullData } from '../../../../shared/types';
@@ -87,6 +89,7 @@ type Split = ProjectsNav['by'];
 
 const SPLIT_OPTIONS: [Split, string][] = [
    ['team', 'Team'],
+   ['initiative', 'Initiative'],
    ['origin', 'Where it came from'],
    ['author', 'Whose PR'],
    ['repo', 'Repo'],
@@ -94,6 +97,7 @@ const SPLIT_OPTIONS: [Split, string][] = [
 /** what the last list splits the days by, in words */
 const SPLIT_WORDS: Record<Split, string> = {
    team: 'By the team of whoever spent them',
+   initiative: 'By the initiative of the PR’s project',
    origin: 'By where the work came from',
    author: 'By whose PR it was',
    repo: 'By repo',
@@ -110,6 +114,9 @@ const UNPLANNED = 'no-plan';
 const UNSAID = 'unsaid';
 /** the team key for people on no developer team, as the URL spells it */
 const NO_TEAM = '(none)';
+/** the initiative split's group for days on no project, a one-off, or a
+ * project in no initiative */
+const NO_INITIATIVE = '(none)';
 
 const AUTHOR_WORDS: Record<string, string> = {
    own: 'Their own PRs',
@@ -210,7 +217,14 @@ function measure(rows: readonly RetroRow[], plans: readonly RoadmapItem[]) {
 }
 
 /** A group's name in the last list, split another way. */
-function splitLabel(split: Split, key: string): string {
+function splitLabel(split: Split, key: string, initiatives: readonly Initiative[] = []): string {
+   if (split === 'initiative') {
+      if (key === NO_INITIATIVE) return 'No initiative';
+      return (
+         initiatives.find(i => i.slug === key)?.name ??
+         (key === 'not-tracked' ? 'Not tracked' : key)
+      );
+   }
    if (split === 'origin') {
       if (key === NOT_FILED) return NOT_IN_A_PROJECT;
       if (key === UNPLANNED) return NO_PLAN;
@@ -944,6 +958,8 @@ export function Retro({
    range,
    plans,
    items,
+   initiatives = null,
+   untracked = new Set(),
    teams,
    teamOf,
    nameOf,
@@ -956,6 +972,10 @@ export function Retro({
    plans: readonly RoadmapItem[];
    /** the project list for the range: each project's issue, plan and numbers */
    items: readonly PortfolioItem[];
+   /** the initiatives, for the split by initiative; null while they load */
+   initiatives?: readonly Initiative[] | null;
+   /** the Not tracked slugs, which that split names as such */
+   untracked?: ReadonlySet<string>;
    /** developer teams: team name to logins */
    teams: Record<string, string[]>;
    teamOf: (login: string) => string | null;
@@ -1209,8 +1229,18 @@ export function Retro({
       const plan = planFor(project, plans);
       return !plan || plan.status === 'dropped' ? UNPLANNED : plan.origin ?? UNSAID;
    };
+   // each PR's project's home: its initiative, Not tracked, or none
+   const homes = homesOf(initiatives ?? []);
+   const initiativeKey = (r: RetroRow) => {
+      const project = r.pr.project;
+      if (!project || project === MISC_SLUG) return NO_INITIATIVE;
+      const home = homes.get(project)?.initiative;
+      if (home) return home.slug;
+      return untracked.has(project) ? 'not-tracked' : NO_INITIATIVE;
+   };
    const keyOf: Record<Split, (r: RetroRow) => string> = {
       origin: originOf,
+      initiative: initiativeKey,
       author: r =>
          r.own ? 'own' : r.pr.bot ? 'bot' : teamOf(r.pr.owner) != null ? 'developer' : 'other',
       team: r => teamOf(r.login) ?? NO_TEAM,
@@ -1224,6 +1254,17 @@ export function Retro({
          const at = teamNames.indexOf(key);
          return key === NO_TEAM ? teamNames.length + 1 : at < 0 ? teamNames.length : at;
       };
+      splitGroups.sort((a, b) => rank(a.key) - rank(b.key) || a.key.localeCompare(b.key));
+   }
+   if (nav.by === 'initiative') {
+      // in the initiatives' own rank, Not tracked among them, none last
+      const order = byRank(initiatives ?? []).map(i => i.slug);
+      const rank = (key: string) =>
+         key === NO_INITIATIVE
+            ? order.length + 1
+            : order.indexOf(key) < 0
+            ? order.length
+            : order.indexOf(key);
       splitGroups.sort((a, b) => rank(a.key) - rank(b.key) || a.key.localeCompare(b.key));
    }
    const splitBefore = earlier ? byDays(groupRows(earlier, keyOf[nav.by])) : null;
@@ -1327,7 +1368,7 @@ export function Retro({
          `${SPLIT_WORDS[nav.by]}:`,
          ...splitGroups.map(
             g =>
-               `- ${splitLabel(nav.by, g.key)}: ${dayCount(g.days)} (${pct(
+               `- ${splitLabel(nav.by, g.key, initiatives ?? [])}: ${dayCount(g.days)} (${pct(
                   g.days,
                   total
                )})${versusBefore(splitBefore && (splitBefore.get(g.key) ?? 0))}`
@@ -1748,7 +1789,7 @@ export function Retro({
    };
 
    const splitRow = (g: RetroGroup) => {
-      const label = splitLabel(nav.by, g.key);
+      const label = splitLabel(nav.by, g.key, initiatives ?? []);
       const prev = splitBefore ? splitBefore.get(g.key) ?? 0 : null;
       return (
          <TableRow
