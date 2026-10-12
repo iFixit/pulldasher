@@ -848,6 +848,14 @@ icon with a class bolted on.
      bands read as the table of contents a manager ranks on; twenty open
      ones are the long page again. A link that opens a plan opens its lane
      first, as a click on the band would.
+
+  Inside a lane its rows are numbered by their place there (1, 2, 3), under
+  the band's own rank; a row's priority on the whole roadmap is in its
+  grip's label and the number's hover, never a second number beside it.
+  "Unsorted" is the one word for a project filed nowhere, on every band,
+  chooser, hover and split (the sentence form is "filed nowhere"). A plan
+  with no project can't be filed, so it sits in its own "No project yet"
+  lane, and Decide asks which project it is once it's active.
 - **A plan's health is a word, amber only when someone owes something.**
   "On track" reads plain. "At risk", "Off track" and an overdue update are
   amber, because each asks someone to act: the planner to replan, the lead
