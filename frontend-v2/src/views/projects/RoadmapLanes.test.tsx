@@ -228,6 +228,13 @@ function drag(from: Element, to: Element): { refused: boolean } {
 }
 
 describe('the Roadmap by initiative', () => {
+   // first: once a test presses a key, the page counts as handled
+   it('opens a linked plan’s details without putting the focus on an end to promise', async () => {
+      const el = await mount({ item: 2 });
+      expect(el.querySelector('[role="toolbar"]')).not.toBeNull();
+      expect(document.activeElement).toBe(document.body);
+   });
+
    it('draws a lane per open initiative in its priority, then Unsorted, No project yet and Not tracked', async () => {
       const el = await mount();
       const bands = [...el.querySelectorAll('summary')].map(s => s.textContent ?? '');
