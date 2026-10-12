@@ -107,7 +107,7 @@ describe('the initiatives store', () => {
       const filing = data.fileProject('p', 'b', { expect: 'a' });
       answer({ error: 'its home changed; here it is now' }, 409);
       expect(await filing).toEqual({
-         error: 'Couldn’t move the project: its home changed; here it is now.',
+         error: 'Couldn’t file the project: its home changed; here it is now.',
       });
       expect(data.readInitiatives().initiatives?.[0].projects.map(f => f.project)).toEqual(['p']);
    });

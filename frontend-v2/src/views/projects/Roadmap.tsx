@@ -897,7 +897,7 @@ function PlanPanel({
    onPerson: (login: string) => void;
    onOpenItem: (id: number) => void;
    onOpenProject: (slug: string) => void;
-   /** the initiatives, for its project's home line and Move: the keyboard's
+   /** the initiatives, for its project's home line and File elsewhere: the keyboard's
     * way to file what a drag onto another lane files; none hides it */
    initiatives?: readonly Initiative[] | null;
    navigate?: Navigate;

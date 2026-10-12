@@ -289,12 +289,12 @@ export async function fileProject(
          : UNSORTED_WORD;
       void loadInitiatives();
       return {
-         error: `Couldn’t move the project: someone moved it to ${name} since, so nothing changed.`,
+         error: `Couldn’t file the project: someone filed it in ${name} since, so nothing changed.`,
       };
    }
    if (reply.status !== 200) {
       takeBack();
-      return { error: problemOf(reply, 'move the project') };
+      return { error: problemOf(reply, 'file the project') };
    }
    void loadInitiatives();
    return { before: reply.json.before as Home };

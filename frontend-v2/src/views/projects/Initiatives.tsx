@@ -39,20 +39,24 @@ import { PLAN_STATUS_WORD, planWords } from './roadmapHealth';
 export const homeName = (home: Pick<Initiative, 'name'> | null | undefined) =>
    home ? home.name : UNSORTED_WORD;
 
-/** A receipt for a move of home: what it did, with Undo, or why not. */
+/** A receipt for a filing: what it did, with Undo, or why not. */
 interface MoveReceipt {
    words: string;
    failed?: boolean;
    undo?: () => void;
+   /** what an Undo did: held in the receipt's place with nothing to click */
+   settled?: boolean;
 }
 
 /**
- * Where a project lives, in its page's head: "in Release safety · Move",
- * "Not tracked · Move", or "Unsorted · Move". The initiative's name opens
- * its page. Move opens a chooser in place of those words (never a popover):
- * the homes in rank order, Not tracked last, and Unsorted; Move, on once the
- * pick differs, files it there and leaves a receipt with Undo, which puts
- * back the home it had with its time and count.
+ * Where a project lives, in its page's head: "in Release safety · File
+ * elsewhere", "Not tracked · …", or "Unsorted · …". The initiative's name
+ * opens its page. File elsewhere opens a chooser in place of those words
+ * (never a popover): the homes in rank order, Not tracked last, and
+ * Unsorted; File, on once the pick differs, files it there and leaves a
+ * receipt with Undo, which puts back the home it had with its time and
+ * count. Undo's own words then hold the receipt's place, and File
+ * elsewhere comes back on the line below, never under the pointer.
  */
 export function HomeLine({
    slug,
@@ -94,7 +98,7 @@ export function HomeLine({
       if ('error' in saved) return say({ words: saved.error.replace(/\.$/, ''), failed: true });
       const before: Home = saved.before;
       say({
-         words: `Moved to ${toName}`,
+         words: `Filed in ${toName}`,
          undo: async () => {
             const back = await fileProject(slug, before.initiative, {
                set_at: before.set_at,
@@ -102,10 +106,8 @@ export function HomeLine({
             });
             if ('error' in back) say({ words: back.error.replace(/\.$/, ''), failed: true });
             else {
-               setReceipt(null);
                setPick(before.initiative ?? '');
-               onSaid?.(`Put ${projectName} back in ${homeName(home)}`);
-               requestAnimationFrame(() => document.getElementById(moveId)?.focus());
+               say({ words: `Put ${projectName} back in ${homeName(home)}`, settled: true });
             }
          },
       });
@@ -130,28 +132,18 @@ export function HomeLine({
          ) : (
             <span>{UNSORTED_WORD}</span>
          )}
-         {movable && !moving && !receipt && (
-            <QuietButton
-               id={moveId}
-               onClick={() => {
-                  setPick(home?.slug ?? '');
-                  setMoving(true);
-               }}
-               aria-label="Move it to another initiative"
-            >
-               Move
-            </QuietButton>
-         )}
          {moving && (
             <span className="inline-flex flex-wrap items-center gap-2">
-               <label htmlFor={selectId}>Move to</label>
+               <label htmlFor={selectId}>File in</label>
                <select
                   id={selectId}
                   autoFocus
                   value={pick}
                   onChange={e => setPick(e.target.value)}
                   onKeyDown={e => {
-                     if (e.key === 'Escape') setMoving(false);
+                     if (e.key !== 'Escape') return;
+                     setMoving(false);
+                     requestAnimationFrame(() => document.getElementById(moveId)?.focus());
                   }}
                   className={`h-7 px-2 text-[13px] text-ink ${textInputClass}`}
                >
@@ -169,7 +161,7 @@ export function HomeLine({
                      (pick || null) === (home?.slug ?? null) ? 'Choose another home first' : undefined
                   }
                >
-                  Move
+                  File
                </QuietButton>
                <QuietButton onClick={() => setMoving(false)}>Cancel</QuietButton>
             </span>
@@ -184,10 +176,27 @@ export function HomeLine({
                </span>
                {receipt.undo ? (
                   <QuietButton onClick={receipt.undo}>Undo</QuietButton>
-               ) : (
+               ) : receipt.settled ? null : (
                   <QuietButton onClick={() => setReceipt(null)}>Close</QuietButton>
                )}
             </span>
+         )}
+         {movable && !moving && (!receipt || receipt.settled) && (
+            <>
+               {/* after an Undo, on its own line below the words */}
+               {receipt && <span aria-hidden className="basis-full" />}
+               <QuietButton
+                  id={moveId}
+                  onClick={() => {
+                     setReceipt(null);
+                     setPick(home?.slug ?? '');
+                     setMoving(true);
+                  }}
+                  aria-label={`File elsewhere: ${projectName}`}
+               >
+                  File elsewhere
+               </QuietButton>
+            </>
          )}
       </span>
    );
@@ -638,7 +647,7 @@ export function InitiativePage({
                </Rows>
             ) : (
                <p className="m-0 text-[13px] text-ink-3">
-                  No projects in it yet. File one from its page’s Move, or from Decide.
+                  No projects in it yet. File one from a project’s page, or from Decide.
                </p>
             )}
          </section>

@@ -314,7 +314,7 @@ export function initiativeLanes(c: LaneContext) {
          refocus.current = [`roadmap-grip-${item.id}`];
          say({
             key,
-            words: `Moved ${item.name} to ${toName}`,
+            words: `Filed ${item.name} in ${toName}`,
             undo: () => {
                refocus.current = [`roadmap-grip-${item.id}`];
                // said at once, as the board shows it back at once

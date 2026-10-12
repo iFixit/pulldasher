@@ -504,7 +504,7 @@ describe('the File it in chooser and the answer that waits on it', () => {
       });
       click(el, 'File in Site speed');
       await settle();
-      expect(el.textContent).toContain('Someone moved it to FixBot chat since, so nothing changed.');
+      expect(el.textContent).toContain('Someone filed it in FixBot chat since, so nothing changed.');
       // and the board reads the homes again
       expect(calls.filter(c => c.path === '/initiatives' && c.method === 'GET')).toHaveLength(1);
    });
@@ -676,12 +676,12 @@ describe('an initiative’s page', () => {
 });
 
 describe('a project page’s home line', () => {
-   it('puts the chooser in place of its home, and Move waits for another pick', () => {
+   it('puts the chooser in place of its home, and File waits for another pick', () => {
       const el = mount(<HomeLine slug="cache" initiatives={INITIATIVES} navigate={nothing} />);
       expect(el.textContent).toContain('in Site speed');
-      click(el, 'Move');
+      click(el, 'File elsewhere');
       expect(el.textContent).not.toContain('in Site speed');
-      const move = [...el.querySelectorAll('button')].find(b => b.textContent === 'Move');
+      const move = [...el.querySelectorAll('button')].find(b => b.textContent === 'File');
       expect(move?.disabled).toBe(true);
       const select = el.querySelector('select') as HTMLSelectElement;
       expect(select.value).toBe('site-speed');
@@ -693,7 +693,7 @@ describe('a project page’s home line', () => {
       expect(move?.disabled).toBe(false);
    });
 
-   it('offers no Move while Decide’s question on the page files it', () => {
+   it('offers no File elsewhere while Decide’s question on the page files it', () => {
       const el = mount(
          <HomeLine slug="new-thing" initiatives={INITIATIVES} navigate={nothing} movable={false} />
       );
@@ -711,20 +711,27 @@ describe('a project page’s home line', () => {
             onSaid={words => said.push(words)}
          />
       );
-      click(el, 'Move');
+      click(el, 'File elsewhere');
       const select = el.querySelector('select') as HTMLSelectElement;
       act(() => {
          select.value = 'fixbot';
          select.dispatchEvent(new Event('change', { bubbles: true }));
       });
-      act(() => [...el.querySelectorAll('button')].find(b => b.textContent === 'Move')?.click());
+      act(() => [...el.querySelectorAll('button')].find(b => b.textContent === 'File')?.click());
       await settle();
       // the receipt names the new home; the home word isn't said beside it
       expect(el.textContent?.match(/FixBot chat/g)).toHaveLength(1);
-      expect(el.textContent).toContain('Moved to FixBot chat.');
+      expect(el.textContent).toContain('Filed in FixBot chat.');
       click(el, 'Undo');
       await settle();
       expect(said.at(-1)).toBe('Put cache back in Site speed');
+      // Undo's words hold the receipt's place with nothing to click; File
+      // elsewhere comes back after them, on the line below
+      const status = el.querySelector('[role="status"]') as HTMLElement;
+      expect(status.textContent).toBe('Put cache back in Site speed.');
+      expect(status.querySelector('button')).toBeNull();
+      expect(buttons(el)).toEqual(['File elsewhere']);
+      expect(document.activeElement?.textContent).toBe('Put cache back in Site speed.');
    });
 });
 

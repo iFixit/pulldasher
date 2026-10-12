@@ -63,7 +63,7 @@ export const SECTIONS: {
       kinds: ['reopened_in_closed'],
       title: 'Its initiative is closed, still worked on',
       more: [
-         'Its initiative was closed as done or dropped, and the project has open PRs or a plan under way again. Reopen the initiative, or move the project to another. A plan of its own marked done but still worked on is asked about once this is answered.',
+         'Its initiative was closed as done or dropped, and the project has open PRs or a plan under way again. Reopen the initiative, or file the project in another. A plan of its own marked done but still worked on is asked about once this is answered.',
       ],
    },
    {

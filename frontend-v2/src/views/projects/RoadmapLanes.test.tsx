@@ -342,7 +342,7 @@ describe('the Roadmap by initiative', () => {
             body: { project: 'images', initiative: 'fixbot', expect: 'site-speed' },
          },
       ]);
-      expect(el.textContent).toContain('Moved Image CDN to FixBot chat.');
+      expect(el.textContent).toContain('Filed Image CDN in FixBot chat.');
       act(() => [...el.querySelectorAll('button')].find(b => b.textContent === 'Undo')?.click());
       await settle();
       expect(writes().at(-1)?.body).toMatchObject({ project: 'images', initiative: 'site-speed' });
