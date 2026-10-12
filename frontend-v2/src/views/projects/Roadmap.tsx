@@ -54,7 +54,7 @@ import {
    Segmented,
    textInputClass,
 } from '../../components/bits';
-import { focusResult, guardAt, PRESS_GUARD } from '../../components/settle';
+import { focusResult, guardAt, PRESS_GUARD, useFocusWhenDrawn } from '../../components/settle';
 import { Icon } from '../../components/Icon';
 import {
    eyebrowText,
@@ -2281,8 +2281,16 @@ export function Roadmap({
       const r = run.current;
       return r?.key === key && 'from' in r ? r : null;
    };
-   // the controls to give the focus to after the next render, the first found
-   const refocus = useRef<string[] | null>(null);
+   // after a move, a close or an undo, the focus goes back where it was (a
+   // moved row's control can lose it as React moves the row): the first of
+   // these ids drawn, once a render draws one
+   const refocus = useFocusWhenDrawn(el => {
+      // the receipt beside it shows too, below the sticky headers, from
+      // the top of its row, so a plan's name is never what's hidden
+      const said = receipt && document.querySelector<HTMLElement>(`[data-receipt="${receipt.key}"]`);
+      const row = said?.closest<HTMLElement>('[data-roadmap-row]');
+      focusResult(el, said, row?.firstElementChild as HTMLElement | null);
+   });
    const stickyRef = useRef<HTMLDivElement>(null);
    const now = new Date();
    const today = dayOf(now);
@@ -2970,22 +2978,6 @@ export function Roadmap({
       watch.observe(bar);
       return () => watch.disconnect();
    }, [timeline]);
-   // after a move, a close or an undo, the focus goes back where it was:
-   // a moved row's control can lose it as React moves the row
-   useEffect(() => {
-      const want = refocus.current;
-      if (!want) return;
-      const el = want.map(id => document.getElementById(id)).find(Boolean);
-      // not drawn yet (a store's render came first, the receipt on its
-      // way): it waits for the render that draws it
-      if (!el) return;
-      refocus.current = null;
-      // the receipt beside it shows too, below the sticky headers, from
-      // the top of its row, so a plan's name is never what's hidden
-      const said = receipt && document.querySelector<HTMLElement>(`[data-receipt="${receipt.key}"]`);
-      const row = said?.closest<HTMLElement>('[data-roadmap-row]');
-      focusResult(el, said, row?.firstElementChild as HTMLElement | null);
-   });
 
    const planRows = (
       list: RoadmapItem[],

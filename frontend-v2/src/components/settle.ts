@@ -1,3 +1,4 @@
+import { type MutableRefObject, useEffect, useRef } from 'react';
 import { flushSync } from 'react-dom';
 
 /**
@@ -352,4 +353,34 @@ export function settle(
    const moved = before ? after.getBoundingClientRect().top - before.top : 0;
    if (Math.abs(moved) >= 1) window.scrollBy(0, moved);
    reveal(after);
+}
+
+/**
+ * Ids to focus once one is drawn: set `.current`, and the first render
+ * that draws one of them gives it to `found` (a receipt a write is on its
+ * way to, a moved row's control). The next press or key drops it, so a
+ * target that never comes (a row a find hides) can't take the focus later.
+ */
+export function useFocusWhenDrawn(
+   found: (el: HTMLElement) => void
+): MutableRefObject<string[] | null> {
+   const want = useRef<string[] | null>(null);
+   useEffect(() => {
+      const drop = () => {
+         want.current = null;
+      };
+      addEventListener('pointerdown', drop, true);
+      addEventListener('keydown', drop, true);
+      return () => {
+         removeEventListener('pointerdown', drop, true);
+         removeEventListener('keydown', drop, true);
+      };
+   }, []);
+   useEffect(() => {
+      const el = want.current?.map(id => document.getElementById(id)).find(Boolean);
+      if (!el) return;
+      want.current = null;
+      found(el);
+   });
+   return want;
 }

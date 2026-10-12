@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { act, createElement, type MutableRefObject } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
    clearHolds,
@@ -10,6 +12,7 @@ import {
    pressedBy,
    reveal,
    settle,
+   useFocusWhenDrawn,
 } from './settle';
 
 // jsdom makes no trusted events: every press here is a person's
@@ -496,5 +499,47 @@ describe('settle', () => {
       expect(scrolled).toEqual([-60, -60]);
       expect(el.getAttribute('style')).toBeNull();
       expect(document.body.getAttribute('style')).toBeNull();
+   });
+});
+
+describe('a focus that waits for its target', () => {
+   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+   /** A view that draws a button with the id `drawn` names, and asks for it. */
+   function mount() {
+      const host = document.createElement('div');
+      document.body.append(host);
+      const root = createRoot(host);
+      let want: MutableRefObject<string[] | null> = { current: null };
+      const found: HTMLElement[] = [];
+      function View({ drawn }: { drawn: string | null }) {
+         want = useFocusWhenDrawn(el => found.push(el));
+         return drawn ? createElement('button', { id: drawn }) : null;
+      }
+      const draw = (drawn: string | null) => act(() => root.render(createElement(View, { drawn })));
+      draw(null);
+      return { want: () => want, found, draw, done: () => act(() => root.unmount()) };
+   }
+
+   it('gives the focus to it once a render draws it', () => {
+      const v = mount();
+      v.want().current = ['later'];
+      v.draw(null);
+      expect(v.found).toEqual([]);
+      v.draw('later');
+      expect(v.found.map(e => e.id)).toEqual(['later']);
+      v.done();
+   });
+
+   it('drops it at the next press or key, so it never comes late', () => {
+      const v = mount();
+      v.want().current = ['later'];
+      document.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'j' }));
+      v.draw('later');
+      v.want().current = ['again'];
+      document.body.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+      v.draw('again');
+      expect(v.found).toEqual([]);
+      v.done();
    });
 });
