@@ -677,24 +677,37 @@ icon with a class bolted on.
   the page. The window is picked with the date range button (This quarter,
   Next 2 quarters, Next 6 months, Year to date, Last 12 months, This year,
   or any months on the calendar); with none picked it's last quarter and the
-  next three (Quarters) or last month and the next six (Months), which are
-  the two defaults the Months and Quarters switch picks. Columns follow the
-  window's length, so nothing needs a legend: months up to four months, and
-  up to a year that doesn't fall on whole quarters (Year to date, Last 12
-  months, drawn as picked); whole quarters past that, rounded out. The
-  switch shows which. Past seven month columns the Mondays' dates drop out
-  of the header; the week lines stay. ‹ and › step by the window's own
-  length on every view, Today puts back the default, and a plan's edge chip
-  moves the window to start at its plan. A column name zooms that quarter
-  or month to the full width; the toolbar zooms back out one step to a
-  window holding it (your place is kept) and pages to the period before or
-  after, and the browser's Back does the same, since the window and zoom are
-  in the URL. Done plans that ended before the window rest in one closed
+  next three (Quarters) or last month and the next six (Months). Each
+  preset is drawn in the unit its name says, whatever the month (This
+  quarter, Next 6 months, Year to date and Last 12 months in months; Next 2
+  quarters and This year in quarters), so a bookmark keeps its layout. A
+  span picked on the calendar follows its length: months up to four months,
+  and up to a year that doesn't fall on whole quarters; whole quarters past
+  that, rounded out. A window is at most five years; a longer link is cut
+  to five and the URL says so. The Months and Quarters switch shows the
+  unit drawn: with no window picked it picks that default, and with one it
+  redraws the same window in that unit (out to whole quarters), so the lit
+  option does nothing and Now, next, later keeps the window for coming
+  back. Column names never collide and never drop a column's zoom button:
+  full names while they fit, then short ones ("Nov", "Q4" with the year
+  where it starts), then letters ("N"), then fewer names (a year in Q1's or
+  January's place). Only a zoomed month's cut-off weeks lose their name
+  under 8% of the width. Past seven month columns the Mondays' dates drop
+  out of the header, and past eight quarters the month names do; the lines
+  stay. ‹ and › step by the window's own length on every view; Today puts
+  back the default, and shows whenever today is outside the window or a
+  hand-picked span is on screen. A plan's edge chip moves the window to
+  start at its plan. A window wholly ahead asks for no history. A column
+  name zooms that quarter or month to the full width; the toolbar zooms
+  back out one step to a window holding it (your place is kept) and pages
+  to the period before or after, and the browser's Back does the same,
+  since the window and zoom are in the URL. Done plans that ended before the window rest in one closed
   fold under the rows, "Done before Oct 2025 · 12", so a year of history
   never buries the plan; ‹ brings each back into the rows as its weeks come
   into view. The initiative lanes hold only work under way, so they have no
   such fold. A done or dropped plan's details offer no Decide calls unless
-  Decide asks about it.
+  Decide asks about it; a done plan Decide asks about is never folded, and a
+  week picked on the load chart narrows the fold by the chart's own rule.
 - **Everything on the roadmap does what it names when clicked.** Nothing
   a planner would reach for is inert:
   - a week's bar in the load chart picks that week (arrow keys move the pick,

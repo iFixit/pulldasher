@@ -25,7 +25,13 @@ export function DateRangePicker({
    keyOf = r => `${r.start}..${r.end}`,
    pickedWords,
    wordsClass = 'hidden sm:inline',
+   name,
+   hint,
 }: {
+   /** the button's name before what it says: "Roadmap window: Year to date" */
+   name?: string;
+   /** the calendar's words before a first click (RangeCalendar) */
+   hint?: string;
    /** where a preset's range shows beside its name */
    wordsClass?: string;
    rangeKey: string;
@@ -80,6 +86,7 @@ export function DateRangePicker({
                {...t}
                id={id}
                type="button"
+               aria-label={name && `${name}: ${preset ?? words(range)}`}
                className="pressable inline-flex h-8 items-center gap-2 rounded-lg border border-line bg-surface px-2.5 text-[13px] text-ink hover:border-ring"
             >
                <Icon icon={CalendarDays} size={14} className="text-ink-3" />
@@ -124,6 +131,7 @@ export function DateRangePicker({
                   <RangeCalendar
                      range={range}
                      future={future}
+                     hint={hint}
                      words={pickedWords}
                      onApply={r => pick(keyOf(r))}
                   />

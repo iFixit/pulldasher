@@ -60,7 +60,10 @@ export default function RangeCalendar({
    onApply,
    future = false,
    words = r => `${rangeWords(r)} · ${rangeDays(r)} days`,
+   hint = `Click the first day, then the last (at most ${MAX_RANGE_DAYS} days)`,
 }: {
+   /** what it says before a first click */
+   hint?: string;
    range: Range;
    onApply: (picked: Range) => void;
    /** days after today can be picked, and a range has no cap */
@@ -99,13 +102,7 @@ export default function RangeCalendar({
             className="pd-calendar text-[13px] text-ink"
          />
          <div className="flex items-center gap-3 border-t border-secondary pt-2 text-xs text-ink-3">
-            <span className="tabular-nums">
-               {picked
-                  ? words(picked)
-                  : future
-                  ? 'Click the first day, then the last'
-                  : `Click the first day, then the last (at most ${MAX_RANGE_DAYS} days)`}
-            </span>
+            <span className="tabular-nums">{picked ? words(picked) : hint}</span>
             <span className="flex-1" />
             <PrimaryButton
                type="button"

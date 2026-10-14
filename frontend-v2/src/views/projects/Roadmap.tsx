@@ -111,6 +111,8 @@ import {
    defaultWindow,
    doneBefore,
    drawnWindow,
+   inUnit,
+   isPreset,
    parseZoom,
    quarterOf,
    resolveWindow,
@@ -124,9 +126,12 @@ import {
    zoomAround,
    zoomKey,
    zoomWords,
+   columnNames,
    type Column,
    type Months,
+   type Scale,
 } from '../../model/roadmapTime';
+import { MAX_WINDOW_MONTHS } from '../../lens';
 import { DateRangePicker } from './DateRangePicker';
 import {
    andList,
@@ -2142,15 +2147,32 @@ function AxisHeader({
    axis: Axis;
    onZoom: (key: string) => void;
 }) {
+   // the axis's width, so month and quarter names shorten or thin out
+   // before they touch
+   const ref = useRef<HTMLSpanElement>(null);
+   const [width, setWidth] = useState(0);
+   useEffect(() => {
+      const el = ref.current;
+      if (!el || typeof ResizeObserver === 'undefined') return;
+      const watch = new ResizeObserver(() => setWidth(el.clientWidth));
+      watch.observe(el);
+      return () => watch.disconnect();
+   }, []);
+   const share = (c: Column) => axis.at(c.end) - axis.at(c.start);
+   const names = columnNames(
+      columns,
+      columns.map(c => (share(c) / 100) * width)
+   );
    return (
       <div className={`${rowGrid} rounded-t-2xl border border-line bg-surface px-3.5 py-1.5`}>
          <span className={`hidden text-ink-3 sm:block ${eyebrowText}`}>Project</span>
-         <span className="relative block h-9">
+         <span ref={ref} className="relative block h-9">
             {columns.map((c, i) => {
                const style = { left: `${axis.at(c.start)}%` };
                const zoom = c.zoom;
-               // a sliver of a week at a month's edge keeps its line, not a name
-               if (axis.at(c.end) - axis.at(c.start) < 8) {
+               // a sliver of a week at a month's edge keeps its line, not a
+               // name; months and quarters always keep their button
+               if (!zoom && share(c) < 8) {
                   return (
                      <span
                         key={c.start}
@@ -2160,26 +2182,20 @@ function AxisHeader({
                      />
                   );
                }
-               // four quarters across a phone fit only without the year, so
-               // it's said where it starts: the first column and each Q1
-               const short = /^Q[2-4] \d{4}$/.test(c.label) && i > 0 ? c.label.slice(0, 2) : null;
-               const label = short ? (
-                  <>
-                     <span className="sm:hidden">{short}</span>
-                     <span className="hidden sm:inline">{c.label}</span>
-                  </>
-               ) : (
-                  c.label
-               );
+               // short, a letter or none when the full names would touch
+               // (columnNames); its button fills the column either way
+               const label = zoom ? names[i] ?? '' : c.label;
                return zoom ? (
                   <button
                      key={c.start}
                      type="button"
                      onClick={() => onZoom(zoom)}
+                     aria-label={label === c.label ? undefined : c.label}
                      title={`Zoom in: fill the width with ${c.label}`}
                      // no .hit here: it sets position: relative, and this sits absolutely on the axis
-                     className={`group/zoom pressable absolute top-0 inline-flex items-center gap-1 rounded-none border-0 border-l border-line bg-transparent py-0 pl-1.5 pr-0 whitespace-nowrap text-ink-2 hover:text-brand ${eyebrowText}`}
-                     style={style}
+                     className={`group/zoom pressable absolute top-0 inline-flex min-h-4 items-center gap-1 rounded-none border-0 border-l border-line bg-transparent py-0 pl-1.5 pr-0 whitespace-nowrap text-ink-2 hover:text-brand ${eyebrowText}`}
+                     // as wide as its column when its name is short or gone
+                     style={label === c.label ? style : { ...style, width: `${share(c)}%` }}
                   >
                      {label}
                      {/* the name zooms; the glass says so on hover and focus,
@@ -2336,8 +2352,8 @@ export function Roadmap({
    const timeline = nav.scale !== 'now';
    const scale = nav.scale === 'month' ? 'month' : 'quarter';
    const zoom = timeline ? parseZoom(nav.zoom) : null;
-   // the window picked, or none for the default at this scale; its columns
-   // follow its length (model/roadmapTime.ts windowUnit)
+   // the window picked, in its unit, or none for the default at this scale
+   // (model/roadmapTime.ts)
    const chosen = resolveWindow(nav.window, now);
    const { months: shownMonths, unit } = drawnWindow(scale, chosen, now);
    const columns = columnsFor(scale, zoom, now, chosen);
@@ -2348,15 +2364,34 @@ export function Roadmap({
    // zooming out goes up one step: a month to its quarter when the roadmap
    // is in quarters, else back to the whole view
    const zoomOut = zoom?.kind === 'month' && unit === 'quarter' ? zoomKey(quarterOf(zoom)) : null;
-   // a window in the URL, or none when it's the default's months
-   const windowNav = (w: Months) =>
-      windowKey(w) === windowKey(defaultWindow(scale, now)) ? null : windowKey(w);
+   // a window in the URL, or none when it's the default: its months, drawn
+   // in the default's unit
+   const windowNav = (w: Months, u: Scale = unit) =>
+      u === scale && windowKey(w, u) === windowKey(defaultWindow(scale, now), scale)
+         ? null
+         : windowKey(w, u);
    // the window, moved to hold a day only when it doesn't already: where the
    // edge chip and zooming out land
    const holding = (day: string) => {
       const w = windowHolding(shownMonths, day, unit);
       return w === shownMonths ? nav.window : windowNav(w);
    };
+   // Months and Quarters: with a window picked, the same window in that
+   // unit (a preset already in it stays itself); with none, that default.
+   // Now, next, later keeps the window for coming back.
+   const switchScale = (next: ProjectsNav['scale']) =>
+      navigate(
+         next === 'now'
+            ? { scale: next, zoom: null }
+            : {
+                 scale: next,
+                 zoom: null,
+                 window:
+                    chosen && chosen.unit !== next
+                       ? windowNav(inUnit(shownMonths, next), next)
+                       : nav.window,
+              }
+      );
    // ‹ and ›: a zoom's period, else the window, by its own length
    const step = (by: number) =>
       navigate(
@@ -2418,7 +2453,8 @@ export function Roadmap({
    // under each column's name: its months, its Mondays' dates, or its days
    const ticks =
       level === 'quarters'
-         ? months.map(day => ({
+         ? // past two years, the month names crowd: the month lines say them
+           (columns.length <= 8 ? months : []).map(day => ({
               left: place(day),
               label: dateOf(day).toLocaleDateString(undefined, { month: 'short' }),
               zoom: day.slice(0, 7),
@@ -2438,7 +2474,9 @@ export function Roadmap({
       start: horizon.start < earliest ? earliest : horizon.start,
       end: pastEnd,
    };
-   const history = useProjectsData(pastRange)?.window.projects ?? {};
+   // a window wholly ahead has no history to ask for
+   const history =
+      useProjectsData(horizon.start <= today ? pastRange : null)?.window.projects ?? {};
    // one slug each: the full set, so a Not tracked plan's row has its project
    const bySlug = new Map(allItems.map(i => [i.slug, i]));
    // the calls Decide asks, by the plan they're about, and by project for
@@ -2566,13 +2604,24 @@ export function Roadmap({
    const fromOrigin = (i: RoadmapItem) => !nav.origin || (i.origin ?? 'unsaid') === nav.origin;
    // done plans that ended before the window rest in one fold under the
    // rows, closed, instead of each taking a row; one open stays in its place
+   // one Decide asks about always shows, as the initiative lanes keep it
    const before = new Set(
       doneBefore(listed, horizon.start).flatMap(i =>
-         i === gone || i.id === nav.item ? [] : [i.id]
+         i === gone || i.id === nav.item || planCalls.has(i.id) ? [] : [i.id]
       )
    );
+   // a week picked on the load chart narrows the fold by the chart's rule
+   // too, so its count and the fold agree
    const shownBefore = showPlans
-      ? listed.filter(i => before.has(i.id) && found(i) && fromOrigin(i))
+      ? listed.filter(
+           i =>
+              before.has(i.id) &&
+              found(i) &&
+              fromOrigin(i) &&
+              (!members ||
+                 members.plans.has(i.id) ||
+                 (!!i.project && members.projects.get(i.project) === 'on'))
+        )
       : [];
    const shownPlans = showPlans
       ? listed.filter(
@@ -3625,15 +3674,7 @@ export function Roadmap({
                      ['quarter', 'Quarters'],
                      ['now', 'Now, next, later'],
                   ]}
-                  onChange={next =>
-                     // Months and Quarters are the two default windows; a
-                     // window picked is kept for coming back from now, next, later
-                     navigate(
-                        next === 'now'
-                           ? { scale: next, zoom: null }
-                           : { scale: next, zoom: null, window: null }
-                     )
-                  }
+                  onChange={switchScale}
                />
                {/* the window: its picker, or a zoom's name, between the steps
                    back and on by its own length; Today puts back the default */}
@@ -3682,18 +3723,25 @@ export function Roadmap({
                               start: horizon.start,
                               end: utcDay((dayStart(horizon.end) as number) - DAY),
                            }}
-                           onChange={key => navigate({ window: key })}
+                           onChange={key => navigate({ window: key || null })}
                            presets={WINDOW_PRESETS}
                            // a preset's months show from the widest screens; the
                            // column names under it say them anyway
                            wordsClass="hidden 2xl:inline"
                            label="Pick the months the roadmap shows"
+                           name="Roadmap window"
                            words={() => windowWords(shownMonths, unit)}
                            future
-                           keyOf={r => windowKey(windowOfDays(r.start, r.end))}
+                           hint={`Click the first day, then the last (at most ${
+                              MAX_WINDOW_MONTHS / 12
+                           } years)`}
+                           keyOf={r => {
+                              const w = windowOfDays(r.start, r.end);
+                              return windowNav(w, w.unit) ?? '';
+                           }}
                            pickedWords={r => {
-                              const d = drawnWindow(scale, windowOfDays(r.start, r.end), now);
-                              return `${windowWords(d.months, d.unit)}, in whole ${d.unit}s`;
+                              const w = windowOfDays(r.start, r.end);
+                              return `${windowWords(w, w.unit)}, in whole ${w.unit}s`;
                            }}
                         />
                      )}
@@ -3706,7 +3754,9 @@ export function Roadmap({
                      >
                         <Icon icon={ChevronRight} size={15} />
                      </button>
-                     {(zoom ? today < horizon.start || today >= horizon.end : !!nav.window) && (
+                     {(zoom || isPreset(nav.window)
+                        ? today < horizon.start || today >= horizon.end
+                        : !!nav.window) && (
                         <QuietButton
                            size="md"
                            onClick={() =>

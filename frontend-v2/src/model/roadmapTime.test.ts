@@ -1,21 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { WINDOW_KEY } from '../lens';
+import { MAX_WINDOW_MONTHS, windowParam } from '../lens';
 import {
+   columnNames,
    columnsFor,
    commitEnds,
    defaultWindow,
    doneBefore,
    drawnWindow,
+   inUnit,
+   isPreset,
    parseZoom,
    resolveWindow,
    shiftWindow,
    windowHolding,
    windowKey,
    windowOfDays,
-   windowUnit,
    windowWords,
    WINDOW_PRESETS,
-   type Months,
+   type Picked,
    quarterOf,
    shiftZoom,
    zoomAround,
@@ -131,33 +133,70 @@ describe('commitEnds', () => {
 describe('the roadmap window', () => {
    // Oct 13, 2026
    const now = new Date(2026, 9, 13);
-   const key = (k: string) => windowKey(resolveWindow(k, now) as Months);
+   const picked = (k: string) => resolveWindow(k, now) as Picked;
+   const key = (k: string) => windowKey(picked(k), picked(k).unit);
 
-   it('resolves every preset as of today, year to date through this month', () => {
+   it('resolves every preset as of today, each in its own unit', () => {
       expect(WINDOW_PRESETS.map(([k]) => [k, key(k)])).toEqual([
          ['quarter', '2026-10..2026-12'],
-         ['2q', '2026-10..2027-03'],
+         ['2q', '2026-Q4..2027-Q1'],
          ['6m', '2026-10..2027-03'],
          ['ytd', '2026-01..2026-10'],
          ['12m', '2025-11..2026-10'],
-         ['year', '2026-01..2026-12'],
+         ['year', '2026-Q1..2026-Q4'],
       ]);
       // in February, year to date is two months
-      expect(windowKey(resolveWindow('ytd', new Date(2027, 1, 3)) as Months)).toBe(
+      expect(windowKey(resolveWindow('ytd', new Date(2027, 1, 3)) as Picked, 'month')).toBe(
          '2027-01..2027-02'
       );
    });
 
-   it('reads its own keys back, future ones too, and refuses anything else', () => {
-      for (const k of ['2025-10..2026-09', '2027-01..2027-01', '2026-11..2028-04']) {
+   it('keeps a preset’s unit whatever the month, so a bookmark keeps its layout', () => {
+      for (const month of [0, 1, 2, 9, 11]) {
+         const at = new Date(2026, month, 13);
+         expect(resolveWindow('6m', at)?.unit).toBe('month');
+         expect(resolveWindow('12m', at)?.unit).toBe('month');
+         expect(resolveWindow('2q', at)?.unit).toBe('quarter');
+         expect(resolveWindow('year', at)?.unit).toBe('quarter');
+      }
+      expect(isPreset('ytd')).toBe(true);
+      expect(isPreset('2026-10..2026-12')).toBe(false);
+      expect(isPreset('toString')).toBe(false);
+   });
+
+   it('reads its own keys back in either unit, future ones too, and refuses anything else', () => {
+      for (const k of [
+         '2025-10..2026-09',
+         '2027-01..2027-01',
+         '2025-Q4..2026-Q3',
+         '2027-Q2..2027-Q2',
+      ]) {
          expect(key(k)).toBe(k);
       }
-      // what the URL accepts (lens.ts) is what the picker writes
-      for (const [k] of WINDOW_PRESETS) expect(WINDOW_KEY.test(k)).toBe(true);
-      expect(WINDOW_KEY.test(key('ytd'))).toBe(true);
-      for (const bad of ['2026-10..2026-09', '2026-13..2027-01', '2026-10', 'all', '', null]) {
+      expect(picked('2025-Q4..2026-Q3')).toMatchObject({ unit: 'quarter' });
+      expect(picked('2025-10..2026-09')).toMatchObject({ unit: 'month' });
+      for (const bad of [
+         '2026-10..2026-09',
+         '2026-Q4..2026-Q1',
+         '2026-13..2027-01',
+         '2026-10',
+         '',
+      ]) {
          expect(resolveWindow(bad, now)).toBeNull();
       }
+      expect(resolveWindow(null, now)).toBeNull();
+      // what the URL takes (lens.ts) is what the picker writes
+      for (const [k] of WINDOW_PRESETS) expect(windowParam(k)).toBe(k);
+      expect(windowParam(key('ytd'))).toBe(key('ytd'));
+   });
+
+   it('cuts a span past five years to five, in its own unit', () => {
+      expect(windowParam('1900-01..2100-12')).toBe('1900-01..1904-12');
+      expect(windowParam('2024-Q2..2040-Q1')).toBe('2024-Q2..2029-Q1');
+      expect(windowParam('2026-01..2030-12')).toBe('2026-01..2030-12');
+      const long = picked('1900-01..2100-12');
+      expect(long.to - long.from).toBe(MAX_WINDOW_MONTHS);
+      expect(columnsFor('quarter', null, now, long)).toHaveLength(60);
    });
 
    it('leaves the default exactly as it was with no window picked', () => {
@@ -168,25 +207,36 @@ describe('the roadmap window', () => {
             unit: scale,
          });
       }
-      expect(windowKey(defaultWindow('quarter', now))).toBe('2026-07..2027-06');
-      expect(windowKey(defaultWindow('month', now))).toBe('2026-09..2027-03');
+      expect(windowKey(defaultWindow('quarter', now), 'quarter')).toBe('2026-Q3..2027-Q2');
+      expect(windowKey(defaultWindow('month', now), 'month')).toBe('2026-09..2027-03');
    });
 
-   it('draws months up to four, or a year not on quarters; quarters past that', () => {
-      const unit = (k: string) => windowUnit(resolveWindow(k, now) as Months);
-      expect(unit('quarter')).toBe('month');
-      expect(unit('ytd')).toBe('month');
-      expect(unit('12m')).toBe('month');
-      expect(unit('2q')).toBe('quarter');
-      expect(unit('year')).toBe('quarter');
-      expect(unit('2025-11..2026-02')).toBe('month');
+   it('draws a calendar pick in months up to four, or a year not on quarters; quarters past that', () => {
+      const unit = (a: string, b: string) => windowOfDays(a, b).unit;
+      expect(unit('2025-11-03', '2026-02-20')).toBe('month');
+      expect(unit('2026-01-01', '2026-10-31')).toBe('month');
+      expect(unit('2026-01-01', '2026-06-30')).toBe('quarter');
       // longer than a year, off the quarters: out to whole quarters
-      const long = drawnWindow('quarter', resolveWindow('2025-11..2027-01', now), now);
-      expect([windowKey(long.months), long.unit]).toEqual(['2025-10..2027-03', 'quarter']);
+      const long = windowOfDays('2025-11-17', '2027-01-04');
+      expect(windowKey(long, long.unit)).toBe('2025-Q4..2027-Q1');
+      // days in the same month still make a whole month
+      expect(windowKey(windowOfDays('2027-02-14', '2027-05-02'), 'month')).toBe('2027-02..2027-05');
+      // and never more than five years
+      const huge = windowOfDays('2020-01-01', '2035-12-31');
+      expect(huge.to - huge.from).toBe(MAX_WINDOW_MONTHS);
+   });
+
+   it('converts a window between units for the Months and Quarters switch', () => {
+      const six = picked('6m');
+      expect(windowKey(inUnit(six, 'quarter'), 'quarter')).toBe('2026-Q4..2027-Q1');
+      const twelve = picked('12m');
+      expect(windowKey(inUnit(twelve, 'quarter'), 'quarter')).toBe('2025-Q4..2026-Q4');
+      const year = picked('year');
+      expect(windowKey(inUnit(year, 'month'), 'month')).toBe('2026-01..2026-12');
    });
 
    it('draws a picked window as its columns', () => {
-      const ytd = columnsFor('quarter', null, now, resolveWindow('ytd', now));
+      const ytd = columnsFor('quarter', null, now, picked('ytd'));
       expect(ytd.map(c => c.zoom)).toEqual([
          '2026-01',
          '2026-02',
@@ -200,39 +250,40 @@ describe('the roadmap window', () => {
          '2026-10',
       ]);
       expect(ytd.at(-1)?.end).toBe('2026-11-01');
-      const back = columnsFor('quarter', null, now, resolveWindow('2025-10..2026-09', now));
+      const back = columnsFor('month', null, now, picked('2025-Q4..2026-Q3'));
       expect(back.map(c => c.label)).toEqual(['Q4 2025', 'Q1 2026', 'Q2 2026', 'Q3 2026']);
       // a picked window still yields to a zoom
-      expect(columnsFor('quarter', parseZoom('2026-Q4'), now, resolveWindow('ytd', now))).toEqual(
+      expect(columnsFor('quarter', parseZoom('2026-Q4'), now, picked('ytd'))).toEqual(
          columnsFor('quarter', parseZoom('2026-Q4'), now)
       );
    });
 
    it('steps by its own length', () => {
-      const ytd = resolveWindow('ytd', now) as Months;
-      expect(windowKey(shiftWindow(ytd, -1))).toBe('2025-03..2025-12');
-      expect(windowKey(shiftWindow(defaultWindow('quarter', now), -1))).toBe('2025-07..2026-06');
-      expect(windowKey(shiftWindow(defaultWindow('month', now), 1))).toBe('2027-04..2027-10');
+      expect(windowKey(shiftWindow(picked('ytd'), -1), 'month')).toBe('2025-03..2025-12');
+      expect(windowKey(shiftWindow(defaultWindow('quarter', now), -1), 'quarter')).toBe(
+         '2025-Q3..2026-Q2'
+      );
+      expect(windowKey(shiftWindow(defaultWindow('month', now), 1), 'month')).toBe(
+         '2027-04..2027-10'
+      );
    });
 
    it('moves to hold a day: the edge chip and zooming out', () => {
       const w = defaultWindow('quarter', now);
       expect(windowHolding(w, '2026-08-03', 'quarter')).toBe(w);
-      expect(windowKey(windowHolding(w, '2025-11-17', 'quarter'))).toBe('2025-10..2026-09');
-      expect(windowKey(windowHolding(w, '2027-09-06', 'month'))).toBe('2027-09..2028-08');
-   });
-
-   it('takes the months of the days picked on a calendar', () => {
-      expect(windowKey(windowOfDays('2027-02-14', '2027-05-02'))).toBe('2027-02..2027-05');
+      expect(windowKey(windowHolding(w, '2025-11-17', 'quarter'), 'quarter')).toBe(
+         '2025-Q4..2026-Q3'
+      );
+      expect(windowKey(windowHolding(w, '2027-09-06', 'month'), 'month')).toBe('2027-09..2028-08');
    });
 
    it('says what it covers in its columns’ unit', () => {
       const words = (k: string) => {
-         const d = drawnWindow('quarter', resolveWindow(k, now), now);
+         const d = drawnWindow('quarter', picked(k), now);
          return windowWords(d.months, d.unit);
       };
       expect(words('ytd')).toBe('Jan to Oct 2026');
-      expect(words('2025-10..2026-09')).toBe('Q4 2025 to Q3 2026');
+      expect(words('2025-Q4..2026-Q3')).toBe('Q4 2025 to Q3 2026');
       expect(words('2026-12..2027-01')).toBe('Dec 2026 to Jan 2027');
       expect(words('2027-03..2027-03')).toBe('Mar 2027');
       expect(windowWords(defaultWindow('quarter', now), 'quarter')).toBe('Q3 2026 to Q2 2027');
@@ -256,5 +307,54 @@ describe('doneBefore', () => {
             '2026-07-01'
          )
       ).toEqual([old]);
+   });
+});
+
+describe('columnNames', () => {
+   const now = new Date(2026, 9, 13);
+   const twelve = columnsFor('quarter', null, now, resolveWindow('12m', now));
+   const quarters = columnsFor('quarter', null, now);
+   const each = (cols: unknown[], px: number) => cols.map(() => px);
+
+   it('says every full name while they fit, and before the width is known', () => {
+      expect(columnNames(twelve, each(twelve, 0))).toEqual(twelve.map(c => c.label));
+      expect(columnNames(twelve, each(twelve, 80))).toEqual(twelve.map(c => c.label));
+      expect(columnNames(quarters, each(quarters, 200))).toEqual([
+         'Q3 2026',
+         'Q4 2026',
+         'Q1 2027',
+         'Q2 2027',
+      ]);
+   });
+
+   it('shortens on a phone, keeping a year where one starts, and never drops February', () => {
+      const short = columnNames(twelve, each(twelve, 40));
+      expect(short).toHaveLength(12);
+      expect(short.every(t => t && t.length === 3)).toBe(true);
+      expect(columnNames(twelve, each(twelve, 20))).toEqual([
+         'N',
+         'D',
+         'J',
+         'F',
+         'M',
+         'A',
+         'M',
+         'J',
+         'J',
+         'A',
+         'S',
+         'O',
+      ]);
+      // the year where it starts while those fit, else the quarters alone
+      expect(columnNames(quarters, [70, 30, 70, 30])).toEqual(['Q3 2026', 'Q4', 'Q1 2027', 'Q2']);
+      expect(columnNames(quarters, each(quarters, 45))).toEqual(['Q3', 'Q4', '2027', 'Q2']);
+      expect(columnNames(quarters, each(quarters, 30))).toEqual(['Q3', null, '2027', null]);
+   });
+
+   it('thins five years of months to their years, every column still a column', () => {
+      const long = columnsFor('quarter', null, now, resolveWindow('2026-01..2030-12', now));
+      const names = columnNames(long, each(long, 5));
+      expect(names).toHaveLength(60);
+      expect(names.filter(Boolean)).toEqual(['2026', '2027', '2028', '2029', '2030']);
    });
 });

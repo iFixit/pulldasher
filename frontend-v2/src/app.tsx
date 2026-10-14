@@ -18,7 +18,7 @@ import {
    DEFAULT_SORT,
    LENS_LABELS,
    ORIGIN_KEYS,
-   WINDOW_KEY,
+   windowParam,
    ZOOM_KEY,
    type Lens,
 } from './lens';
@@ -174,7 +174,8 @@ function readHash(): HashState {
                : 'all',
          week: /^\d{4}-\d{2}-\d{2}$/.test(p.get('week') ?? '') ? p.get('week') : null,
          zoom: ZOOM_KEY.test(p.get('zoom') ?? '') ? p.get('zoom') : null,
-         window: WINDOW_KEY.test(p.get('window') ?? '') ? p.get('window') : null,
+         // a span past five years is cut to it, and the hash says so
+         window: windowParam(p.get('window')),
          team: p.get('team') || null,
          origin: ORIGIN_KEYS.find(o => o === p.get('origin')) ?? null,
          by:

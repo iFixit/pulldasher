@@ -20,11 +20,41 @@ export const DEFAULT_GROUP = 'initiative';
  * the same reason (model/roadmapTime.ts reads it). */
 export const ZOOM_KEY = /^(\d{4})-(?:Q([1-4])|(0[1-9]|1[0-2]))$/;
 
-/** The roadmap's window in the URL, checked here for the same reason
- * (model/roadmapTime.ts reads it): a preset's key, or whole months,
- * "2025-10..2026-09", the last one counted. */
-export const WINDOW_KEY =
-   /^(?:quarter|2q|6m|ytd|12m|year|\d{4}-(?:0[1-9]|1[0-2])\.\.\d{4}-(?:0[1-9]|1[0-2]))$/;
+/** The longest window the roadmap draws: five years. A longer link is cut
+ * to it, so a typo can't draw a century of columns. */
+export const MAX_WINDOW_MONTHS = 60;
+
+const WINDOW_PRESET_KEYS = ['quarter', '2q', '6m', 'ytd', '12m', 'year'];
+const MONTHS_KEY = /^(\d{4})-(0[1-9]|1[0-2])\.\.(\d{4})-(0[1-9]|1[0-2])$/;
+const QUARTERS_KEY = /^(\d{4})-Q([1-4])\.\.(\d{4})-Q([1-4])$/;
+
+/**
+ * The roadmap's window from the URL, checked here for the same reason
+ * (model/roadmapTime.ts reads it): a preset's key, or a span drawn in months,
+ * "2025-10..2026-09", or in quarters, "2025-Q4..2026-Q3", the last one
+ * counted. A span past MAX_WINDOW_MONTHS is cut to it; anything else is
+ * null.
+ */
+export function windowParam(key: string | null | undefined): string | null {
+   if (!key) return null;
+   if (WINDOW_PRESET_KEYS.includes(key)) return key;
+   const months = MONTHS_KEY.exec(key);
+   const quarters = QUARTERS_KEY.exec(key);
+   const m = months ?? quarters;
+   if (!m) return null;
+   // in the key's own periods: months, or quarters
+   const per = months ? 12 : 4;
+   const max = months ? MAX_WINDOW_MONTHS : MAX_WINDOW_MONTHS / 3;
+   const a = Number(m[1]) * per + Number(m[2]) - 1;
+   const b = Number(m[3]) * per + Number(m[4]) - 1;
+   if (b < a) return null;
+   if (b - a < max) return key;
+   const last = a + max - 1;
+   const index = (last % per) + 1;
+   return `${m[1]}-${quarters ? 'Q' : ''}${m[2]}..${Math.floor(last / per)}-${
+      quarters ? `Q${index}` : String(index).padStart(2, '0')
+   }`;
+}
 
 /** The origins a roadmap filter can pick in the URL, kept here for the same
  * reason: shared/model/roadmap.ts's ROADMAP_ORIGINS, plus `unsaid` (a test

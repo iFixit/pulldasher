@@ -1,5 +1,5 @@
 import { endOf, type RoadmapItem } from '../../../shared/model/roadmap';
-import { WINDOW_KEY, ZOOM_KEY } from '../lens';
+import { MAX_WINDOW_MONTHS, windowParam, ZOOM_KEY } from '../lens';
 import { dateOf, dayOf } from './days';
 
 /**
@@ -76,7 +76,7 @@ export function columnsFor(
    scale: Scale,
    zoom: Zoom | null,
    now: Date,
-   picked: Months | null = null
+   picked: Picked | null = null
 ): Column[] {
    if (zoom?.kind === 'quarter') {
       const first = firstDay(zoom);
@@ -141,19 +141,25 @@ export type Scale = 'month' | 'quarter';
 
 /**
  * The roadmap's window, in whole months counted from year 0 (year × 12 +
- * month), `to` the first month after it. Picked in the date range picker; in
- * the URL as a preset's key ("ytd"), or as its months, "2025-10..2026-09",
- * the last one counted. None picked is the default: last quarter and the
- * next three, or at Months, last month and the next six.
+ * month), `to` the first month after it. None picked is the default: last
+ * quarter and the next three, or at Months, last month and the next six.
  */
 export interface Months {
    from: number;
    to: number;
 }
 
+/** A window picked, and the columns it's drawn in. In the URL as a preset's
+ * key ("ytd"), or as its span in its unit, "2025-10..2026-09" in months or
+ * "2025-Q4..2026-Q3" in quarters, the last one counted. */
+export interface Picked extends Months {
+   unit: Scale;
+}
+
 const monthIndex = (d: Date) => d.getFullYear() * 12 + d.getMonth();
 const monthDate = (i: number) => new Date(Math.floor(i / 12), i % 12, 1);
 const monthText = (i: number) => `${Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, '0')}`;
+const quarterText = (i: number) => `${Math.floor(i / 12)}-Q${Math.floor((i % 12) / 3) + 1}`;
 
 /** The picker's presets, in its order; Custom is the calendar beside them. */
 export const WINDOW_PRESETS: [string, string][] = [
@@ -165,38 +171,73 @@ export const WINDOW_PRESETS: [string, string][] = [
    ['year', 'This year'],
 ];
 
-/** A window key's months as of `now`; null for none or a key that isn't one. */
-export function resolveWindow(key: string | null | undefined, now: Date): Months | null {
-   if (!key || !WINDOW_KEY.test(key)) return null;
+// each preset is drawn in the unit its name says, whatever the month, so a
+// bookmarked one keeps its layout; This quarter and Year to date in months
+const PRESET_UNIT: Record<string, Scale> = {
+   quarter: 'month',
+   '2q': 'quarter',
+   '6m': 'month',
+   ytd: 'month',
+   '12m': 'month',
+   year: 'quarter',
+};
+
+export const isPreset = (key: string | null | undefined): boolean =>
+   !!key && Object.hasOwn(PRESET_UNIT, key);
+
+/** A window key's months and unit as of `now`, cut to five years; null for
+ * none or a key that isn't one. */
+export function resolveWindow(key: string | null | undefined, now: Date): Picked | null {
+   const clean = windowParam(key);
+   if (!clean) return null;
    const m = monthIndex(now);
    const q = m - (m % 3);
    const jan = m - now.getMonth();
-   switch (key) {
-      case 'quarter':
-         return { from: q, to: q + 3 };
-      case '2q':
-         return { from: q, to: q + 6 };
-      case '6m':
-         return { from: m, to: m + 6 };
-      case 'ytd':
-         return { from: jan, to: m + 1 };
-      case '12m':
-         return { from: m - 11, to: m + 1 };
-      case 'year':
-         return { from: jan, to: jan + 12 };
-   }
-   const [a, b] = key.split('..').map(t => Number(t.slice(0, 4)) * 12 + Number(t.slice(5)) - 1);
-   return a <= b ? { from: a, to: b + 1 } : null;
+   const spans: Record<string, Months> = {
+      quarter: { from: q, to: q + 3 },
+      '2q': { from: q, to: q + 6 },
+      '6m': { from: m, to: m + 6 },
+      ytd: { from: jan, to: m + 1 },
+      '12m': { from: m - 11, to: m + 1 },
+      year: { from: jan, to: jan + 12 },
+   };
+   if (isPreset(clean)) return { ...spans[clean], unit: PRESET_UNIT[clean] };
+   const [a, b] = clean.split('..').map(t => {
+      const y = Number(t.slice(0, 4)) * 12;
+      return t[5] === 'Q' ? y + (Number(t[6]) - 1) * 3 : y + Number(t.slice(5)) - 1;
+   });
+   return clean.includes('Q')
+      ? { from: a, to: b + 3, unit: 'quarter' }
+      : { from: a, to: b + 1, unit: 'month' };
 }
 
-/** A window's key: its first and last months, "2025-10..2026-09". */
-export function windowKey(w: Months): string {
-   return `${monthText(w.from)}..${monthText(w.to - 1)}`;
+/** A window's key in its unit: "2025-10..2026-09", or "2025-Q4..2026-Q3"
+ * for one on whole quarters. */
+export function windowKey(w: Months, unit: Scale): string {
+   return unit === 'quarter'
+      ? `${quarterText(w.from)}..${quarterText(w.to - 3)}`
+      : `${monthText(w.from)}..${monthText(w.to - 1)}`;
 }
 
-/** The months of the first day through the last day picked on a calendar. */
-export function windowOfDays(start: string, end: string): Months {
-   return { from: monthIndex(dateOf(start)), to: monthIndex(dateOf(end)) + 1 };
+/** Out to whole quarters. */
+const toQuarters = (w: Months): Months => ({
+   from: w.from - (w.from % 3),
+   to: w.to + ((3 - (w.to % 3)) % 3),
+});
+
+/** The same window in a unit: as it is in months, out to whole quarters in
+ * quarters, at most five years. What the Months and Quarters switch does to
+ * a window picked. */
+export function inUnit(w: Months, unit: Scale): Picked {
+   const out = unit === 'quarter' ? toQuarters(w) : w;
+   return { from: out.from, to: Math.min(out.to, out.from + MAX_WINDOW_MONTHS), unit };
+}
+
+/** The window a calendar pick makes: the months of its first through last
+ * day, in the unit its length gives (windowUnit), at most five years. */
+export function windowOfDays(start: string, end: string): Picked {
+   const w = { from: monthIndex(dateOf(start)), to: monthIndex(dateOf(end)) + 1 };
+   return inUnit(w, windowUnit(w));
 }
 
 /** The window people land on, as before there was a picker. */
@@ -207,10 +248,10 @@ export function defaultWindow(scale: Scale, now: Date): Months {
 }
 
 /**
- * The columns a window is drawn in, from its length: months up to four
- * months, and up to a year that doesn't fall on whole quarters (year to
- * date, the last 12 months), so it's drawn as picked; quarters past that, or
- * when it's whole quarters anyway.
+ * The columns a window picked on the calendar is drawn in, from its length:
+ * months up to four months, and up to a year that doesn't fall on whole
+ * quarters, so it's drawn as picked; quarters past that, or when it's whole
+ * quarters anyway. A preset has its own unit (PRESET_UNIT).
  */
 export function windowUnit(w: Months): Scale {
    const length = w.to - w.from;
@@ -218,22 +259,14 @@ export function windowUnit(w: Months): Scale {
    return length <= 4 || (length <= 12 && !quarters) ? 'month' : 'quarter';
 }
 
-/** The window drawn: the one picked, out to whole quarters when it's drawn
- * in quarters, or the default at `scale`; and its columns' unit. */
+/** The window drawn: the one picked, in its unit, or the default at `scale`. */
 export function drawnWindow(
    scale: Scale,
-   picked: Months | null,
+   picked: Picked | null,
    now: Date
 ): { months: Months; unit: Scale } {
    if (!picked) return { months: defaultWindow(scale, now), unit: scale };
-   const unit = windowUnit(picked);
-   return {
-      months:
-         unit === 'quarter'
-            ? { from: picked.from - (picked.from % 3), to: picked.to + ((3 - (picked.to % 3)) % 3) }
-            : picked,
-      unit,
-   };
+   return { months: { from: picked.from, to: picked.to }, unit: picked.unit };
 }
 
 /** The window `by` of its own lengths later (earlier when negative). */
@@ -267,6 +300,58 @@ export function windowWords(w: Months, unit: Scale): string {
    const last = unit === 'quarter' ? w.to - 3 : w.to - 1;
    if (last <= w.from) return word(w.from, true);
    return `${word(w.from, year(w.from) !== year(last))} to ${word(last, true)}`;
+}
+
+/** About how wide a header name draws: 11px small caps, its left pad and
+ * line, measured at about 7px a letter. A little wide, so names never
+ * touch. */
+const nameWidth = (text: string) => text.length * 7 + 10;
+
+/**
+ * What each month or quarter column's name says, given each column's width
+ * in px: every full name when they all fit ("Nov 2025", "Q4 2026"), else
+ * short ones ("Nov", "Q4" with the year kept where it starts), else
+ * letters ("N"); past that, names thin out to every second, third, sixth or
+ * twelfth month, or to quarters with a year in Q1's place ("2027 Q2 Q3"),
+ * then every second or fourth, a year where one starts.
+ * Null is a column with no words, still its own zoom button. With no width
+ * yet (0), the full names. Week columns aren't asked: their slivers have
+ * their own rule.
+ */
+export function columnNames(columns: readonly Column[], px: readonly number[]): (string | null)[] {
+   if (!px.some(w => w > 0)) return columns.map(c => c.label);
+   const quarters = /^Q\d \d{4}$/.test(columns[0]?.label ?? '');
+   const first = columns.map(c => monthIndex(dateOf(c.start)));
+   const month = (i: number) =>
+      monthDate(first[i]).toLocaleDateString(undefined, { month: 'short' });
+   const year = (i: number) => String(Math.floor(first[i] / 12));
+   const startsYear = (i: number) => first[i] % 12 === 0;
+   const levels: ((c: Column, i: number) => string)[] = quarters
+      ? [c => c.label, (c, i) => (i === 0 || startsYear(i) ? c.label : c.label.slice(0, 2))]
+      : [c => c.label, (_, i) => month(i), (_, i) => month(i).slice(0, 1)];
+   for (const level of levels) {
+      const names = columns.map(level);
+      if (names.every((t, i) => nameWidth(t) <= px[i])) return names;
+   }
+   // quarters thin from one in one, so a year still says where it starts
+   const steps = quarters ? [1, 2, 4] : [2, 3, 6, 12];
+   const each = Math.min(...px);
+   const period = (i: number) => (quarters ? first[i] / 3 : first[i]);
+   const thin = (k: number) =>
+      columns.map((_, i) =>
+         period(i) % k === 0
+            ? startsYear(i)
+               ? year(i)
+               : quarters
+               ? `Q${(first[i] % 12) / 3 + 1}`
+               : month(i)
+            : null
+      );
+   for (const k of steps) {
+      const names = thin(k);
+      if (names.every(t => !t || nameWidth(t) <= each * k)) return names;
+   }
+   return thin(steps[steps.length - 1]);
 }
 
 /** The done plans whose last week is before a window's first day: they
