@@ -49,16 +49,24 @@ const CALENDAR_VARS = {
  * Two months of calendar for picking a range by hand (one on a phone, so the
  * panel and its Apply fit the screen): click the first day, then the last,
  * then Apply. Clicking again starts a new range. Days after today can't be
- * picked, and a range stops at the server's 400-day cap. Weeks start on
+ * picked, and a range stops at the server's 400-day cap, unless `future`
+ * (the roadmap's window, which draws plans ahead and has no cap), where it
+ * opens on the range's first month. Weeks start on
  * Monday, as the charts' weeks do. Loaded lazily with the picker's panel,
  * stylesheet included.
  */
 export default function RangeCalendar({
    range,
    onApply,
+   future = false,
+   words = r => `${rangeWords(r)} · ${rangeDays(r)} days`,
 }: {
    range: Range;
    onApply: (picked: Range) => void;
+   /** days after today can be picked, and a range has no cap */
+   future?: boolean;
+   /** what a picked range says beside Apply */
+   words?: (picked: Range) => string;
 }) {
    const [draft, setDraft] = useState<DateRange | undefined>({
       from: dateOf(range.start),
@@ -77,19 +85,25 @@ export default function RangeCalendar({
             onSelect={setDraft}
             resetOnSelect
             weekStartsOn={1}
-            // the picker counts nights; a range counts both ends
-            max={MAX_RANGE_DAYS - 1}
+            {...(future
+               ? { defaultMonth: dateOf(range.start) }
+               : {
+                    // the picker counts nights; a range counts both ends
+                    max: MAX_RANGE_DAYS - 1,
+                    defaultMonth: openingMonth(dateOf(range.end), today, months),
+                    endMonth: today,
+                    disabled: { after: today },
+                 })}
             numberOfMonths={months}
-            defaultMonth={openingMonth(dateOf(range.end), today, months)}
-            endMonth={today}
-            disabled={{ after: today }}
             style={CALENDAR_VARS}
             className="pd-calendar text-[13px] text-ink"
          />
          <div className="flex items-center gap-3 border-t border-secondary pt-2 text-xs text-ink-3">
             <span className="tabular-nums">
                {picked
-                  ? `${rangeWords(picked)} · ${rangeDays(picked)} days`
+                  ? words(picked)
+                  : future
+                  ? 'Click the first day, then the last'
                   : `Click the first day, then the last (at most ${MAX_RANGE_DAYS} days)`}
             </span>
             <span className="flex-1" />

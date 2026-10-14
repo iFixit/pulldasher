@@ -50,6 +50,9 @@ export interface ProjectsNav {
    /** the quarter or month the timeline is zoomed into, "2026-Q4" or
     * "2026-10" (model/roadmapTime.ts); null for the whole view */
    zoom: string | null;
+   /** the timeline's window, a preset's key or its months, "2025-10..2026-09"
+    * (model/roadmapTime.ts); null for the default */
+   window: string | null;
    /** Decide's team: only its rows show; null for every team */
    team: string | null;
    /** where the work came from, picked on the load chart: the timeline

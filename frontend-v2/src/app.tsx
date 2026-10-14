@@ -18,6 +18,7 @@ import {
    DEFAULT_SORT,
    LENS_LABELS,
    ORIGIN_KEYS,
+   WINDOW_KEY,
    ZOOM_KEY,
    type Lens,
 } from './lens';
@@ -173,6 +174,7 @@ function readHash(): HashState {
                : 'all',
          week: /^\d{4}-\d{2}-\d{2}$/.test(p.get('week') ?? '') ? p.get('week') : null,
          zoom: ZOOM_KEY.test(p.get('zoom') ?? '') ? p.get('zoom') : null,
+         window: WINDOW_KEY.test(p.get('window') ?? '') ? p.get('window') : null,
          team: p.get('team') || null,
          origin: ORIGIN_KEYS.find(o => o === p.get('origin')) ?? null,
          by:
@@ -212,6 +214,7 @@ function buildHash(s: HashState): string {
    if (s.projects.show !== 'all') p.set('unplanned', s.projects.show === 'plan' ? 'hide' : 'only');
    if (s.projects.week) p.set('week', s.projects.week);
    if (s.projects.zoom) p.set('zoom', s.projects.zoom);
+   if (s.projects.window) p.set('window', s.projects.window);
    if (s.projects.team) p.set('team', s.projects.team);
    if (s.projects.origin) p.set('origin', s.projects.origin);
    if (s.projects.by !== 'team') p.set('by', s.projects.by);
@@ -459,6 +462,8 @@ export function App() {
       projectsView: projectsNav.view,
       // zooming the roadmap in or out is a view change too, so Back undoes it
       zoom: projectsNav.zoom,
+      // and so is moving its window
+      window: projectsNav.window,
       only: projectsNav.only,
       team: projectsNav.team,
       week: projectsNav.week,
@@ -484,6 +489,7 @@ export function App() {
          prev.project !== view.project ||
          prev.projectsView !== view.projectsView ||
          prev.zoom !== view.zoom ||
+         prev.window !== view.window ||
          prev.only !== view.only ||
          prev.team !== view.team ||
          prev.week !== view.week ||

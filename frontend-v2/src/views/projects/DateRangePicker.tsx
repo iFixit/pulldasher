@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useId, useState, type KeyboardEvent } from '
 import { CalendarDays, Check, ChevronDown } from 'lucide-react';
 import { Icon } from '../../components/Icon';
 import { Popover } from '../../components/Popover';
-import { RANGE_PRESETS, rangeName, rangeWords, type Range } from '../../model/projectData';
+import { RANGE_PRESETS, rangeWords, type Range } from '../../model/projectData';
 
 // the calendar and its stylesheet load the first time the panel opens
 const RangeCalendar = lazy(() => import('./RangeCalendar'));
@@ -18,10 +18,27 @@ export function DateRangePicker({
    rangeKey,
    range,
    onChange,
+   presets = RANGE_PRESETS,
+   label = 'Pick a date range',
+   words = rangeWords,
+   future = false,
+   keyOf = r => `${r.start}..${r.end}`,
+   pickedWords,
 }: {
    rangeKey: string;
    range: Range;
    onChange: (key: string) => void;
+   /** [key, name] in the panel's order; Look back's by default */
+   presets?: [string, string][];
+   label?: string;
+   /** the range on the button */
+   words?: (range: Range) => string;
+   /** the calendar takes days after today (RangeCalendar) */
+   future?: boolean;
+   /** the key for a range picked on the calendar */
+   keyOf?: (picked: Range) => string;
+   /** what a range picked on the calendar says beside Apply */
+   pickedWords?: (picked: Range) => string;
 }) {
    // remounting the Popover is how a pick closes it (LensMenu does the same):
    // its children get no close callback
@@ -48,11 +65,11 @@ export function DateRangePicker({
       e.preventDefault();
       setPicks(p => p + 1);
    };
-   const custom = !RANGE_PRESETS.some(([key]) => key === rangeKey);
+   const preset = presets.find(([key]) => key === rangeKey)?.[1];
    return (
       <Popover
          key={picks}
-         label="Pick a date range"
+         label={label}
          width="w-[min(680px,calc(100vw-16px))]"
          panelClass="p-2"
          trigger={t => (
@@ -63,15 +80,15 @@ export function DateRangePicker({
                className="pressable inline-flex h-8 items-center gap-2 rounded-lg border border-line bg-surface px-2.5 text-[13px] text-ink hover:border-ring"
             >
                <Icon icon={CalendarDays} size={14} className="text-ink-3" />
-               {custom ? (
-                  <span className="font-medium tabular-nums">{rangeWords(range)}</span>
+               {!preset ? (
+                  <span className="font-medium tabular-nums">{words(range)}</span>
                ) : (
                   <>
-                     <span className="font-medium">{rangeName(rangeKey)}</span>
+                     <span className="font-medium">{preset}</span>
                      <span className="hidden text-ink-3 tabular-nums sm:inline">
                         {/* the comma is for the ear: "Last 30 days, Sep 2 to Oct 1" */}
                         <span className="sr-only">, </span>
-                        {rangeWords(range)}
+                        {words(range)}
                      </span>
                   </>
                )}
@@ -81,7 +98,7 @@ export function DateRangePicker({
       >
          <div className="flex flex-col gap-2 sm:flex-row" onKeyDown={tabOut}>
             <ul className="m-0 flex list-none flex-row flex-wrap gap-0.5 p-0 sm:w-[140px] sm:flex-none sm:flex-col">
-               {RANGE_PRESETS.map(([key, label]) => (
+               {presets.map(([key, name]) => (
                   <li key={key}>
                      <button
                         type="button"
@@ -93,7 +110,7 @@ export function DateRangePicker({
                               : 'text-ink-2 hover:text-brand'
                         }`}
                      >
-                        {label}
+                        {name}
                         {rangeKey === key && <Icon icon={Check} size={14} />}
                      </button>
                   </li>
@@ -101,7 +118,12 @@ export function DateRangePicker({
             </ul>
             <div className="min-w-0 flex-1 border-t border-secondary pt-2 sm:border-t-0 sm:border-l sm:pt-0 sm:pl-3">
                <Suspense fallback={<div className="h-[300px]" aria-hidden />}>
-                  <RangeCalendar range={range} onApply={r => pick(`${r.start}..${r.end}`)} />
+                  <RangeCalendar
+                     range={range}
+                     future={future}
+                     words={pickedWords}
+                     onApply={r => pick(keyOf(r))}
+                  />
                </Suspense>
             </div>
          </div>

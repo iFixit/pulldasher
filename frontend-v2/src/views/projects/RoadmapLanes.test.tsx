@@ -192,6 +192,7 @@ const NAV = {
    show: 'all',
    week: null,
    zoom: null,
+   window: null,
    team: null,
    origin: null,
    by: 'team',

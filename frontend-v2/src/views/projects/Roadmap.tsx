@@ -67,7 +67,14 @@ import { homesOf, type Initiative } from '../../../../shared/model/initiatives';
 
 import { UNSORTED } from '../../model/initiativeBoard';
 import { useRowKeys } from '../../components/useRowKeys';
-import { dateOf, dayOf, dayWords, useProjectsData, type Range } from '../../model/projectData';
+import {
+   dateOf,
+   dayOf,
+   dayWords,
+   MAX_RANGE_DAYS,
+   useProjectsData,
+   type Range,
+} from '../../model/projectData';
 import { findFilter, lowerFirst, planCell, type PortfolioItem } from '../../model/portfolio';
 import { teamLoad } from '../../model/teamLoad';
 import {
@@ -101,14 +108,26 @@ import {
 import {
    columnsFor,
    commitEnds,
+   defaultWindow,
+   doneBefore,
+   drawnWindow,
    parseZoom,
    quarterOf,
+   resolveWindow,
+   shiftWindow,
+   windowHolding,
+   windowKey,
+   windowOfDays,
+   windowWords,
+   WINDOW_PRESETS,
    shiftZoom,
    zoomAround,
    zoomKey,
    zoomWords,
    type Column,
+   type Months,
 } from '../../model/roadmapTime';
+import { DateRangePicker } from './DateRangePicker';
 import {
    andList,
    BEING_WORKED_ON,
@@ -974,16 +993,20 @@ function PlanPanel({
                {STATUS_WORD[item.status]}, {planWords(item)}
                {facts}
             </dd>
-            {/* under the plan's words; the whole width on a phone */}
-            <dd className={`-mt-2 ${WIDE}`}>
-               <DecideCall
-                  row={row}
-                  project={linked}
-                  opened
-                  // the row's words above ask the question its answer answers
-                  describedBy={asked ? `roadmap-why-${item.id}` : undefined}
-               />
-            </dd>
+            {/* under the plan's words; the whole width on a phone. A plan
+                done or dropped has nothing left to promise or mark, unless
+                Decide asks about it; Edit details reopens one */}
+            {(asked || (item.status !== 'done' && item.status !== 'dropped')) && (
+               <dd className={`-mt-2 ${WIDE}`}>
+                  <DecideCall
+                     row={row}
+                     project={linked}
+                     opened
+                     // the row's words above ask the question its answer answers
+                     describedBy={asked ? `roadmap-why-${item.id}` : undefined}
+                  />
+               </dd>
+            )}
             {/* what finished looks like, so "Done?" has something to check;
                 upkeep is never done, so it isn't asked for there */}
             {(item.done_when || item.end_kind !== 'ongoing') && (
@@ -2313,14 +2336,38 @@ export function Roadmap({
    const timeline = nav.scale !== 'now';
    const scale = nav.scale === 'month' ? 'month' : 'quarter';
    const zoom = timeline ? parseZoom(nav.zoom) : null;
-   const columns = columnsFor(scale, zoom, now);
-   // how fine the lines and marks are: quarters, months (seven across, or a
+   // the window picked, or none for the default at this scale; its columns
+   // follow its length (model/roadmapTime.ts windowUnit)
+   const chosen = resolveWindow(nav.window, now);
+   const { months: shownMonths, unit } = drawnWindow(scale, chosen, now);
+   const columns = columnsFor(scale, zoom, now, chosen);
+   // how fine the lines and marks are: quarters, months (a window's, or a
    // zoomed quarter's three), or a zoomed month's weeks
    const level =
-      zoom?.kind === 'month' ? 'weeks' : scale === 'quarter' && !zoom ? 'quarters' : 'months';
+      zoom?.kind === 'month' ? 'weeks' : unit === 'quarter' && !zoom ? 'quarters' : 'months';
    // zooming out goes up one step: a month to its quarter when the roadmap
    // is in quarters, else back to the whole view
-   const zoomOut = zoom?.kind === 'month' && scale === 'quarter' ? zoomKey(quarterOf(zoom)) : null;
+   const zoomOut = zoom?.kind === 'month' && unit === 'quarter' ? zoomKey(quarterOf(zoom)) : null;
+   // a window in the URL, or none when it's the default's months
+   const windowNav = (w: Months) =>
+      windowKey(w) === windowKey(defaultWindow(scale, now)) ? null : windowKey(w);
+   // the window, moved to hold a day only when it doesn't already: where the
+   // edge chip and zooming out land
+   const holding = (day: string) => {
+      const w = windowHolding(shownMonths, day, unit);
+      return w === shownMonths ? nav.window : windowNav(w);
+   };
+   // ‹ and ›: a zoom's period, else the window, by its own length
+   const step = (by: number) =>
+      navigate(
+         zoom
+            ? { zoom: zoomKey(shiftZoom(zoom, by)) }
+            : { window: windowNav(shiftWindow(shownMonths, by)) }
+      );
+   const stepWords = (by: number) =>
+      zoom
+         ? `The ${zoom.kind} ${by < 0 ? 'before' : 'after'}`
+         : `${by < 0 ? 'Back' : 'On'} ${n(shownMonths.to - shownMonths.from, 'month')}`;
    const horizon: Horizon = {
       start: columns[0].start,
       end: columns[columns.length - 1].end,
@@ -2383,9 +2430,12 @@ export function Roadmap({
          : days.map(day => ({ left: place(day), label: String(Number(day.slice(8))) }));
    // the horizon's own history, so a project's real span starts where its
    // first PR did, not where the date range picker begins
+   // capped at the server's 400 days, the most recent ones, for a long window
+   const pastEnd = today < horizon.end ? today : horizon.end;
+   const earliest = utcDay((dayStart(pastEnd) as number) - (MAX_RANGE_DAYS - 1) * DAY);
    const pastRange: Range = {
-      start: horizon.start,
-      end: today < horizon.end ? today : horizon.end,
+      start: horizon.start < earliest ? earliest : horizon.start,
+      end: pastEnd,
    };
    const history = useProjectsData(pastRange)?.window.projects ?? {};
    // one slug each: the full set, so a Not tracked plan's row has its project
@@ -2513,9 +2563,20 @@ export function Roadmap({
    // an origin picked on the load chart keeps only the plans from there;
    // work with no plan has no origin to match
    const fromOrigin = (i: RoadmapItem) => !nav.origin || (i.origin ?? 'unsaid') === nav.origin;
+   // done plans that ended before the window rest in one fold under the
+   // rows, closed, instead of each taking a row; one open stays in its place
+   const before = new Set(
+      doneBefore(listed, horizon.start).flatMap(i =>
+         i === gone || i.id === nav.item ? [] : [i.id]
+      )
+   );
+   const shownBefore = showPlans
+      ? listed.filter(i => before.has(i.id) && found(i) && fromOrigin(i))
+      : [];
    const shownPlans = showPlans
       ? listed.filter(
            i =>
+              !before.has(i.id) &&
               found(i) &&
               fromOrigin(i) &&
               (!members ||
@@ -3047,9 +3108,11 @@ export function Roadmap({
                      })
                   }
                   onShow={day =>
-                     zoom
-                        ? navigate({ zoom: zoomKey(zoomAround(zoom.kind, dateOf(day))) })
-                        : open(item.id, 'plan')
+                     navigate(
+                        zoom
+                           ? { zoom: zoomKey(zoomAround(zoom.kind, dateOf(day))) }
+                           : { window: holding(day) }
+                     )
                   }
                   dragHandlers={ranked ? handlersFor(item, visibleIds) : NO_DRAG}
                   dropHere={ranked && dropTarget === item.id && dragging !== item.id}
@@ -3254,6 +3317,31 @@ export function Roadmap({
          >
             {showPlans && planRows(notTrackedPlans, notTrackedPlans, { ranked: false })}
             {inFlightRows(notTrackedLoose)}
+         </TimelineLane>
+      </div>
+   );
+
+   // ----- Done before the window: a ledger at rest, after every grouping -----
+   const doneFold = shownBefore.length > 0 && (
+      <div {...{ 'data-lane-id': 'roadmap:done-before' }} className="border-t border-secondary">
+         <TimelineLane
+            id="roadmap:done-before"
+            label={`Done before ${dateOf(horizon.start).toLocaleDateString(undefined, {
+               month: 'short',
+               year: 'numeric',
+            })}`}
+            count={shownBefore.length}
+            gloss={`${n(
+               shownBefore.length,
+               'plan'
+            )} done before the weeks shown. Press ‹ to step back to their weeks; each one takes its place in the rows again when its bar is on screen.`}
+            load={null}
+            lined={false}
+            // open when the rows were narrowed to find something
+            defaultOpen={narrowed}
+            gutter={byInitiative ? <span aria-hidden className="block w-[17px]" /> : undefined}
+         >
+            {planRows(shownBefore, shownBefore, { ranked: false })}
          </TimelineLane>
       </div>
    );
@@ -3528,48 +3616,98 @@ export function Roadmap({
                      ['quarter', 'Quarters'],
                      ['now', 'Now, next, later'],
                   ]}
-                  onChange={next => navigate({ scale: next, zoom: null })}
+                  onChange={next =>
+                     // Months and Quarters are the two default windows; a
+                     // window picked is kept for coming back from now, next, later
+                     navigate(
+                        next === 'now'
+                           ? { scale: next, zoom: null }
+                           : { scale: next, zoom: null, window: null }
+                     )
+                  }
                />
-               {zoom && (
+               {/* the window: its picker, or a zoom's name, between the steps
+                   back and on by its own length; Today puts back the default */}
+               {timeline && (
                   <span className="inline-flex items-center gap-1">
-                     <QuietButton
-                        size="md"
-                        onClick={() => navigate({ zoom: zoomOut })}
-                        title="Zoom out"
-                     >
-                        <Icon icon={ZoomOut} size={13} className="mr-1" />
-                        {zoomOut
-                           ? zoomWords(quarterOf(zoom))
-                           : scale === 'quarter'
-                           ? 'All quarters'
-                           : 'All months'}
-                     </QuietButton>
+                     {zoom && (
+                        <QuietButton
+                           size="md"
+                           onClick={() =>
+                              navigate(
+                                 zoomOut
+                                    ? { zoom: zoomOut }
+                                    : // out to a window holding it, so you keep your place
+                                      { zoom: null, window: holding(horizon.start) }
+                              )
+                           }
+                           title="Zoom out"
+                        >
+                           <Icon icon={ZoomOut} size={13} className="mr-1" />
+                           <span className="whitespace-nowrap">
+                              {zoomOut
+                                 ? zoomWords(quarterOf(zoom))
+                                 : unit === 'quarter'
+                                 ? 'All quarters'
+                                 : 'All months'}
+                           </span>
+                        </QuietButton>
+                     )}
                      <button
                         type="button"
-                        aria-label={`The ${zoom.kind} before`}
-                        title={`The ${zoom.kind} before`}
-                        onClick={() => navigate({ zoom: zoomKey(shiftZoom(zoom, -1)) })}
+                        aria-label={stepWords(-1)}
+                        title={stepWords(-1)}
+                        onClick={() => step(-1)}
                         className="hit pressable rounded-md border-0 bg-transparent p-1 text-ink-3 hover:text-brand"
                      >
                         <Icon icon={ChevronLeft} size={15} />
                      </button>
-                     <span className="min-w-[7rem] text-center text-[13px] font-semibold text-ink">
-                        {zoomWords(zoom)}
-                     </span>
+                     {zoom ? (
+                        <span className="min-w-[7rem] text-center text-[13px] font-semibold text-ink">
+                           {zoomWords(zoom)}
+                        </span>
+                     ) : (
+                        <DateRangePicker
+                           rangeKey={nav.window ?? ''}
+                           range={{
+                              start: horizon.start,
+                              end: utcDay((dayStart(horizon.end) as number) - DAY),
+                           }}
+                           onChange={key => navigate({ window: key })}
+                           presets={WINDOW_PRESETS}
+                           label="Pick the months the roadmap shows"
+                           words={() => windowWords(shownMonths, unit)}
+                           future
+                           keyOf={r => windowKey(windowOfDays(r.start, r.end))}
+                           pickedWords={r => {
+                              const d = drawnWindow(scale, windowOfDays(r.start, r.end), now);
+                              return `${windowWords(d.months, d.unit)}, in whole ${d.unit}s`;
+                           }}
+                        />
+                     )}
                      <button
                         type="button"
-                        aria-label={`The ${zoom.kind} after`}
-                        title={`The ${zoom.kind} after`}
-                        onClick={() => navigate({ zoom: zoomKey(shiftZoom(zoom, 1)) })}
+                        aria-label={stepWords(1)}
+                        title={stepWords(1)}
+                        onClick={() => step(1)}
                         className="hit pressable rounded-md border-0 bg-transparent p-1 text-ink-3 hover:text-brand"
                      >
                         <Icon icon={ChevronRight} size={15} />
                      </button>
-                     {(today < horizon.start || today >= horizon.end) && (
+                     {(zoom ? today < horizon.start || today >= horizon.end : !!nav.window) && (
                         <QuietButton
                            size="md"
-                           onClick={() => navigate({ zoom: zoomKey(zoomAround(zoom.kind, now)) })}
-                           title={`Zoom to this ${zoom.kind}`}
+                           onClick={() =>
+                              navigate({
+                                 window: null,
+                                 zoom: zoom ? zoomKey(zoomAround(zoom.kind, now)) : null,
+                              })
+                           }
+                           title={
+                              zoom
+                                 ? `Zoom to this ${zoom.kind}`
+                                 : `Back to ${windowWords(defaultWindow(scale, now), scale)}`
+                           }
                         >
                            Today
                         </QuietButton>
@@ -3729,6 +3867,7 @@ export function Roadmap({
                   ) : (
                      <div>
                         {body}
+                        {doneFold}
                         {notTrackedLane}
                      </div>
                   )}

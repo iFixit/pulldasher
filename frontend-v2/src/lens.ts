@@ -20,6 +20,12 @@ export const DEFAULT_GROUP = 'initiative';
  * the same reason (model/roadmapTime.ts reads it). */
 export const ZOOM_KEY = /^(\d{4})-(?:Q([1-4])|(0[1-9]|1[0-2]))$/;
 
+/** The roadmap's window in the URL, checked here for the same reason
+ * (model/roadmapTime.ts reads it): a preset's key, or whole months,
+ * "2025-10..2026-09", the last one counted. */
+export const WINDOW_KEY =
+   /^(?:quarter|2q|6m|ytd|12m|year|\d{4}-(?:0[1-9]|1[0-2])\.\.\d{4}-(?:0[1-9]|1[0-2]))$/;
+
 /** The origins a roadmap filter can pick in the URL, kept here for the same
  * reason: shared/model/roadmap.ts's ROADMAP_ORIGINS, plus `unsaid` (a test
  * holds the two lists together). */
