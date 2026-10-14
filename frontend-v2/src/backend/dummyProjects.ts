@@ -387,6 +387,34 @@ export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
          status: 'active',
          end_kind: 'ongoing',
       }),
+      // a year of finished plans, as prod's backfill left them: done ones
+      // before the window rest in the "Done before" fold, and the picker's
+      // Last 12 months and the ‹ arrow bring them back into the rows
+      ...(
+         [
+            [26, 'Status page move', -78, 5, 'FixBot', 'done'],
+            [27, 'Device page redirects', -70, 6, 'Community', 'done'],
+            [28, 'Shipping rate cache', -63, 7, 'Store', 'dropped'],
+            [15, 'Old billing export', -52, 6, 'Store', 'done'],
+            [16, 'Guide search reindex', -49, 8, 'FixBot', 'done'],
+            [17, 'Legacy cart removal', -46, 10, 'Store', 'done'],
+            [18, 'Wiki image proxy', -44, 4, 'Community', 'dropped'],
+            [19, 'PHP 8.2 upgrade', -41, 9, 'Community', 'done'],
+            [20, 'Answers spam filter', -37, 5, 'Community', 'done'],
+            [21, 'Parts compatibility table', -33, 7, 'Store', 'done'],
+            [22, 'Teardown video embeds', -30, 4, 'FixBot', 'dropped'],
+            [23, 'Review queue SLAs', -27, 6, 'FixBot', 'done'],
+            [24, 'Gift card checkout', -24, 8, 'Store', 'done'],
+            [25, 'Translation memory import', -20, 5, 'Community', 'done'],
+         ] as const
+      ).map(([id, name, start, weeks, team, status]) =>
+         item(id, name, start, weeks, {
+            team,
+            status,
+            updated_at: now - (-start - weeks) * 7 * 86400,
+            status_at: now - (-start - weeks) * 7 * 86400,
+         })
+      ),
    ];
    // about one in eight scaled projects is planned: active since its first
    // PR, in the lane of its lead's team

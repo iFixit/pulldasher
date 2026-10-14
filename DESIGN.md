@@ -309,7 +309,7 @@ icon with a class bolted on.
 - **A view's picks stay with it.** Switching views clears the old view's
   sort, team, person, week, narrowing, grouping and Show choice, so one
   view never quietly narrows the next; the date range, the find and the
-  roadmap's zoom carry over, each shown where it applies. The view switcher
+  roadmap's window and zoom carry over, each shown where it applies. The view switcher
   is a tab list drawn like the app's lens tabs (it goes somewhere; a pill
   segmented control is for a choice within a view): arrows move focus,
   Enter switches, and Decide's count rides as a corner badge so it can't
@@ -554,10 +554,15 @@ icon with a class bolted on.
 - **A date outside this year says its year** ("Oct 17, 2025"), everywhere
   `dayWords` writes one; a year-old "since Oct 17" on a 2026 roadmap read as
   a future date.
-- **One date range per page, picked with one control**: the button that
+- **One range per view, picked with one control**: the button that
   names the range, opening the presets an analytics tool offers beside a
   two-month calendar (react-day-picker, lazy with its stylesheet). A preset
-  applies on click; a hand-picked range applies with Apply. Rejected: a row
+  applies on click; a hand-picked range applies with Apply. Look back's
+  range is the past days it measures (`range`, days after today blocked);
+  the Roadmap's is the window it draws (`window`, a preset like `ytd` or
+  whole months `2025-10..2026-09`, future days allowed, no 400-day cap).
+  Neither view shows the other's, and no key in the URL means the default,
+  so a link from before the picker opens as it did. Rejected: a row
   of segment buttons plus two date inputs (shaped for developers, not the
   product manager reading the numbers), and a second control for the
   chart's own window (two knobs on one concept). A chart instead shows at
@@ -669,9 +674,27 @@ icon with a class bolted on.
   `?projects=100`, not at a dozen rows. The header with the column names stays
   in place while the rows scroll, and month lines (quarter lines stronger)
   run through every row, so a span reads against the calendar anywhere on
-  the page. A column name zooms that quarter or month to the full width;
-  the toolbar zooms back out one step and pages to the period before or
-  after, and the browser's Back does the same, since the zoom is in the URL.
+  the page. The window is picked with the date range button (This quarter,
+  Next 2 quarters, Next 6 months, Year to date, Last 12 months, This year,
+  or any months on the calendar); with none picked it's last quarter and the
+  next three (Quarters) or last month and the next six (Months), which are
+  the two defaults the Months and Quarters switch picks. Columns follow the
+  window's length, so nothing needs a legend: months up to four months, and
+  up to a year that doesn't fall on whole quarters (Year to date, Last 12
+  months, drawn as picked); whole quarters past that, rounded out. The
+  switch shows which. Past seven month columns the Mondays' dates drop out
+  of the header; the week lines stay. ‹ and › step by the window's own
+  length on every view, Today puts back the default, and a plan's edge chip
+  moves the window to start at its plan. A column name zooms that quarter
+  or month to the full width; the toolbar zooms back out one step to a
+  window holding it (your place is kept) and pages to the period before or
+  after, and the browser's Back does the same, since the window and zoom are
+  in the URL. Done plans that ended before the window rest in one closed
+  fold under the rows, "Done before Oct 2025 · 12", so a year of history
+  never buries the plan; ‹ brings each back into the rows as its weeks come
+  into view. The initiative lanes hold only work under way, so they have no
+  such fold. A done or dropped plan's details offer no Decide calls unless
+  Decide asks about it.
 - **Everything on the roadmap does what it names when clicked.** Nothing
   a planner would reach for is inert:
   - a week's bar in the load chart picks that week (arrow keys move the pick,
@@ -680,7 +703,9 @@ icon with a class bolted on.
   - the chart's counts filter to what they count ("94 with no plan") and
     pick their week, so a count and its rows agree, and the developer
     line's label opens the teams
-  - a column or month name zooms in; while zoomed, Today comes back
+  - a column or month name zooms in; Today comes back to the default
+    window, or while zoomed to this period
+  - a plan's chip at the timeline's edge moves the window to it
   - a plain click on a bar opens its details, and only a drag moves it; on a
     project with no plan, a plain click opens the chooser, and only a drag
     plans it. Escape cancels a drag, a saved move offers Undo in place, and

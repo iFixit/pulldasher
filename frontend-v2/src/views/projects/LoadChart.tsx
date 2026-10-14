@@ -384,8 +384,8 @@ export function LoadChart({
                   />
                )}
                {/* the weeks ahead, in words the rows can check, in the room
-                   right of today */}
-               {when !== 'past' && (
+                   right of today, when a window ending near today leaves some */}
+               {when !== 'past' && (todayAt == null || todayAt <= 75) && (
                   <span
                      className="absolute top-1/2 right-0 -translate-y-1/2 pl-3 text-[11px] leading-4 text-ink-2"
                      style={{ left: todayAt != null ? `${todayAt}%` : 0 }}

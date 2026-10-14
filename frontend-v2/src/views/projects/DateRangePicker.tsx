@@ -24,7 +24,10 @@ export function DateRangePicker({
    future = false,
    keyOf = r => `${r.start}..${r.end}`,
    pickedWords,
+   wordsClass = 'hidden sm:inline',
 }: {
+   /** where a preset's range shows beside its name */
+   wordsClass?: string;
    rangeKey: string;
    range: Range;
    onChange: (key: string) => void;
@@ -85,7 +88,7 @@ export function DateRangePicker({
                ) : (
                   <>
                      <span className="font-medium">{preset}</span>
-                     <span className="hidden text-ink-3 tabular-nums sm:inline">
+                     <span className={`text-ink-3 tabular-nums ${wordsClass}`}>
                         {/* the comma is for the ear: "Last 30 days, Sep 2 to Oct 1" */}
                         <span className="sr-only">, </span>
                         {words(range)}

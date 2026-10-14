@@ -2424,8 +2424,9 @@ export function Roadmap({
               zoom: day.slice(0, 7),
            }))
          : level === 'months'
-         ? weeks
-              .filter(week => week >= horizon.start)
+         ? // past seven months, the Mondays' dates crowd: the week lines say them
+           weeks
+              .filter(week => week >= horizon.start && columns.length <= 7)
               .map(week => ({ left: place(week), label: String(Number(week.slice(8))) }))
          : days.map(day => ({ left: place(day), label: String(Number(day.slice(8))) }));
    // the horizon's own history, so a project's real span starts where its
@@ -3322,7 +3323,9 @@ export function Roadmap({
    );
 
    // ----- Done before the window: a ledger at rest, after every grouping -----
-   const doneFold = shownBefore.length > 0 && (
+   // the initiative lanes hold only work under way, so they have no fold
+   // of it either
+   const doneFold = !byInitiative && shownBefore.length > 0 && (
       <div {...{ 'data-lane-id': 'roadmap:done-before' }} className="border-t border-secondary">
          <TimelineLane
             id="roadmap:done-before"
@@ -3339,7 +3342,6 @@ export function Roadmap({
             lined={false}
             // open when the rows were narrowed to find something
             defaultOpen={narrowed}
-            gutter={byInitiative ? <span aria-hidden className="block w-[17px]" /> : undefined}
          >
             {planRows(shownBefore, shownBefore, { ranked: false })}
          </TimelineLane>
@@ -3575,6 +3577,12 @@ export function Roadmap({
                            it for why.
                         </p>
                         <p className="m-0">
+                           The dates button picks the months shown; ‹ and › step that many, and
+                           Today puts back the months it opens on. A plan outside them shows its
+                           dates at the edge: click them to move there. Done plans that ended before
+                           the first month rest in a fold at the bottom.
+                        </p>
+                        <p className="m-0">
                            The bars count the plans and projects with a PR open each week, merged
                            that week included. The lanes count PRs in the last 14 days, so their
                            totals can differ. Click a week to see only that week’s work.
@@ -3610,7 +3618,8 @@ export function Roadmap({
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pb-2">
                <Segmented
                   ariaLabel="roadmap layout"
-                  value={nav.scale}
+                  // the columns drawn, which follow a window picked
+                  value={nav.scale === 'now' ? 'now' : unit}
                   options={[
                      ['month', 'Months'],
                      ['quarter', 'Quarters'],
@@ -3675,6 +3684,9 @@ export function Roadmap({
                            }}
                            onChange={key => navigate({ window: key })}
                            presets={WINDOW_PRESETS}
+                           // a preset's months show from the widest screens; the
+                           // column names under it say them anyway
+                           wordsClass="hidden 2xl:inline"
                            label="Pick the months the roadmap shows"
                            words={() => windowWords(shownMonths, unit)}
                            future
@@ -3742,7 +3754,7 @@ export function Roadmap({
                   placeholder="Find a project, lead or team"
                   value={nav.find}
                   onChange={e => navigate({ find: e.target.value })}
-                  className={`min-w-48 flex-1 px-2.5 sm:w-52 sm:min-w-0 sm:flex-none ${textInputClass}`}
+                  className={`min-w-48 flex-1 px-2.5 sm:w-52 sm:min-w-32 sm:flex-initial ${textInputClass}`}
                />
                {/* what the load chart's counts and bars narrow the rows to,
                    each with its own way out: the chart scrolls away, these
