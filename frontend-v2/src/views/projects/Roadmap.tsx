@@ -2441,7 +2441,11 @@ export function Roadmap({
             ? months.map(day => ({ left: place(day), strong: columns.some(c => c.start === day) }))
             : level === 'months'
             ? [
-                 ...weeks.map(week => ({ left: place(week), strong: false })),
+                 // past seven months the week lines crowd, as their dates do
+                 // (ticks), and every row draws them: the months' alone
+                 ...(columns.length <= 7
+                    ? weeks.map(week => ({ left: place(week), strong: false }))
+                    : []),
                  ...months.map(day => ({ left: place(day), strong: true })),
               ]
             : [

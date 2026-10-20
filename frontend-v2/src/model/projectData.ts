@@ -140,13 +140,25 @@ export interface Range {
  * current year carries it: "Oct 17, 2025". */
 export function dayWords(day: string, { now = Date.now() }: { now?: number } = {}): string {
    const d = new Date(`${day.slice(0, 10)}T00:00:00Z`);
-   return d.toLocaleDateString(undefined, {
+   const thisYear = d.getUTCFullYear() === new Date(now).getFullYear();
+   return (thisYear ? DAY_WORDS.thisYear : DAY_WORDS.otherYear).format(d);
+}
+
+// made once: toLocaleDateString with options builds a formatter per call,
+// and the roadmap says hundreds of days a render
+const DAY_WORDS = {
+   thisYear: new Intl.DateTimeFormat(undefined, {
       month: 'short',
       day: 'numeric',
-      year: d.getUTCFullYear() === new Date(now).getFullYear() ? undefined : 'numeric',
       timeZone: 'UTC',
-   });
-}
+   }),
+   otherYear: new Intl.DateTimeFormat(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      timeZone: 'UTC',
+   }),
+};
 
 /** How many days a range covers, both ends counted. */
 export function rangeDays({ start, end }: Range): number {
