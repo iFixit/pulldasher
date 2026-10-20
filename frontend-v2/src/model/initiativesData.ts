@@ -1,9 +1,10 @@
 import { useEffect } from 'react';
 import { isDummy } from '../backend/dummy';
-import { DUMMY_GROWN, DUMMY_INITIATIVES } from '../backend/dummyProjects';
+import { DUMMY_GROWN, DUMMY_INITIATIVES, DUMMY_ROADMAP } from '../backend/dummyProjects';
 import { createMemoryStore } from '../storage';
 import { UNSORTED_WORD } from './words';
 import {
+   goingProjects,
    homesOf,
    type Filing,
    type Initiative,
@@ -170,6 +171,18 @@ function dummyApi(): Api {
       update: (id, fields, extra) => {
          const row = dummy.initiatives.find(i => i.id === id);
          if (!row) return bad('no such initiative', 404);
+         // as the server: a close waits on the projects still going in it,
+         // but an Undo puts back the status it replaced. ponytail: the
+         // dummy's starting plans, not ones edited since
+         const closing = fields.status != null && fields.status !== 'open';
+         if (closing && row.status === 'open' && !extra?.undo) {
+            const projects = row.projects.map(f => f.project);
+            const live = goingProjects(projects, DUMMY_ROADMAP, () => 0);
+            if (live.length) {
+               const error = 'move or finish the projects still going in it first';
+               return Promise.resolve({ status: 409, json: { error, live } });
+            }
+         }
          const stamp = now();
          const restated =
             fields.status != null && (fields.status !== row.status || !!extra?.restate);
@@ -223,12 +236,18 @@ export async function loadInitiatives(): Promise<void> {
    }
 }
 
-/** Change the initiatives on screen now; hand back a way to put them back. */
-function optimistic(change: (list: Initiative[]) => Initiative[]): () => void {
+/** Change the initiatives on screen now. A write that fails takes back
+ * only its own change, on the list as it is then, since another write may
+ * have changed it since, and reads them again. */
+function optimistic(change: (list: Initiative[]) => Initiative[]): void {
    writes++;
-   const before = store.get().initiatives;
-   store.set({ ...store.get(), initiatives: change(before ?? []) });
-   return () => store.set({ ...store.get(), initiatives: before });
+   store.set({ ...store.get(), initiatives: change(store.get().initiatives ?? []) });
+}
+
+/** Change the list on screen now, if there is one. */
+function onScreen(change: (list: Initiative[]) => Initiative[]): void {
+   const list = store.get().initiatives;
+   if (list) store.set({ ...store.get(), initiatives: change(list) });
 }
 
 /** The list with one project moved to `to` (a slug, or null for none). */
@@ -271,7 +290,16 @@ export async function fileProject(
       undo?: boolean;
    } = {}
 ): Promise<{ before: Home } | { error: string }> {
-   const takeBack = optimistic(list =>
+   const prev = homesOf(store.get().initiatives ?? []).get(project);
+   const takeBack = () => {
+      onScreen(list =>
+         prev
+            ? withFiling(list, project, prev.initiative.slug, prev.filing)
+            : withFiling(list, project, null)
+      );
+      void loadInitiatives();
+   };
+   optimistic(list =>
       withFiling(list, project, to, {
          set_by: null,
          set_at: set_at ?? Math.floor(Date.now() / 1000),
@@ -295,16 +323,13 @@ export async function fileProject(
       const name = now
          ? store.get().initiatives?.find(i => i.slug === now)?.name ?? now
          : UNSORTED_WORD;
-      void loadInitiatives();
       return {
          error: `Couldn’t file the project: someone filed it in ${name} since, so nothing changed.`,
       };
    }
    if (reply.status !== 200) {
+      // read again too, so the choosers stop offering one closed since
       takeBack();
-      // closed since the board last read it: read them again, so the
-      // choosers stop offering it
-      if (reply.status === 409) void loadInitiatives();
       return { error: problemOf(reply, 'file the project') };
    }
    void loadInitiatives();
@@ -317,7 +342,7 @@ export async function moveInitiative(
    id: number,
    before: number | null
 ): Promise<true | { error: string }> {
-   const takeBack = optimistic(list => {
+   optimistic(list => {
       const sorted = byRank(list);
       const moving = sorted.find(i => i.id === id);
       if (!moving) return list;
@@ -328,7 +353,8 @@ export async function moveInitiative(
    });
    const reply = await api.move(id, before).catch((): Reply => ({ status: 0, json: {} }));
    if (reply.status !== 200) {
-      takeBack();
+      // every rank may have moved since: the server's order, not a snapshot
+      void loadInitiatives();
       return { error: problemOf(reply, 'save the new order') };
    }
    store.set({ ...store.get(), initiatives: reply.json.initiatives as Initiative[] });
@@ -344,10 +370,14 @@ export async function updateInitiative(
    extra: { restate?: boolean; undo?: { updated_at: number; status_at: number | null } } = {}
 ): Promise<{ was: Initiative } | { error: string; live?: string[] }> {
    const was = store.get().initiatives?.find(i => i.id === id);
-   const takeBack = optimistic(list => list.map(i => (i.id === id ? { ...i, ...fields } : i)));
+   optimistic(list => list.map(i => (i.id === id ? { ...i, ...fields } : i)));
    const reply = await api.update(id, fields, extra).catch((): Reply => ({ status: 0, json: {} }));
    if (reply.status !== 200 || !was) {
-      takeBack();
+      // only the fields this write sent go back to what they were
+      const back = Object.fromEntries(
+         Object.keys(fields).map(k => [k, (was as unknown as Record<string, unknown>)?.[k]])
+      );
+      if (was) onScreen(list => list.map(i => (i.id === id ? { ...i, ...back } : i)));
       const live = Array.isArray(reply.json.live) ? (reply.json.live as string[]) : undefined;
       return { error: problemOf(reply, 'save the initiative'), live };
    }

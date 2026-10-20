@@ -129,6 +129,13 @@ describe('the initiatives store', () => {
       expect(sent(1)).toEqual({ path: '/initiatives/3/move', method: 'POST', body: { before: 1 } });
       answer({ error: 'nope' }, 500);
       expect(await move).toEqual({ error: 'Couldn’t save the new order: nope.' });
+      // a failed move reads the order again, rather than restoring a
+      // snapshot another write may have changed since
+      expect(sent(2).path).toBe('/initiatives');
+      answer({
+         initiatives: [initiative(1, 'a', []), initiative(2, 'b', []), initiative(3, 'c', [])],
+      });
+      await new Promise(r => setTimeout(r, 0));
       expect(data.byRank(data.readInitiatives().initiatives ?? []).map(i => i.slug)).toEqual([
          'a',
          'b',
@@ -163,5 +170,59 @@ describe('isNotTrackedNow', () => {
       expect(isNotTrackedNow('shelved', false, list)).toBe(true);
       expect(isNotTrackedNow('repo-default', true, list)).toBe(true);
       expect(isNotTrackedNow('shelved', false, null)).toBe(false);
+   });
+});
+
+describe('two writes in flight', () => {
+   const where = (data: Awaited<ReturnType<typeof load>>) =>
+      data.readInitiatives().initiatives?.map(i => [i.slug, i.projects.map(f => f.project)]);
+
+   it('a refused filing takes back only its own change, so two refused leave neither filed', async () => {
+      const { answer } = scriptedFetch();
+      const data = await load();
+      const first = data.loadInitiatives();
+      answer({ initiatives: [initiative(1, 'a', []), initiative(2, 'b', [])] });
+      await first;
+      const p = data.fileProject('p', 'a');
+      const q = data.fileProject('q', 'b');
+      answer({ error: 'boom' }, 500); // p
+      await p;
+      answer({ error: 'boom' }, 500); // q
+      await q;
+      expect(where(data)).toEqual([
+         ['a', []],
+         ['b', []],
+      ]);
+   });
+
+   it('a refused filing leaves another still in flight on screen', async () => {
+      const { answer } = scriptedFetch();
+      const data = await load();
+      const first = data.loadInitiatives();
+      answer({ initiatives: [initiative(1, 'a', []), initiative(2, 'b', [])] });
+      await first;
+      const p = data.fileProject('p', 'a');
+      void data.fileProject('q', 'b');
+      answer({ error: 'boom' }, 500); // p
+      await p;
+      expect(where(data)).toEqual([
+         ['a', []],
+         ['b', ['q']],
+      ]);
+   });
+
+   it('a refused edit puts back only the fields it sent', async () => {
+      const { answer } = scriptedFetch();
+      const data = await load();
+      const first = data.loadInitiatives();
+      answer({ initiatives: [initiative(1, 'a', [])] });
+      await first;
+      const naming = data.updateInitiative(1, { name: 'Renamed' });
+      const owning = data.updateInitiative(1, { owner: 'erin' });
+      answer({ error: 'boom' }, 500); // the name
+      await naming;
+      const [a] = data.readInitiatives().initiatives ?? [];
+      expect([a.name, a.owner]).toEqual(['a', 'erin']);
+      void owning;
    });
 });

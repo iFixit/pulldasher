@@ -618,3 +618,23 @@ test('a close racing a filing of a live project into it is refused', async () =>
    assert.equal(closed.status, 409);
    assert.equal(initiatives[0].status, 'open');
 });
+
+test('an Undo of a Reopen closes it again, though a project in it is still going', async () => {
+   const id = (await make('a')).body.initiative.id;
+   await call('PUT', '/initiatives/file', { project: 'p', initiative: 'a' });
+   const row = initiatives.find(i => i.id === id);
+   Object.assign(row, { status: 'done', status_at: 40, updated_at: 40 });
+   // Decide asked to reopen it because p's plan is under way
+   plans = [plan(1, 'p')];
+   const reopened = await call('PATCH', `/initiatives/${id}`, { status: 'open' });
+   assert.equal(reopened.status, 200);
+   const undone = await call('PATCH', `/initiatives/${id}`, {
+      status: 'done',
+      undo: { updated_at: 40, status_at: 40 },
+   });
+   assert.equal(undone.status, 200);
+   assert.equal(row.status, 'done');
+   // without undo, the same close is refused
+   row.status = 'open';
+   assert.equal((await call('PATCH', `/initiatives/${id}`, { status: 'done' })).status, 409);
+});

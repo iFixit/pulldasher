@@ -147,7 +147,9 @@ export default {
          if (closing && was.kind !== 'initiative') {
             return res.status(409).json({ error: `a home of kind ${was.kind} is never closed` });
          }
-         if (closing && was.status === 'open') {
+         // an undo puts back the status a Reopen replaced: the project that
+         // made Decide ask is still going in it, so the check would refuse it
+         if (closing && was.status === 'open' && !undo) {
             const live = await liveProjects(was);
             if (live.length) {
                return res
