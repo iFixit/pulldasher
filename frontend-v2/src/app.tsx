@@ -17,7 +17,10 @@ import {
    DEFAULT_RANGE,
    DEFAULT_SORT,
    LENS_LABELS,
+   groupParam,
    ORIGIN_KEYS,
+   viewChanged,
+   weekParam,
    windowParam,
    ZOOM_KEY,
    type Lens,
@@ -160,7 +163,7 @@ function readHash(): HashState {
          within: p.get('within') || null,
          range: p.get('range') || DEFAULT_RANGE,
          status: p.get('status') || 'live',
-         group: p.get('group') || DEFAULT_GROUP,
+         group: groupParam(p.get('group')),
          sort: p.get('sort') || DEFAULT_SORT,
          find: p.get('find') ?? '',
          scale: p.get('scale') === 'month' ? 'month' : p.get('scale') === 'now' ? 'now' : 'quarter',
@@ -172,7 +175,7 @@ function readHash(): HashState {
                : p.get('unplanned') === 'only'
                ? 'unplanned'
                : 'all',
-         week: /^\d{4}-\d{2}-\d{2}$/.test(p.get('week') ?? '') ? p.get('week') : null,
+         week: weekParam(p.get('week')),
          zoom: ZOOM_KEY.test(p.get('zoom') ?? '') ? p.get('zoom') : null,
          // a span past five years is cut to it, and the hash says so
          window: windowParam(p.get('window')),
@@ -485,23 +488,14 @@ export function App() {
       pushRequested.current = false;
       const next = buildHash(hashState);
       if (next === location.hash.slice(1)) return;
-      const viewChanged =
-         prev.lens !== view.lens ||
-         prev.project !== view.project ||
-         prev.projectsView !== view.projectsView ||
-         prev.zoom !== view.zoom ||
-         prev.window !== view.window ||
-         prev.only !== view.only ||
-         prev.team !== view.team ||
-         prev.week !== view.week ||
-         prev.origin !== view.origin ||
-         prev.item !== view.item ||
-         prev.who !== view.who ||
-         prev.by !== view.by;
-      if (viewChanged || asked) {
-         // a project's page or another Projects view opens at its top; Back
-         // returns to the old one where it was left
-         if (prev.project !== view.project || prev.projectsView !== view.projectsView) {
+      if (viewChanged(prev, view) || asked) {
+         // a project's or an initiative's page, or another Projects view,
+         // opens at its top; Back returns to the old one where it was left
+         if (
+            prev.project !== view.project ||
+            prev.initiative !== view.initiative ||
+            prev.projectsView !== view.projectsView
+         ) {
             window.scrollTo(0, 0);
          }
          if (next) {

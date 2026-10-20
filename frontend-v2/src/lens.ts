@@ -16,17 +16,39 @@ export const DEFAULT_SORT = 'idle';
  * of ranked initiatives. Kept here for the same reason. */
 export const DEFAULT_GROUP = 'initiative';
 
+/** The groupings the Group by switch offers (model/portfolio.ts GROUPINGS;
+ * a test holds the two lists together). */
+export const GROUP_KEYS = ['none', 'initiative', 'lead', 'team'];
+
+/** A grouping from the URL: one the switch offers, else the default, so an
+ * old link's `group=parent` shows a grouping the switch has picked. */
+export const groupParam = (key: string | null | undefined): string =>
+   key && GROUP_KEYS.includes(key) ? key : DEFAULT_GROUP;
+
+/** A year the board draws, 1970 to 2999, so a hand-edited key can't reach
+ * the years `new Date` reads as 19xx, or a horizon in the year 10000. */
+const YEAR = '(19[7-9]\\d|2\\d{3})';
+
+/** A picked week from the URL: a real day that is a Monday, as the load
+ * chart's weeks start, else null. */
+export function weekParam(key: string | null | undefined): string | null {
+   const m = new RegExp(`^${YEAR}-(\\d{2})-(\\d{2})$`).exec(key ?? '');
+   if (!m) return null;
+   const day = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+   return day.toISOString().slice(0, 10) === key && day.getUTCDay() === 1 ? key : null;
+}
+
 /** A roadmap zoom's key in the URL, "2026-Q4" or "2026-10", checked here for
  * the same reason (model/roadmapTime.ts reads it). */
-export const ZOOM_KEY = /^(\d{4})-(?:Q([1-4])|(0[1-9]|1[0-2]))$/;
+export const ZOOM_KEY = new RegExp(`^${YEAR}-(?:Q([1-4])|(0[1-9]|1[0-2]))$`);
 
 /** The longest window the roadmap draws: five years. A longer link is cut
  * to it, so a typo can't draw a century of columns. */
 export const MAX_WINDOW_MONTHS = 60;
 
 const WINDOW_PRESET_KEYS = ['quarter', '2q', '6m', 'ytd', '12m', 'year'];
-const MONTHS_KEY = /^(\d{4})-(0[1-9]|1[0-2])\.\.(\d{4})-(0[1-9]|1[0-2])$/;
-const QUARTERS_KEY = /^(\d{4})-Q([1-4])\.\.(\d{4})-Q([1-4])$/;
+const MONTHS_KEY = new RegExp(`^${YEAR}-(0[1-9]|1[0-2])\\.\\.${YEAR}-(0[1-9]|1[0-2])$`);
+const QUARTERS_KEY = new RegExp(`^${YEAR}-Q([1-4])\\.\\.${YEAR}-Q([1-4])$`);
 
 /**
  * The roadmap's window from the URL, checked here for the same reason
@@ -76,3 +98,10 @@ export const LENS_LABELS: Record<Lens, string> = {
    ci: 'CI',
    stats: 'Stats',
 };
+
+/** Whether any key of a view (app.tsx's `view`) differs from the last
+ * one's: each is a view change that earns a history entry, so none can be
+ * left out of the comparison by accident. */
+export function viewChanged<V extends object>(prev: V, view: V): boolean {
+   return (Object.keys(view) as (keyof V)[]).some(k => prev[k] !== view[k]);
+}

@@ -351,7 +351,8 @@ export function ProjectFacts({
                        {
                           ...switchView('overview'),
                           status: 'all',
-                          group: 'parent',
+                          // the find narrows the list to its parts already
+                          group: 'none',
                           find: `parent:${parent}`,
                        },
                        { push: true }

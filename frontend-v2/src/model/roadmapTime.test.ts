@@ -191,10 +191,10 @@ describe('the roadmap window', () => {
    });
 
    it('cuts a span past five years to five, in its own unit', () => {
-      expect(windowParam('1900-01..2100-12')).toBe('1900-01..1904-12');
+      expect(windowParam('1970-01..2170-12')).toBe('1970-01..1974-12');
       expect(windowParam('2024-Q2..2040-Q1')).toBe('2024-Q2..2029-Q1');
       expect(windowParam('2026-01..2030-12')).toBe('2026-01..2030-12');
-      const long = picked('1900-01..2100-12');
+      const long = picked('1970-01..2170-12');
       expect(long.to - long.from).toBe(MAX_WINDOW_MONTHS);
       expect(columnsFor('quarter', null, now, long)).toHaveLength(60);
    });
