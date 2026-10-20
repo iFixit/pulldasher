@@ -62,7 +62,7 @@ app.set('view engine', 'html');
  * Middleware
  */
 app.use('/public', express.static(__dirname + '/public'));
-useBodyParsers(app);
+useBodyParsers(app, config.github.hook_secret);
 app.use(
    expressSession({
       secret: config.session.secret,
