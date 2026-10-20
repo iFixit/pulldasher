@@ -9,6 +9,7 @@ import type { DerivedPull } from '../../../shared/model/status';
 import type { Project, ProjectGroup, ProjectWindow, Today } from '../../../shared/model/projects';
 import type { RoadmapItem, RoadmapUpdate } from '../../../shared/model/roadmap';
 import type { IssueCounts } from '../../../shared/model/work';
+import type { Initiative } from '../../../shared/model/initiatives';
 import type { PullData } from '../../../shared/types';
 import {
    behindWords,
@@ -16,6 +17,7 @@ import {
    groupItems,
    IDLE_BUCKETS,
    AGE_BUCKETS,
+   type Ask,
    isYours,
    mainTeam,
    matchesFind,
@@ -101,6 +103,7 @@ function group(
       slug,
       project: p,
       open,
+      drafts: [],
       merged,
       closed: [],
       people,
@@ -182,6 +185,7 @@ const today: Today = {
    misc: [],
    unsorted: [],
    doubleLabeled: [],
+   drafts: [],
 };
 const projects = [
    alpha,
@@ -298,6 +302,12 @@ describe('planCell', () => {
    const cell = (over: Partial<Parameters<typeof planCell>[0]>) =>
       planCell({ plan: null, project: null, ...over }, day, now);
 
+   it('asks Unsorted’s question, since its band already says the name', () => {
+      expect(cell({ asks: [{ reason: { kind: 'unfiled' }, item: null }] }).text).toBe(
+         'Which initiative is it in?'
+      );
+   });
+
    it('says what the plan owes when Decide asks nothing, the worst first', () => {
       const offTrack = plan(1, 'a', { update: update('off_track', 1), start: '2026-08-03' });
       expect(cell({ plan: offTrack })).toEqual({
@@ -316,6 +326,22 @@ describe('planCell', () => {
             plan: plan(1, 'a', { start: '2026-09-07', weeks: 6, update: update('on_track', 20) }),
          }).text
       ).toBe('Update due');
+   });
+
+   it('names the closed initiative first on a row that also asks about its plan', () => {
+      const done = plan(1, 'a', { status: 'done' });
+      // the order Decide's sections ask them in, whichever came first
+      const asks: Ask[] = [
+         {
+            reason: { kind: 'reopened', open: 1, late: 0, as: 'done', by: 'roadmap' },
+            item: done,
+         },
+         { reason: { kind: 'reopened_in_closed', initiative: 7, as: 'done' }, item: done },
+      ];
+      expect(cell({ plan: done, asks }).text).toBe('Its initiative is closed, still worked on');
+      expect(cell({ plan: done, asks: [...asks].reverse() }).text).toBe(
+         'Its initiative is closed, still worked on'
+      );
    });
 
    it('reads calm when nothing is owed, and blank with no plan nobody asks for', () => {
@@ -709,6 +735,83 @@ describe('groupItems', () => {
          ['warehouse', ['beta']],
          ['No parent', []],
       ]);
+   });
+});
+
+const initiative = (
+   id: number,
+   slug: string,
+   projects: string[],
+   over: Partial<Initiative> = {}
+): Initiative => ({
+   id,
+   slug,
+   name: slug.toUpperCase(),
+   kind: 'initiative',
+   goal: '',
+   owner: null,
+   priority: id,
+   status: 'open',
+   status_at: null,
+   created_by: null,
+   created_at: null,
+   updated_by: null,
+   updated_at: null,
+   projects: projects.map(project => ({ project, set_by: null, set_at: 0, baseline_prs: 0 })),
+   ...over,
+});
+
+describe('groupItems by initiative', () => {
+   const initiatives = [
+      initiative(3, 'later', ['beta']),
+      initiative(1, 'first', ['paused', 'alpha']),
+      initiative(2, 'closed', ['gone'], { status: 'done' }),
+      initiative(4, 'not-tracked', ['shipped'], { kind: 'untracked' }),
+   ];
+
+   it('puts the initiatives in their rank, closed ones after, with Unsorted last', () => {
+      const groups = groupItems(sortItems(items, 'name'), 'initiative', undefined, [], initiatives);
+      expect(groups.map(g => [g.title, g.items.map(i => i.slug)])).toEqual([
+         ['FIRST', ['alpha', 'paused']],
+         ['LATER', ['beta']],
+         ['CLOSED', ['gone']],
+         // a Not tracked filing isn't a group here: the Overview draws its own
+         ['Unsorted', ['label-only', 'merges-only', 'shipped']],
+      ]);
+      expect(groups[0].initiative?.slug).toBe('first');
+      expect(groups[3].initiative).toBeUndefined();
+   });
+
+   it('shows Unsorted only when it holds a project, and an initiative only with one', () => {
+      const all = [
+         initiative(
+            1,
+            'everything',
+            items.map(i => i.slug)
+         ),
+         initiative(2, 'empty', []),
+      ];
+      expect(groupItems(items, 'initiative', undefined, [], all).map(g => g.title)).toEqual([
+         'EVERYTHING',
+      ]);
+      // but one Decide asks about keeps its band, empty, where its question is
+      expect(
+         groupItems(items, 'initiative', undefined, [], all, new Set([2])).map(g => [
+            g.title,
+            g.items.length,
+         ])
+      ).toEqual([
+         ['EVERYTHING', items.length],
+         ['EMPTY', 0],
+      ]);
+   });
+
+   it('finds by the start of an initiative’s name or slug with “initiative:”', () => {
+      const homes = new Map(initiatives.flatMap(i => i.projects.map(f => [f.project, i])));
+      const of = (slug: string | null) => (slug ? homes.get(slug) : undefined);
+      const found = items.filter(i => matchesFind(i, 'initiative: fir', of)).map(i => i.slug);
+      expect(found.sort()).toEqual(['alpha', 'paused']);
+      expect(items.filter(i => matchesFind(i, 'initiative:nothing', of))).toEqual([]);
    });
 });
 

@@ -1,0 +1,1594 @@
+// @vitest-environment jsdom
+import { act } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import type { DecideRow } from '../../../../shared/model/decide';
+import type { Initiative } from '../../../../shared/model/initiatives';
+import type { RoadmapItem } from '../../../../shared/model/roadmap';
+import { fileProject, loadInitiatives } from '../../model/initiativesData';
+import type { PortfolioItem } from '../../model/portfolio';
+import { HomeLine, InitiativePage } from './Initiatives';
+import { clearHomePicks, InitiativeSwitch } from './HomeCalls';
+import { clearHolds, pressedBy } from '../../components/settle';
+import { NO_PROJECT, UNSORTED } from '../../model/initiativeBoard';
+import { PROJECT_SLUG } from '../../../../shared/model/roadmap';
+import type { ProjectsNav } from './parts';
+import {
+   DecideCall,
+   DecideRowView,
+   forgetCalls,
+   keepCalls,
+   SectionCalls,
+   useKeptCalls,
+   type Made,
+} from './Decide';
+import {
+   AllItemsContext,
+   answerWords,
+   callWords,
+   rowKey,
+   sectionOf,
+} from '../../model/decideCalls';
+
+// jsdom makes no trusted events: every press here is a person's
+pressedBy.person = () => true;
+
+// React's act() warns unless the environment says it's a test
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+const initiative = (
+   id: number,
+   slug: string,
+   name: string,
+   projects: string[],
+   over: Partial<Initiative> = {}
+): Initiative => ({
+   id,
+   slug,
+   name,
+   kind: 'initiative',
+   goal: '',
+   owner: 'dana',
+   priority: id,
+   status: 'open',
+   status_at: null,
+   created_by: null,
+   created_at: null,
+   updated_by: null,
+   updated_at: 100,
+   projects: projects.map(project => ({ project, set_by: null, set_at: 50, baseline_prs: 0 })),
+   ...over,
+});
+
+const INITIATIVES = [
+   initiative(1, 'site-speed', 'Site speed', ['cache', 'filed']),
+   initiative(2, 'fixbot', 'FixBot chat', ['answers']),
+   initiative(3, 'catalog', 'Catalog', ['akeneo'], { status: 'done' }),
+   initiative(4, 'onboarding', 'Onboarding', ['emails'], {
+      goal: 'New customers get a welcome series',
+   }),
+   initiative(5, 'fragile', 'Fragile', []),
+   // Not tracked under a slug of its own: the board finds it by its kind
+   initiative(9, 'shelf', 'Not tracked', ['ops'], { kind: 'untracked' }),
+];
+
+const created: RoadmapItem = {
+   id: 77,
+   name: 'New thing',
+   project: 'new-thing',
+   team: null,
+   lead: null,
+   status: 'active',
+   origin: null,
+   start: '2026-10-05',
+   weeks: 4,
+   end_kind: 'hard',
+   done_when: '',
+   priority: 9,
+   notes: '',
+   waits_on: [],
+   updated_by: null,
+   updated_at: 1,
+   created_at: 1,
+   update: null,
+};
+
+/** An active plan with no project. */
+const unlinked: RoadmapItem = { ...created, id: 5, name: 'Checkout redesign', project: null };
+
+/** The server, by route: each write answers as the real one would. */
+const calls: { method: string; path: string; body: unknown }[] = [];
+let flakyFailed = false;
+beforeAll(async () => {
+   vi.stubGlobal(
+      'fetch',
+      vi.fn(async (path: string, init?: RequestInit) => {
+         const method = init?.method ?? 'GET';
+         const body = init?.body ? JSON.parse(String(init.body)) : null;
+         calls.push({ method, path, body });
+         const reply = (json: unknown, status = 200) =>
+            ({ status, redirected: false, json: async () => json } as Response);
+         if (path === '/initiatives' && method === 'GET')
+            return reply({ initiatives: INITIATIVES });
+         if (path === '/initiatives/file') {
+            // as the server: nothing into a closed initiative but an undo
+            if (body.initiative === 'catalog' && body.set_at == null)
+               return reply(
+                  { error: 'that initiative is closed; reopen it before filing a project in it' },
+                  409
+               );
+            // someone filed it elsewhere since the board last looked
+            if (body.project === 'raced')
+               return reply(
+                  {
+                     error: 'its home changed; here it is now',
+                     home: { initiative: 'fixbot', set_at: 60, baseline_prs: 0 },
+                  },
+                  409
+               );
+            const before =
+               body.project === 'ops'
+                  ? { initiative: 'shelf', set_at: 50, baseline_prs: 2 }
+                  : body.project === 'filed'
+                  ? { initiative: 'site-speed', set_at: 50, baseline_prs: 0 }
+                  : body.project === 'akeneo'
+                  ? { initiative: 'catalog', set_at: 50, baseline_prs: 0 }
+                  : { initiative: null, set_at: null, baseline_prs: 0 };
+            return reply({ project: body.project, before, home: null });
+         }
+         if (path.startsWith('/initiatives/')) {
+            const id = Number(path.split('/')[2]);
+            // a database gone between a save and its Undo
+            if (id === 5 && body.undo) return reply({ error: 'the database is down' }, 500);
+            const was = INITIATIVES.find(i => i.id === id) ?? INITIATIVES[3];
+            return reply({ initiative: { ...was, ...body } });
+         }
+         if (path === '/roadmap' && method === 'POST') {
+            // a plan that fails once, after its filing saved
+            if (body.project === 'flaky' && !flakyFailed) {
+               flakyFailed = true;
+               return reply({ error: 'the database is down' }, 500);
+            }
+            return reply({ item: created }, 201);
+         }
+         if (path === '/roadmap' && method === 'GET') return reply({ items: [] });
+         if (path.startsWith('/roadmap/') && method === 'DELETE') return reply({ ok: true });
+         if (path.startsWith('/roadmap/') && method === 'PATCH')
+            return reply({ item: { ...unlinked, ...body } });
+         return reply({}, 404);
+      })
+   );
+   await loadInitiatives();
+});
+
+let host: HTMLDivElement | null = null;
+// every tree a test mounts, unmounted after it, so none listens on to the
+// stores the next test writes
+const roots: Root[] = [];
+afterEach(async () => {
+   act(() => roots.splice(0).forEach(r => r.unmount()));
+   clearHomePicks();
+   clearHolds();
+   forgetCalls();
+   host?.remove();
+   host = null;
+   // a filing a test made leaves the board's copy as the server has it
+   await loadInitiatives();
+   calls.length = 0;
+});
+
+const person = (slug: string, developers: string[]) =>
+   ({ slug, name: slug, developers, nonDevelopers: [] } as unknown as PortfolioItem);
+const ITEMS = [
+   person('new-thing', ['erin']),
+   person('cache', ['dana']),
+   person('answers', ['erin']),
+   person('filed', ['dana']),
+   person('flaky', ['erin']),
+   // nobody it shares people with: no guess
+   person('lonely', ['zed']),
+   person('bulk-a', ['erin']),
+   person('bulk-b', ['dana']),
+   person('ops', ['dana']),
+];
+
+function render(row: DecideRow): HTMLDivElement {
+   return mount(<DecideCall row={row} />);
+}
+
+function mount(node: React.ReactNode): HTMLDivElement {
+   host = document.createElement('div');
+   document.body.append(host);
+   const root = createRoot(host);
+   roots.push(root);
+   act(() => root.render(<AllItemsContext.Provider value={ITEMS}>{node}</AllItemsContext.Provider>));
+   return host;
+}
+
+const buttons = (el: HTMLElement) => [...el.querySelectorAll('button')].map(b => b.textContent);
+const click = (el: HTMLElement, words: string) =>
+   act(() =>
+      [...el.querySelectorAll('button')].find(b => b.textContent?.startsWith(words))?.click()
+   );
+/** the chooser's File button, the answer or the opened chooser's */
+const fileButton = (el: HTMLElement) =>
+   [...el.querySelectorAll('button')].find(b => /^File(Suggested)?$/.test(b.textContent ?? ''));
+/** what a chooser's line holds, in order: its label, the select, its buttons */
+const parts = (el: HTMLElement) => {
+   const line = el.querySelector('select')?.parentElement as HTMLElement;
+   return [...line.children]
+      .map(c =>
+         c.tagName === 'SELECT' ? 'select' : c.textContent === 'guessed' ? null : c.textContent
+      )
+      .filter(Boolean);
+};
+/** a callback the test doesn't watch */
+const nothing = () => undefined;
+const settle = () => act(() => new Promise(resolve => setTimeout(resolve, 0)));
+/** A mouse's press at a point onto `el`, whatever sits there now. */
+const pressAt = (el: Element, x: number, y: number) =>
+   act(() => {
+      const at = { bubbles: true, cancelable: true, clientX: x, clientY: y };
+      for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup'])
+         el.dispatchEvent(new MouseEvent(type, at));
+      el.dispatchEvent(new MouseEvent('click', { ...at, detail: 1 }));
+   });
+
+describe('a row that asks about an initiative', () => {
+   const goal: DecideRow = {
+      slug: null,
+      item: null,
+      reasons: [{ kind: 'goal_reached', initiative: 4 }],
+   };
+
+   it('suggests closing it as done, with dropped and Keep open a click away', () => {
+      const el = render(goal);
+      expect(buttons(el)).toEqual(['Close as doneSuggested', 'Other answers']);
+      click(el, 'Other answers');
+      // the button clicked stays where it was; the others come after it
+      expect(buttons(el)).toEqual([
+         'Close as doneSuggested',
+         'Other answers',
+         'Close as dropped',
+         'Keep open',
+      ]);
+   });
+
+   it('says Suggested on the outlined answer at a Roadmap row’s end too', () => {
+      const el = mount(<DecideCall row={goal} compact />);
+      expect(buttons(el)).toEqual(['Close as doneSuggested', 'Other answers']);
+      // outlined, not filled, beside rows whose questions are words
+      expect(el.querySelector('button')?.className).not.toContain('bg-brand');
+   });
+
+   it('keeps it open by saying its status again, and Undo puts back the times', async () => {
+      const el = render(goal);
+      click(el, 'Other answers');
+      click(el, 'Keep open');
+      await settle();
+      expect(el.textContent).toContain(
+         'Kept open. Decide asks again once something in it changes.'
+      );
+      expect(calls.at(-1)).toMatchObject({
+         method: 'PATCH',
+         path: '/initiatives/4',
+         body: { status: 'open', restate: true },
+      });
+      // named as every Undo is: by what it takes back
+      expect(
+         [...el.querySelectorAll('button')]
+            .find(b => b.textContent === 'Undo')
+            ?.getAttribute('aria-label')
+      ).toBe('Undo: Kept open. Decide asks again once something in it changes');
+      click(el, 'Undo');
+      await settle();
+      expect(calls.at(-1)).toMatchObject({
+         method: 'PATCH',
+         path: '/initiatives/4',
+         body: { status: 'open', undo: { updated_at: 100, status_at: null } },
+      });
+   });
+
+   it('suggests reopening a closed one a project is worked on in, or moving the project', () => {
+      const el = render({
+         slug: 'akeneo',
+         item: null,
+         reasons: [{ kind: 'reopened_in_closed', initiative: 3, as: 'done' }],
+      });
+      expect(buttons(el)).toEqual(['Reopen CatalogSuggested', 'File elsewhere']);
+      click(el, 'File elsewhere');
+      // the chooser leaves out the closed home, and offers Not tracked last,
+      // as every other chooser does
+      const options = [...el.querySelectorAll('option')].map(o => o.textContent);
+      expect(options).not.toContain('Catalog');
+      expect(options.at(-1)).toBe('Not tracked');
+   });
+
+   it('files it elsewhere through File, with Undo back into the closed one', async () => {
+      const el = render({
+         slug: 'akeneo',
+         item: null,
+         reasons: [{ kind: 'reopened_in_closed', initiative: 3, as: 'done' }],
+      });
+      click(el, 'File elsewhere');
+      const select = el.querySelector('select') as HTMLSelectElement;
+      act(() => {
+         select.value = 'fixbot';
+         select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      act(() => fileButton(el)?.click());
+      await settle();
+      expect(calls.filter(c => c.path === '/initiatives/file').at(-1)?.body).toEqual({
+         project: 'akeneo',
+         initiative: 'fixbot',
+         expect: 'catalog',
+      });
+      expect(el.textContent).toContain('Filed in FixBot chat.');
+      click(el, 'Undo');
+      await settle();
+      // back where it was, closed or not: an Undo may file there
+      expect(calls.filter(c => c.path === '/initiatives/file').at(-1)?.body).toEqual({
+         project: 'akeneo',
+         initiative: 'catalog',
+         // only while it's still where the call put it
+         expect: 'fixbot',
+         set_at: 50,
+         baseline_prs: 0,
+         undo: true,
+      });
+   });
+});
+
+describe('a Not tracked project that grew', () => {
+   const grew: DecideRow = {
+      slug: 'ops',
+      item: null,
+      reasons: [{ kind: 'untracked_grew', since: 31, baseline: 2 }],
+   };
+
+   it('suggests keeping it not tracked, which files it there again', async () => {
+      const el = render(grew);
+      expect(buttons(el)).toEqual(['Keep Not trackedSuggested', 'Track it']);
+      click(el, 'Keep Not tracked');
+      await settle();
+      expect(calls.find(c => c.path === '/initiatives/file')?.body).toEqual({
+         project: 'ops',
+         initiative: 'shelf',
+         expect: 'shelf',
+      });
+      // Undo brings back its count as it stood, so the row comes back
+      click(el, 'Undo');
+      await settle();
+      expect(calls.filter(c => c.path === '/initiatives/file').at(-1)?.body).toEqual({
+         project: 'ops',
+         initiative: 'shelf',
+         expect: 'shelf',
+         set_at: 50,
+         baseline_prs: 2,
+         undo: true,
+      });
+   });
+
+   it('opens the chooser under Track it, with the focus and its own File button', () => {
+      const el = render(grew);
+      const [keep, track] = [...el.querySelectorAll('button')];
+      click(el, 'Track it');
+      // nothing that files took Track it's place: the same two buttons lead
+      expect([...el.querySelectorAll('button')].slice(0, 2)).toEqual([keep, track]);
+      expect(track.getAttribute('aria-expanded')).toBe('true');
+      const select = el.querySelector('select') as HTMLSelectElement;
+      expect(document.activeElement).toBe(select);
+      // its File button sits on the chooser's line, out of the toolbar
+      const file = fileButton(el);
+      expect(file?.closest('[role="toolbar"]')).toBeNull();
+      // and Cancel beside it, as everywhere a project is filed
+      expect(file?.nextElementSibling?.textContent).toBe('Cancel');
+      // the guess's hover says where the project is now, never Unsorted
+      const guessed = [...el.querySelectorAll('span')].find(x => x.textContent === 'guessed');
+      expect(guessed?.title).toBe(
+         'It’s Not tracked now. This is the initiative its people work in most.'
+      );
+   });
+
+   it('files it where Track it’s chooser says, with Undo back to Not tracked and its count', async () => {
+      const el = render(grew);
+      click(el, 'Track it');
+      const select = el.querySelector('select') as HTMLSelectElement;
+      act(() => {
+         select.value = 'fixbot';
+         select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      act(() => fileButton(el)?.click());
+      await settle();
+      expect(calls.filter(c => c.path === '/initiatives/file').at(-1)?.body).toEqual({
+         project: 'ops',
+         initiative: 'fixbot',
+         expect: 'shelf',
+      });
+      expect(el.textContent).toContain('Filed in FixBot chat.');
+      click(el, 'Undo');
+      await settle();
+      expect(calls.filter(c => c.path === '/initiatives/file').at(-1)?.body).toEqual({
+         project: 'ops',
+         initiative: 'shelf',
+         expect: 'fixbot',
+         set_at: 50,
+         baseline_prs: 2,
+         undo: true,
+      });
+   });
+});
+
+describe('the Initiative chooser on a row Decide asks to plan', () => {
+   const fresh = (slug: string): DecideRow => ({
+      slug,
+      item: null,
+      reasons: [{ kind: 'new', since: '2026-09-10' }],
+   });
+   const select = (el: HTMLElement) =>
+      el.querySelector<HTMLSelectElement>('select[aria-label^="File in"]');
+
+   it('isn’t shown for a filed project, so its answer stays a plan answer and moves nothing', async () => {
+      const el = render(fresh('filed'));
+      // filed in Site speed already: nothing asks to file it
+      expect(select(el)).toBeNull();
+      expect(el.textContent).not.toContain('File in');
+      click(el, 'Promise to finish by');
+      await settle();
+      expect(calls.some(c => c.path === '/initiatives/file')).toBe(false);
+   });
+
+   it('guesses for an Unsorted project from where its people work', () => {
+      const el = render(fresh('new-thing'));
+      expect(select(el)?.value).toBe('fixbot');
+      expect(el.textContent).toContain('guessed');
+   });
+
+   it('files first, then plans, in one receipt, and Undo takes both back', async () => {
+      const el = render(fresh('new-thing'));
+      click(el, 'Promise to finish by');
+      await settle();
+      const writes = calls.filter(c => c.method !== 'GET');
+      expect(writes.map(c => `${c.method} ${c.path}`)).toEqual([
+         'PUT /initiatives/file',
+         'POST /roadmap',
+      ]);
+      expect(writes[0].body).toEqual({ project: 'new-thing', initiative: 'fixbot', expect: null });
+      expect(el.textContent).toMatch(
+         /Promised to finish by .+, in FixBot chat\. Decide asks again/
+      );
+      calls.length = 0;
+      click(el, 'Undo');
+      await settle();
+      expect(calls.filter(c => c.method !== 'GET').map(c => `${c.method} ${c.path}`)).toEqual([
+         'DELETE /roadmap/77',
+         'PUT /initiatives/file',
+      ]);
+      expect(calls.find(c => c.path === '/initiatives/file')?.body).toMatchObject({
+         project: 'new-thing',
+         initiative: null,
+      });
+   });
+   it('keeps the filing when the plan fails, says so, and Try again only plans', async () => {
+      const el = render(fresh('flaky'));
+      click(el, 'Promise to finish by');
+      await settle();
+      expect(calls.filter(c => c.method !== 'GET').map(c => `${c.method} ${c.path}`)).toEqual([
+         'PUT /initiatives/file',
+         'POST /roadmap',
+      ]);
+      expect(el.textContent).toContain('Filed in FixBot chat; the plan didn’t save.');
+      calls.length = 0;
+      click(el, 'Try again');
+      await settle();
+      // its expect would be stale now: the filing isn't sent twice
+      expect(calls.filter(c => c.method !== 'GET').map(c => `${c.method} ${c.path}`)).toEqual([
+         'POST /roadmap',
+      ]);
+      expect(el.textContent).toMatch(/Promised to finish by .+, in FixBot chat\./);
+   });
+});
+
+describe('a section’s one click on rows with a File in chooser', () => {
+   const fresh = (slug: string): DecideRow => ({
+      slug,
+      item: null,
+      reasons: [{ kind: 'new', since: '2026-09-10' }],
+   });
+   // its own rows: a call made here stays made for the tests after
+   const rows = [fresh('bulk-a'), fresh('lonely'), fresh('bulk-b')];
+
+   it('files each where its chooser says and skips one whose chooser is empty', async () => {
+      const el = mount(
+         <SectionCalls title="Needs a plan" rows={rows} owed={rows} projectOf={() => undefined} main />
+      );
+      // lonely has no guess, so its own answer is off: the section leaves it,
+      // and says "2", not "all 2"
+      const all = [...el.querySelectorAll('button')].find(b => b.textContent?.startsWith('Promise'));
+      expect(all?.textContent).toMatch(/^Promise 2 /);
+      act(() => all?.click());
+      await settle();
+      await settle();
+      // each guessed home rides along with its plan, as its own answer would
+      expect(
+         calls.filter(c => c.method !== 'GET').map(c => [c.path, (c.body as { project: string }).project])
+      ).toEqual([
+         ['/initiatives/file', 'bulk-a'],
+         ['/roadmap', 'bulk-a'],
+         ['/initiatives/file', 'bulk-b'],
+         ['/roadmap', 'bulk-b'],
+      ]);
+      expect(calls.find(c => c.path === '/initiatives/file')?.body).toEqual({
+         project: 'bulk-a',
+         initiative: 'fixbot',
+         expect: null,
+      });
+      // the board's homes as the server has them, for the tests after
+      await act(() => loadInitiatives());
+   });
+});
+
+describe('the words for where a project belongs', () => {
+   const row: DecideRow = { slug: 'x', item: null, reasons: [{ kind: 'unfiled' }] };
+   it('say what each answer does', () => {
+      expect(answerWords({ kind: 'file', to: 'fixbot', name: 'FixBot chat' }, null)).toBe(
+         'File in FixBot chat'
+      );
+      // by the home's kind, never its slug: any Not tracked initiative
+      expect(
+         answerWords({ kind: 'file', to: 'shelf', name: 'Shelf', untracked: true }, null)
+      ).toBe('Mark Not tracked');
+      expect(answerWords({ kind: 'link', project: 'pp', name: 'Parts pages' }, null)).toBe(
+         'Link to Parts pages'
+      );
+      expect(
+         callWords(
+            { kind: 'file', to: 'fixbot', name: 'FixBot chat' },
+            row,
+            undefined,
+            '2026-10-11'
+         )
+      ).toBe('Filed in FixBot chat.');
+      expect(
+         callWords({ kind: 'park' }, row, undefined, '2026-10-11', {
+            name: 'FixBot chat',
+         })
+      ).toBe(
+         'Parked, so it stops counting in the weeks ahead. Decide asks again if its PRs move. It’s in FixBot chat now.'
+      );
+   });
+
+   it('keep two initiatives’ questions apart', () => {
+      const ask = (initiative: number): DecideRow => ({
+         slug: null,
+         item: null,
+         reasons: [{ kind: 'goal_reached', initiative }],
+      });
+      const made = new Map<string, Made>([
+         [
+            'initiative:1',
+            {
+               row: ask(1),
+               call: { kind: 'keep_open' },
+               words: '',
+               state: 'made',
+               origin: null,
+               token: 1,
+            },
+         ],
+      ]);
+      const kept = keepCalls([ask(1), ask(2)], made);
+      expect(kept.owed).toEqual([ask(2)]);
+      expect(kept.all).toHaveLength(2);
+   });
+});
+
+describe('an answer’s button', () => {
+   it('grows with its words when they wrap on a phone, never a fixed height', () => {
+      const rows: DecideRow[] = [
+         { slug: 'cache', item: null, reasons: [{ kind: 'stalled', days: 30 }] },
+         { slug: 'new-thing', item: null, reasons: [{ kind: 'unfiled' }] },
+         { slug: 'akeneo', item: null, reasons: [{ kind: 'reopened_in_closed', initiative: 3, as: 'done' }] },
+      ];
+      for (const row of rows) {
+         const el = render(row);
+         for (const b of el.querySelectorAll('button')) {
+            expect(b.className, b.textContent ?? '').not.toMatch(/(^|\s)h-8(\s|$)/);
+         }
+      }
+   });
+});
+
+describe('the File in chooser and the answer that waits on it', () => {
+   const unfiled = (slug: string): DecideRow => ({ slug, item: null, reasons: [{ kind: 'unfiled' }] });
+   const order = (el: HTMLElement) =>
+      [...el.querySelectorAll('select, button')].map(n => n.tagName.toLowerCase());
+
+   it('sits above the buttons it brings to life, which wait while nothing is picked', () => {
+      // nobody it shares work with is filed anywhere: no guess
+      const el = render(unfiled('loner'));
+      expect(order(el)[0]).toBe('select');
+      const file = fileButton(el);
+      expect(file?.disabled).toBe(true);
+   });
+
+   it('says Suggested only for the board’s own guess, never for a person’s pick', () => {
+      const el = render(unfiled('new-thing'));
+      expect(buttons(el)).toEqual(['FileSuggested']);
+      expect(fileButton(el)?.getAttribute('aria-label')).toBe('File New thing in FixBot chat');
+      const select = el.querySelector('select') as HTMLSelectElement;
+      act(() => {
+         select.value = 'site-speed';
+         select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      expect(buttons(el)).toEqual(['File']);
+      expect(fileButton(el)?.getAttribute('aria-label')).toBe('File New thing in Site speed');
+   });
+
+   it('holds a plan answer the same way while its chooser is empty', () => {
+      const el = render({ slug: 'loner', item: null, reasons: [{ kind: 'new', since: '2026-09-10' }] });
+      expect(order(el)[0]).toBe('select');
+      const promise = [...el.querySelectorAll('button')].find(b =>
+         b.textContent?.startsWith('Promise to finish by')
+      );
+      expect(promise?.disabled).toBe(true);
+      expect(promise?.textContent).not.toContain('Suggested');
+   });
+
+   it('gives the Tab stop to Other answers while its answer waits on the chooser', () => {
+      const el = render({ slug: 'loner', item: null, reasons: [{ kind: 'new', since: '2026-09-10' }] });
+      const [promise, other] = el.querySelectorAll<HTMLButtonElement>('[role="toolbar"] button');
+      expect(promise.disabled).toBe(true);
+      expect(promise.tabIndex).toBe(-1);
+      expect(other.textContent).toBe('Other answers');
+      expect(other.tabIndex).toBe(0);
+      // and j and k land there
+      expect(el.querySelector('[data-decide-focus]')).toBe(other);
+   });
+
+   it('says the filing in the plan answer’s label', () => {
+      const el = render({ slug: 'new-thing', item: null, reasons: [{ kind: 'new', since: '2026-09-10' }] });
+      const promise = [...el.querySelectorAll('button')].find(b =>
+         b.textContent?.startsWith('Promise to finish by')
+      );
+      expect(promise?.getAttribute('aria-label')).toMatch(/, in FixBot chat$/);
+   });
+
+   it('names where a project went when someone filed it first', async () => {
+      await settle();
+      calls.length = 0;
+      const el = render(unfiled('raced'));
+      const select = el.querySelector('select') as HTMLSelectElement;
+      act(() => {
+         select.value = 'site-speed';
+         select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      act(() => fileButton(el)?.click());
+      await settle();
+      expect(el.textContent).toContain('Someone filed it in FixBot chat since, so nothing changed.');
+      // and the board reads the homes again
+      expect(calls.filter(c => c.path === '/initiatives' && c.method === 'GET')).toHaveLength(1);
+   });
+});
+
+describe('a plan with no project', () => {
+   const row: DecideRow = { slug: null, item: unlinked, reasons: [{ kind: 'no_project' }] };
+
+   it('asks for its project, then links it, and Undo unlinks it', async () => {
+      const el = render(row);
+      // the File in chooser's layout: "Its project [ ] Link", Link off till a pick
+      expect(parts(el)).toEqual(['Its project', 'select', 'Link']);
+      expect(el.querySelector<HTMLButtonElement>('button')?.disabled).toBe(true);
+      const select = el.querySelector('select') as HTMLSelectElement;
+      act(() => {
+         select.value = 'cache';
+         select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      expect(el.querySelector('button')?.getAttribute('aria-label')).toBe(
+         'Link Checkout redesign to cache'
+      );
+      click(el, 'Link');
+      await settle();
+      expect(calls.at(-1)).toMatchObject({
+         method: 'PATCH',
+         path: '/roadmap/5',
+         body: { project: 'cache' },
+      });
+      expect(el.textContent).toContain('Linked to cache');
+      click(el, 'Undo');
+      await settle();
+      expect(calls.at(-1)).toMatchObject({
+         method: 'PATCH',
+         path: '/roadmap/5',
+         body: { project: null, undo: { updated_at: 1, status_at: null } },
+      });
+   });
+});
+
+describe('a double-click on Link', () => {
+   const row: DecideRow = { slug: null, item: unlinked, reasons: [{ kind: 'no_project' }] };
+
+   it('links once: its second press reaches nothing, and the focus is on the receipt', async () => {
+      // under the press guard, as on every view that shows Decide's rows
+      const el = mount(
+         <div data-press-guard="">
+            <DecideCall row={row} />
+         </div>
+      );
+      const select = el.querySelector('select') as HTMLSelectElement;
+      act(() => {
+         select.value = 'cache';
+         select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      const link = [...el.querySelectorAll('button')].find(b =>
+         b.textContent?.startsWith('Link')
+      ) as HTMLButtonElement;
+      pressAt(link, 300, 200);
+      await settle();
+      expect(el.textContent).toContain('Linked to cache');
+      expect(document.activeElement?.textContent).toContain('Linked to cache');
+      const sent = calls.length;
+      // a row joined above, so Undo (or the plan's name) slid under the
+      // pointer: the second press of the double-click finds it, and does nothing
+      const undo = [...el.querySelectorAll('button')].find(
+         b => b.textContent === 'Undo'
+      ) as HTMLButtonElement;
+      pressAt(undo, 300, 200);
+      await settle();
+      expect(calls.length).toBe(sent);
+      expect(document.activeElement?.textContent).toContain('Linked to cache');
+      // once the pointer has moved away and back, Undo is a click again
+      act(() => {
+         document.dispatchEvent(
+            new MouseEvent('pointermove', { bubbles: true, clientX: 400, clientY: 300 })
+         );
+      });
+      pressAt(undo, 300, 200);
+      await settle();
+      expect(calls.at(-1)).toMatchObject({ method: 'PATCH', body: { project: null } });
+   });
+});
+
+describe('the focus once Undo’s words go', () => {
+   it('lands on the row’s name when its answer is off, never on the page', async () => {
+      const row: DecideRow = { slug: null, item: unlinked, reasons: [{ kind: 'no_project' }] };
+      const el = mount(
+         <div data-press-guard="">
+            <DecideRowView
+               row={row}
+               decided={false}
+               project={undefined}
+               team={null}
+               nav={{} as ProjectsNav}
+               navigate={nothing}
+            />
+         </div>
+      );
+      const select = el.querySelector('select') as HTMLSelectElement;
+      act(() => {
+         select.value = 'cache';
+         select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      click(el, 'Link');
+      await settle();
+      const undo = [...el.querySelectorAll('button')].find(
+         b => b.textContent === 'Undo'
+      ) as HTMLButtonElement;
+      pressAt(undo, 50, 50);
+      await settle();
+      // Link waits off again for a project; the words go as the pointer leaves
+      act(() => {
+         document.dispatchEvent(
+            new MouseEvent('pointermove', { bubbles: true, clientX: 300, clientY: 300 })
+         );
+      });
+      expect(document.activeElement?.textContent).toBe('Checkout redesign');
+   });
+});
+
+describe('a project whose closed initiative and done plan are both asked about', () => {
+   const both: DecideRow = {
+      slug: 'akeneo',
+      item: { ...created, id: 8, project: 'akeneo', status: 'done', status_at: 10 },
+      reasons: [
+         { kind: 'reopened', open: 3, late: 0, as: 'done', by: 'roadmap' },
+         { kind: 'reopened_in_closed', initiative: 3, as: 'done' },
+      ],
+   };
+
+   it('asks about the initiative first, on the one row', () => {
+      const el = render(both);
+      expect(buttons(el)).toEqual(['Reopen CatalogSuggested', 'File elsewhere']);
+   });
+
+   it('keeps the reopen’s receipt here, and the plan question owed everywhere else', () => {
+      const made = new Map<string, Made>([
+         [
+            'akeneo:8',
+            { row: both, call: { kind: 'reopen' }, words: '', state: 'made', origin: null, token: 1 },
+         ],
+      ]);
+      const plan: DecideRow = { ...both, reasons: [both.reasons[0]] };
+      const kept = keepCalls([plan], made);
+      // still owed, so the Roadmap and the Overview keep the project in
+      // sight; shown once, as the row with its receipt
+      expect(kept.owed).toEqual([plan]);
+      expect(kept.settled.has('akeneo:8')).toBe(true);
+      expect(kept.all).toEqual([both]);
+      // but counted nowhere until Decide asks it, on the next visit, so the
+      // badge, the switches and the initiative page agree with its heading
+      expect(kept.open).toEqual([]);
+   });
+});
+
+describe('Decide’s Initiative switch', () => {
+   it('offers a closed initiative while a project in it is asked about', () => {
+      const owed: Record<string, number> = { catalog: 1, 'site-speed': 2 };
+      const el = mount(
+         <InitiativeSwitch
+            initiatives={INITIATIVES}
+            owedIn={slug => owed[slug] ?? 0}
+            value={null}
+            onChange={nothing}
+         />
+      );
+      expect([...el.querySelectorAll('option')].map(o => o.textContent)).toEqual([
+         'All initiatives',
+         'Site speed · 2 to decide',
+         'Catalog · 1 to decide',
+      ]);
+   });
+
+   it('counts plans with no project apart from Unsorted, under keys no slug can take', () => {
+      const owed: Record<string, number> = { [UNSORTED]: 3, [NO_PROJECT]: 1 };
+      const el = mount(
+         <InitiativeSwitch
+            initiatives={INITIATIVES}
+            owedIn={slug => owed[slug] ?? 0}
+            value={null}
+            onChange={nothing}
+         />
+      );
+      const options = [...el.querySelectorAll('option')];
+      expect(options.map(o => o.textContent)).toEqual([
+         'All initiatives',
+         'Unsorted · 3 to decide',
+         'No project yet · 1 to decide',
+      ]);
+      // an initiative may be called "unsorted"; these keys can't be its slug
+      for (const o of options.slice(1)) expect(PROJECT_SLUG.test(o.value)).toBe(false);
+   });
+});
+
+describe('an initiative’s page', () => {
+   const page = (slug: string, calls: DecideRow[] = [], items = ITEMS, plans: RoadmapItem[] = []) =>
+      mount(
+         <InitiativePage
+            slug={slug}
+            initiatives={INITIATIVES}
+            items={items}
+            plans={plans}
+            calls={calls}
+            owed={calls}
+            nav={{} as ProjectsNav}
+            navigate={nothing}
+            onPerson={nothing}
+         />
+      );
+
+   it('asks a closed one’s reopen at its head, and keeps live work out of Done', () => {
+      const done = { ...created, id: 8, project: 'akeneo', status: 'done' as const };
+      const asked: DecideRow = {
+         slug: 'akeneo',
+         item: done,
+         reasons: [{ kind: 'reopened_in_closed', initiative: 3, as: 'done' }],
+      };
+      const akeneo = { ...person('akeneo', ['erin']), name: 'Akeneo 4', open: 3 } as PortfolioItem;
+      const el = page('catalog', [asked], [...ITEMS, akeneo], [done]);
+      expect(el.textContent).toContain('Akeneo 4: Catalog was closed as done');
+      expect(buttons(el)).toContain('Reopen CatalogSuggested');
+      // its PRs are open: it's still going, so not folded under Done or dropped
+      expect(el.textContent).not.toContain('Done or dropped');
+      expect(el.textContent).toMatch(/Health.*1 question on Decide/);
+      // closed: its head says how; no estimated end beside the reopen question
+      expect(el.textContent).not.toContain('Ends');
+   });
+
+   it('opens Decide on this initiative from its questions', () => {
+      const done = { ...created, id: 8, project: 'akeneo', status: 'done' as const };
+      const asked: DecideRow = {
+         slug: 'akeneo',
+         item: done,
+         reasons: [{ kind: 'reopened_in_closed', initiative: 3, as: 'done' }],
+      };
+      const go = vi.fn();
+      const el = mount(
+         <InitiativePage
+            slug="catalog"
+            initiatives={INITIATIVES}
+            items={ITEMS}
+            plans={[done]}
+            calls={[asked]}
+            owed={[asked]}
+            nav={{} as ProjectsNav}
+            navigate={go}
+            onPerson={nothing}
+         />
+      );
+      const door = [...el.querySelectorAll('dd button')].find(
+         b => b.textContent === '1 question on Decide'
+      ) as HTMLButtonElement;
+      act(() => door.click());
+      expect(go).toHaveBeenCalledWith(expect.objectContaining({ view: 'decide', within: 'catalog' }));
+   });
+
+   it('counts only the questions still owed, not one answered on this visit', () => {
+      const answered: DecideRow = {
+         slug: 'emails',
+         item: null,
+         reasons: [{ kind: 'stalled', days: 30 }],
+      };
+      const el = mount(
+         <InitiativePage
+            slug="onboarding"
+            initiatives={INITIATIVES}
+            items={ITEMS}
+            plans={[]}
+            calls={[answered]}
+            owed={[]}
+            nav={{} as ProjectsNav}
+            navigate={nothing}
+            onPerson={nothing}
+         />
+      );
+      expect(el.textContent).not.toMatch(/question.? on Decide/);
+   });
+
+   it('sends only the fields Edit changed, so a save someone made since stays', async () => {
+      const at = (initiatives: Initiative[]) => (
+         <AllItemsContext.Provider value={ITEMS}>
+            <InitiativePage
+               slug="onboarding"
+               initiatives={initiatives}
+               items={ITEMS}
+               plans={[]}
+               calls={[]}
+               owed={[]}
+               nav={{} as ProjectsNav}
+               navigate={nothing}
+               onPerson={nothing}
+            />
+         </AllItemsContext.Provider>
+      );
+      host = document.createElement('div');
+      document.body.append(host);
+      const root = createRoot(host);
+      roots.push(root);
+      act(() => root.render(at(INITIATIVES)));
+      click(host, 'Edit');
+      const name = host.querySelector('input') as HTMLInputElement;
+      act(() => {
+         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(
+            name,
+            'Welcome'
+         );
+         name.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      // someone else sets its owner, and the socket's reload brings that in
+      act(() =>
+         root.render(at(INITIATIVES.map(i => (i.id === 4 ? { ...i, owner: 'someone-else' } : i))))
+      );
+      click(host, 'Save');
+      await settle();
+      expect(calls.filter(c => c.method === 'PATCH').at(-1)?.body).toEqual({ name: 'Welcome' });
+   });
+
+   it('says the initiative couldn’t load, with Try again, when a load failed', () => {
+      const el = mount(
+         <InitiativePage
+            slug="onboarding"
+            initiatives={INITIATIVES}
+            items={ITEMS}
+            plans={null}
+            calls={[]}
+            owed={[]}
+            loadFailed
+            nav={{} as ProjectsNav}
+            navigate={nothing}
+            onPerson={nothing}
+         />
+      );
+      expect(el.textContent).toContain('Couldn’t load the initiative.');
+      expect(buttons(el)).toContain('Try again');
+   });
+
+   it('says it has no plans once, with no end or people to name', () => {
+      const el = page('onboarding');
+      const terms = [...el.querySelectorAll('dt')].map(d => d.textContent);
+      expect(terms).toEqual(['Span', 'Health']);
+      expect(el.textContent).toContain('No plans yet');
+   });
+
+   it('says a reopened one’s end waits on the work going on in it', () => {
+      const done = { ...created, id: 8, project: 'akeneo', status: 'done' as const, weeks: 2 };
+      const akeneo = { ...person('akeneo', ['erin']), name: 'Akeneo 4', open: 3 } as PortfolioItem;
+      const reopened = INITIATIVES.map(i =>
+         i.slug === 'catalog' ? { ...i, status: 'open' as const } : i
+      );
+      const el = mount(
+         <InitiativePage
+            slug="catalog"
+            initiatives={reopened}
+            items={[...ITEMS, akeneo]}
+            plans={[done]}
+            calls={[]}
+            owed={[]}
+            nav={{} as ProjectsNav}
+            navigate={nothing}
+            onPerson={nothing}
+         />
+      );
+      expect(el.textContent).toContain(
+         'Endsnot planned: its plans are finished, but Akeneo 4 is still worked on'
+      );
+   });
+
+   it('says no initiative is at a link that names none, in plain words', () => {
+      const el = page('gone');
+      expect(el.textContent).toContain('No initiative is at this link.');
+      expect(el.textContent).not.toContain('slug');
+   });
+
+   it('asks each project’s own question on its row', () => {
+      const going = { ...created, id: 9, project: 'cache', status: 'active' as const };
+      const asked: DecideRow = { slug: 'cache', item: going, reasons: [{ kind: 'stalled', days: 30 }] };
+      const el = page('site-speed', [asked], ITEMS, [going]);
+      expect(el.textContent).toContain('Park it for now?');
+   });
+
+   it('shows Not tracked as a ledger: no owner, Edit, span or end', () => {
+      const el = page('shelf');
+      expect(el.querySelector('h2')?.textContent).toBe('Not tracked');
+      expect(el.textContent).not.toContain('Not trackedNot tracked');
+      expect(buttons(el)).not.toContain('Edit');
+      expect(el.textContent).not.toContain('Span');
+      expect(el.textContent).not.toContain('Ends');
+   });
+
+   it('keeps an edit’s receipt, saying why, when its Undo fails', async () => {
+      const el = page('fragile');
+      click(el, 'Edit');
+      const goal = el.querySelectorAll('input')[1] as HTMLInputElement;
+      act(() => {
+         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(goal, 'Holds');
+         goal.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      click(el, 'Save');
+      await settle();
+      expect(el.textContent).toContain('Saved its goal.');
+      click(el, 'Undo');
+      await settle();
+      expect(el.textContent).toContain('the database is down');
+      expect(buttons(el)).toContain('Try again');
+   });
+
+   it('says a goal emptied was cleared, not saved', async () => {
+      const el = page('onboarding');
+      click(el, 'Edit');
+      const goal = el.querySelectorAll('input')[1] as HTMLInputElement;
+      act(() => {
+         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(goal, '');
+         goal.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      click(el, 'Save');
+      await settle();
+      expect(el.textContent).toContain('Cleared its goal.');
+   });
+});
+
+describe('a project page’s home line', () => {
+   it('opens the chooser below its home, as Decide does, and File waits for another pick', () => {
+      const el = mount(<HomeLine slug="cache" initiatives={INITIATIVES} navigate={nothing} />);
+      expect(el.textContent).toContain('in Site speed');
+      click(el, 'File elsewhere');
+      // the home and its opener stay; the opener says it's open
+      expect(el.textContent).toContain('in Site speed');
+      const opener = [...el.querySelectorAll('button')].find(b =>
+         b.textContent?.startsWith('File elsewhere')
+      );
+      expect(opener?.getAttribute('aria-expanded')).toBe('true');
+      const move = [...el.querySelectorAll('button')].find(b => b.textContent === 'File');
+      expect(move?.disabled).toBe(true);
+      const select = el.querySelector('select') as HTMLSelectElement;
+      expect(select.value).toBe('site-speed');
+      act(() => {
+         select.value = '';
+         select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      expect([...select.options].at(-1)?.textContent).toBe('Unsorted');
+      expect(move?.disabled).toBe(false);
+   });
+
+   it('starts a project in a closed initiative on Choose where it goes', () => {
+      // akeneo is filed in Catalog, which is closed, so no option carries it
+      const el = mount(<HomeLine slug="akeneo" initiatives={INITIATIVES} navigate={nothing} />);
+      click(el, 'File elsewhere');
+      const select = el.querySelector('select') as HTMLSelectElement;
+      expect(select.selectedOptions[0]?.textContent).toBe('Choose where it goes');
+      const move = [...el.querySelectorAll('button')].find(b => b.textContent === 'File');
+      expect(move?.disabled).toBe(true);
+      // the first offered home is a change of the select, so File comes on
+      act(() => {
+         select.value = 'site-speed';
+         select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      expect(move?.disabled).toBe(false);
+      expect(move?.getAttribute('aria-label')).toBe('File akeneo in Site speed');
+   });
+
+   it('closes the chooser from its opener, the opener kept', () => {
+      const el = mount(<HomeLine slug="cache" initiatives={INITIATIVES} navigate={nothing} />);
+      click(el, 'File elsewhere');
+      click(el, 'File elsewhere');
+      expect(el.querySelector('select')).toBeNull();
+      expect(el.textContent).toContain('in Site speed');
+   });
+
+   it('offers no File elsewhere while Decide’s question on the page files it', () => {
+      const el = mount(
+         <HomeLine slug="new-thing" initiatives={INITIATIVES} navigate={nothing} movable={false} />
+      );
+      expect(el.textContent).toBe('Unsorted');
+      expect(el.querySelector('button')).toBeNull();
+   });
+
+   it('says the move once, and its Undo in the one Undo form', async () => {
+      const said: string[] = [];
+      const el = mount(
+         <HomeLine
+            slug="cache"
+            initiatives={INITIATIVES}
+            navigate={nothing}
+            onSaid={words => said.push(words)}
+         />
+      );
+      click(el, 'File elsewhere');
+      const select = el.querySelector('select') as HTMLSelectElement;
+      act(() => {
+         select.value = 'fixbot';
+         select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      act(() => [...el.querySelectorAll('button')].find(b => b.textContent === 'File')?.click());
+      await settle();
+      // the receipt names the new home; the home word isn't said beside it
+      expect(el.textContent?.match(/FixBot chat/g)).toHaveLength(1);
+      expect(el.textContent).toContain('Filed in FixBot chat.');
+      click(el, 'Undo');
+      // said before it saves, so a second click finds no Undo to press
+      expect(el.querySelector('[role="status"]')?.textContent).toBe(
+         'Put cache back in Site speed.'
+      );
+      await settle();
+      expect(said.at(-1)).toBe('Put cache back in Site speed');
+      // Undo's words hold the receipt's place with nothing to click; File
+      // elsewhere comes back after them, on the line below
+      const status = el.querySelector('[role="status"]') as HTMLElement;
+      expect(status.textContent).toBe('Put cache back in Site speed.');
+      expect(status.querySelector('button')).toBeNull();
+      expect(buttons(el)).toEqual(['File elsewhere']);
+      expect(document.activeElement?.textContent).toBe('Put cache back in Site speed.');
+   });
+
+   it('says filing into Not tracked in Decide’s words, its Undo named to match', async () => {
+      const el = mount(<HomeLine slug="cache" initiatives={INITIATIVES} navigate={nothing} />);
+      click(el, 'File elsewhere');
+      const select = el.querySelector('select') as HTMLSelectElement;
+      act(() => {
+         select.value = 'shelf';
+         select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      act(() => [...el.querySelectorAll('button')].find(b => b.textContent === 'File')?.click());
+      await settle();
+      expect(el.querySelector('[role="status"]')?.textContent).toContain(
+         'Marked Not tracked, so it counts nowhere. Decide asks again if it grows.'
+      );
+      expect(
+         el.querySelector('[aria-label="Undo: Marked Not tracked, so it counts nowhere. Decide asks again if it grows"]')
+      ).not.toBeNull();
+   });
+});
+
+describe('a row asking whether an initiative reached its goal', () => {
+   it('shows the goal it asks about', () => {
+      const el = mount(
+         <DecideRowView
+            row={{ slug: null, item: null, reasons: [{ kind: 'goal_reached', initiative: 4 }] }}
+            decided={false}
+            owner={INITIATIVES[3]}
+            project={undefined}
+            team={null}
+            nav={{} as ProjectsNav}
+            navigate={nothing}
+         />
+      );
+      expect(el.textContent).toContain('Goal: New customers get a welcome series');
+   });
+});
+
+describe('a pick left in a chooser that closed', () => {
+   const closedHome: DecideRow = {
+      slug: 'akeneo',
+      item: null,
+      reasons: [{ kind: 'reopened_in_closed', initiative: 3, as: 'done' }],
+   };
+   const plan: DecideRow = {
+      slug: 'akeneo',
+      item: { ...created, id: 8, project: 'akeneo', status: 'done', status_at: 10 },
+      reasons: [{ kind: 'reopened', open: 3, late: 0, as: 'done', by: 'roadmap' }],
+   };
+   const pick = (el: HTMLElement, slug: string) =>
+      act(() => {
+         const select = el.querySelector('select') as HTMLSelectElement;
+         select.value = slug;
+         select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+
+   it('files nothing with the next answer', async () => {
+      // pick FixBot chat in File elsewhere, then close it without filing
+      const first = render(closedHome);
+      click(first, 'File elsewhere');
+      pick(first, 'fixbot');
+      click(first, 'File elsewhere');
+      // the row that asks about its plan shows no chooser: its answer files nothing
+      const el = render(plan);
+      expect(el.querySelector('select')).toBeNull();
+      click(el, 'Keep it done');
+      await settle();
+      expect(calls.some(c => c.path === '/initiatives/file')).toBe(false);
+   });
+
+   it('closes on Escape, forgets its pick, and gives the focus back', async () => {
+      const el = render(closedHome);
+      click(el, 'File elsewhere');
+      pick(el, 'fixbot');
+      const opener = [...el.querySelectorAll('button')].find(
+         b => b.textContent === 'File elsewhere'
+      ) as HTMLButtonElement;
+      act(() => {
+         (el.querySelector('select') as HTMLSelectElement).dispatchEvent(
+            new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })
+         );
+      });
+      expect(el.querySelector('select')).toBeNull();
+      expect(opener.getAttribute('aria-expanded')).toBe('false');
+      expect(document.activeElement).toBe(opener);
+      // opened again, it starts on the guess, not the abandoned pick
+      click(el, 'File elsewhere');
+      expect((el.querySelector('select') as HTMLSelectElement).value).not.toBe('fixbot');
+   });
+
+   it('is forgotten once a filing saves', async () => {
+      const grew: DecideRow = {
+         slug: 'ops',
+         item: null,
+         reasons: [{ kind: 'untracked_grew', since: 31, baseline: 2 }],
+      };
+      const el = render(grew);
+      click(el, 'Track it');
+      pick(el, 'fixbot');
+      act(() => fileButton(el)?.click());
+      await settle();
+      click(el, 'Undo');
+      await settle();
+      calls.length = 0;
+      // the row asks again, from a fresh chooser: nothing carries the old pick
+      click(el, 'Track it');
+      expect((el.querySelector('select') as HTMLSelectElement).value).not.toBe('fixbot');
+   });
+});
+
+describe('filing into an initiative someone closed since', () => {
+   it('says so and reads the initiatives again, so the choosers stop offering it', async () => {
+      // an earlier test's reads land first, whatever order the tests run in
+      await settle();
+      calls.length = 0;
+      const r = await act(() => fileProject('cache', 'catalog', { expect: 'site-speed' }));
+      expect(r).toEqual({
+         error: expect.stringContaining('that initiative is closed'),
+      });
+      expect(calls.filter(c => c.path === '/initiatives' && c.method === 'GET')).toHaveLength(1);
+   });
+});
+
+describe('a pick whose initiative closed since', () => {
+   it('is no pick: the chooser waits again, and the answer files nothing', async () => {
+      const el = render({
+         slug: 'lonely',
+         item: null,
+         reasons: [{ kind: 'new', since: '2026-09-10' }],
+      });
+      const select = el.querySelector('select') as HTMLSelectElement;
+      act(() => {
+         select.value = 'fragile';
+         select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      const fragile = INITIATIVES[4];
+      try {
+         fragile.status = 'done';
+         await act(() => loadInitiatives());
+         expect(select.value).toBe('');
+         const promise = [...el.querySelectorAll('button')].find(b =>
+            b.textContent?.startsWith('Promise to finish by')
+         );
+         expect(promise?.disabled).toBe(true);
+      } finally {
+         fragile.status = 'open';
+         await act(() => loadInitiatives());
+      }
+   });
+});
+
+describe('Undo on a row', () => {
+   const grew: DecideRow = {
+      slug: 'ops',
+      item: null,
+      reasons: [{ kind: 'untracked_grew', since: 31, baseline: 2 }],
+   };
+
+   it('holds its words where the receipt was, so a second click there answers nothing', async () => {
+      const el = render(grew);
+      click(el, 'Keep Not tracked');
+      await settle();
+      const undo = [...el.querySelectorAll('button')].find(
+         b => b.textContent === 'Undo'
+      ) as HTMLButtonElement;
+      act(() => undo.click());
+      await settle();
+      // the slot says what Undo did, with nothing to click in it, and the
+      // answers come back after it
+      const slot = [...el.querySelectorAll('p')].find(
+         p => p.textContent === 'Put ops back as it was.'
+      ) as HTMLElement;
+      expect(slot).toBeDefined();
+      expect(slot.querySelector('button')).toBeNull();
+      expect(slot.compareDocumentPosition(el.querySelector('button') as Node)).toBe(
+         Node.DOCUMENT_POSITION_FOLLOWING
+      );
+      expect(document.activeElement).toBe(slot);
+      // a double-click's second press lands on the old Undo: nothing is sent
+      const sent = calls.length;
+      act(() => undo.click());
+      await settle();
+      expect(calls.length).toBe(sent);
+      expect(buttons(el)).toEqual(['Keep Not trackedSuggested', 'Track it']);
+      // j and k land on the row's answer, never on the held words
+      expect(el.querySelector('[data-decide-focus]')?.textContent).toBe(
+         'Keep Not trackedSuggested'
+      );
+      // and a Tab on from the words lets them go
+      act(() => {
+         slot.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+         (el.querySelector('button') as HTMLButtonElement).focus();
+      });
+      expect(el.textContent).not.toContain('Put ops back as it was.');
+   });
+
+   it('lets its words go when the pointer moves away, the focus back on the answer', async () => {
+      const el = mount(
+         <div data-press-guard="">
+            <DecideCall row={grew} />
+         </div>
+      );
+      click(el, 'Keep Not tracked');
+      await settle();
+      const undo = [...el.querySelectorAll('button')].find(
+         b => b.textContent === 'Undo'
+      ) as HTMLButtonElement;
+      pressAt(undo, 120, 80);
+      await settle();
+      expect(el.textContent).toContain('Put ops back as it was.');
+      // a wobble keeps them; moving off lets them go
+      const move = (x: number, y: number) =>
+         act(() => {
+            document.dispatchEvent(
+               new MouseEvent('pointermove', { bubbles: true, clientX: x, clientY: y })
+            );
+         });
+      move(122, 81);
+      expect(el.textContent).toContain('Put ops back as it was.');
+      move(400, 300);
+      expect(el.textContent).not.toContain('Put ops back as it was.');
+      expect(document.activeElement?.textContent).toBe('Keep Not trackedSuggested');
+   });
+
+   it('lets its words go when the next action starts', async () => {
+      const el = mount(
+         <div data-press-guard="">
+            <DecideCall row={grew} />
+         </div>
+      );
+      click(el, 'Keep Not tracked');
+      await settle();
+      click(el, 'Undo');
+      await settle();
+      expect(el.textContent).toContain('Put ops back as it was.');
+      // the next answer, by key: the words go before it lands
+      click(el, 'Track it');
+      expect(el.textContent).not.toContain('Put ops back as it was.');
+   });
+
+   const both: DecideRow = {
+      slug: 'akeneo',
+      item: { ...created, id: 8, project: 'akeneo', status: 'done', status_at: 10 },
+      reasons: [
+         { kind: 'reopened', open: 3, late: 0, as: 'done', by: 'roadmap' },
+         { kind: 'reopened_in_closed', initiative: 3, as: 'done' },
+      ],
+   };
+   const planOnly: DecideRow = { ...both, reasons: [both.reasons[0]] };
+   /** Decide's rows in their sections, as the queue reads now. */
+   function Sections({ queue }: { queue: DecideRow[] }) {
+      const { all } = useKeptCalls(queue);
+      const sections = [...new Set(all.map(sectionOf))];
+      return (
+         <>
+            {sections.map(k => (
+               <section key={k}>
+                  {all
+                     .filter(r => sectionOf(r) === k)
+                     .map(r => (
+                        <DecideRowView
+                           key={rowKey(r)}
+                           row={r}
+                           decided={false}
+                           project={undefined}
+                           team={null}
+                           nav={{} as ProjectsNav}
+                           navigate={nothing}
+                        />
+                     ))}
+               </section>
+            ))}
+         </>
+      );
+   }
+
+   it('holds a reopen’s Undo words in place while the initiative is still open', async () => {
+      host = document.createElement('div');
+      document.body.append(host);
+      const root = createRoot(host);
+      roots.push(root);
+      const show = (queue: DecideRow[]) =>
+         act(() =>
+            root.render(
+               <AllItemsContext.Provider value={ITEMS}>
+                  <Sections queue={queue} />
+               </AllItemsContext.Provider>
+            )
+         );
+      const el = host;
+      show([both]);
+      click(el, 'Reopen Catalog');
+      await settle();
+      // reopened: the queue asks only about the plan now
+      show([planOnly]);
+      const undo = [...el.querySelectorAll('button')].find(
+         b => b.textContent === 'Undo'
+      ) as HTMLButtonElement;
+      const row = undo.closest('[data-decide-row]') as HTMLElement;
+      const held = () =>
+         [...row.querySelectorAll('p')].find(p => p.textContent === 'Put New thing back as it was.');
+      act(() => undo.click());
+      // the Undo is saving, so the queue still reads it reopened: the row
+      // keeps its place, its words where the receipt was
+      show([planOnly]);
+      expect(row.isConnected).toBe(true);
+      expect(held()).toBeDefined();
+      await settle();
+      await settle();
+      // closed again, it asks both on the same row, the words before the answers
+      show([both]);
+      expect(row.isConnected).toBe(true);
+      const answer = row.querySelector('[role="toolbar"] button') as HTMLButtonElement;
+      expect(answer.textContent).toBe('Reopen CatalogSuggested');
+      expect(held()?.compareDocumentPosition(answer)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+      expect(document.activeElement).toBe(held());
+   });
+});
+
+describe('the one chooser, wherever a project is filed', () => {
+   const escape = (el: Element) =>
+      act(() => {
+         el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      });
+   // the next frame: frames run in order, so the one the code asked for ran
+   const frame = () =>
+      act(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));
+
+   it('reads "File in [ ] File" on Decide’s row and "File in [ ] File Cancel" where it opens', () => {
+      const unfiled = render({ slug: 'new-thing', item: null, reasons: [{ kind: 'unfiled' }] });
+      expect(parts(unfiled)).toEqual(['File in', 'select', 'FileSuggested']);
+      const grew = render({
+         slug: 'ops',
+         item: null,
+         reasons: [{ kind: 'untracked_grew', since: 31, baseline: 2 }],
+      });
+      click(grew, 'Track it');
+      expect(parts(grew)).toEqual(['File in', 'select', 'File', 'Cancel']);
+      const line = mount(<HomeLine slug="cache" initiatives={INITIATIVES} navigate={nothing} />);
+      click(line, 'File elsewhere');
+      expect(parts(line)).toEqual(['File in', 'select', 'File', 'Cancel']);
+   });
+
+   it('closes on Escape on a project’s line, the focus back on File elsewhere, and only it', async () => {
+      const outer = vi.fn();
+      const el = mount(
+         <div onKeyDown={outer}>
+            <HomeLine slug="cache" initiatives={INITIATIVES} navigate={nothing} />
+         </div>
+      );
+      click(el, 'File elsewhere');
+      escape(el.querySelector('select') as HTMLSelectElement);
+      await frame();
+      expect(el.querySelector('select')).toBeNull();
+      expect(document.activeElement?.textContent).toBe('File elsewhere');
+      // the plan details around it stay open
+      expect(outer).not.toHaveBeenCalled();
+   });
+
+   it('closes what Other answers opened on Escape, the focus back on it', () => {
+      const el = render({ slug: 'cache', item: null, reasons: [{ kind: 'stalled', days: 30 }] });
+      click(el, 'Other answers');
+      expect(el.textContent).toContain('Or instead');
+      escape(el.querySelector('[role="toolbar"] button:not(:disabled)') as HTMLButtonElement);
+      expect(el.textContent).not.toContain('Or instead');
+      expect(document.activeElement?.textContent).toBe('Other answers');
+   });
+
+   it('closes an initiative’s Edit on Escape, the focus back on Edit', async () => {
+      const el = mount(
+         <InitiativePage
+            slug="onboarding"
+            initiatives={INITIATIVES}
+            items={ITEMS}
+            plans={[]}
+            calls={[]}
+            owed={[]}
+            nav={{} as ProjectsNav}
+            navigate={nothing}
+            onPerson={nothing}
+         />
+      );
+      click(el, 'Edit');
+      escape(el.querySelector('input') as HTMLInputElement);
+      await frame();
+      expect(el.querySelector('form')).toBeNull();
+      expect(document.activeElement?.textContent).toBe('Edit');
+   });
+});
+
+describe('a plan linked to a project', () => {
+   const row: DecideRow = { slug: null, item: unlinked, reasons: [{ kind: 'no_project' }] };
+   it('says where the link put it: in that project’s initiative, or Unsorted and asked', () => {
+      const words = (project: string) =>
+         callWords({ kind: 'link', project, name: project }, row, undefined, '2026-10-11');
+      expect(words('cache')).toBe('Linked to cache, so it’s in Site speed.');
+      expect(words('ops')).toBe('Linked to ops, so it’s Not tracked.');
+      expect(words('lonely')).toBe('Linked to lonely. It’s Unsorted, so Decide asks where it goes.');
+   });
+
+   it('names the Unsorted row it becomes by its project', () => {
+      const el = mount(
+         <DecideRowView
+            row={{ slug: 'lonely', item: unlinked, reasons: [{ kind: 'unfiled' }] }}
+            decided={false}
+            // a project with no issue is named by its plan elsewhere
+            project={{ ...person('lonely', ['zed']), name: 'Checkout redesign' }}
+            team={null}
+            nav={{} as ProjectsNav}
+            navigate={nothing}
+         />
+      );
+      expect(el.querySelector('button')?.textContent).toBe('Lonely');
+   });
+});

@@ -117,11 +117,32 @@ export {
 } from './model/decide';
 export type {
    ClosedIssue,
+   GrownProject,
    DecideProject,
    DecideReason,
    DecideRow,
    PlanCounts,
 } from './model/decide';
+export {
+   checkInitiativeFields,
+   goingProjects,
+   grew,
+   homesOf,
+   initiativeSpan,
+   GROWTH_FLOOR,
+   INITIATIVE_GOAL_MAX,
+   INITIATIVE_KINDS,
+   INITIATIVE_NAME_MAX,
+   INITIATIVE_STATUSES,
+} from './model/initiatives';
+export type {
+   Filing,
+   Initiative,
+   InitiativeFields,
+   InitiativeKind,
+   InitiativeSpan,
+   InitiativeStatus,
+} from './model/initiatives';
 export { loadByWeek, mondaysBetween, peakFrom, spansFrom } from './model/load';
 export type { InFlightSpan, LoadWeek, OriginCounts } from './model/load';
 export { timeSpent } from './model/retro';

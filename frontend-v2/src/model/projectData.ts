@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import type { Initiative } from '../../../shared/model/initiatives';
+import { dummyTracking, isNotTrackedNow, useInitiatives } from './initiativesData';
 import { createMemoryStore } from '../storage';
 import { dateOf, dayOf } from './days';
 import { isDummy, loadDummy } from '../backend/dummy';
@@ -46,7 +48,56 @@ export interface ProjectsData {
     * puts a PR with no project label where the server does. Older servers
     * omit it. */
    pull_links?: PullLinks;
+   /** the Not tracked projects (filed so, or every PR in a repo config.js
+    * leaves untracked), and of those the ones that grew since, with the PRs
+    * `since` it was set not tracked against its count then (`baseline`).
+    * Older servers omit them. */
+   untracked?: string[];
+   grew?: string[];
+   grew_counts?: Record<string, { since: number; baseline: number }>;
    window: WindowStats;
+}
+
+/**
+ * The Not tracked slugs now: the server's list, with any filing made on this
+ * board since (initiativesData.ts isNotTrackedNow), and every slug a filing
+ * puts in Not tracked.
+ */
+export function notTrackedSlugs(
+   data: Pick<ProjectsData, 'untracked'> | null | undefined,
+   initiatives: readonly Initiative[] | null
+): Set<string> {
+   const out = new Set(
+      (data?.untracked ?? []).filter(slug => isNotTrackedNow(slug, true, initiatives))
+   );
+   for (const i of initiatives ?? []) {
+      if (i.kind === 'untracked') for (const f of i.projects) out.add(f.project);
+   }
+   return out;
+}
+
+/**
+ * One window's data with the Not tracked projects left out of its issues and
+ * its per-project numbers, as every list and count reads it. The server's
+ * aggregates (totals, weeks, people) always count everything.
+ */
+export function trackedData<D extends ProjectsData | null | undefined>(
+   data: D,
+   initiatives: readonly Initiative[] | null
+): D {
+   if (!data) return data;
+   const out = notTrackedSlugs(data, initiatives);
+   if (!out.size) return data;
+   return {
+      ...data,
+      projects: data.projects.filter(p => !out.has(p.slug)),
+      window: {
+         ...data.window,
+         projects: Object.fromEntries(
+            Object.entries(data.window.projects).filter(([slug]) => !out.has(slug))
+         ),
+      },
+   };
 }
 
 /** A login's developer team, or null for a non-developer. GitHub logins
@@ -89,13 +140,25 @@ export interface Range {
  * current year carries it: "Oct 17, 2025". */
 export function dayWords(day: string, { now = Date.now() }: { now?: number } = {}): string {
    const d = new Date(`${day.slice(0, 10)}T00:00:00Z`);
-   return d.toLocaleDateString(undefined, {
+   const thisYear = d.getUTCFullYear() === new Date(now).getFullYear();
+   return (thisYear ? DAY_WORDS.thisYear : DAY_WORDS.otherYear).format(d);
+}
+
+// made once: toLocaleDateString with options builds a formatter per call,
+// and the roadmap says hundreds of days a render
+const DAY_WORDS = {
+   thisYear: new Intl.DateTimeFormat(undefined, {
       month: 'short',
       day: 'numeric',
-      year: d.getUTCFullYear() === new Date(now).getFullYear() ? undefined : 'numeric',
       timeZone: 'UTC',
-   });
-}
+   }),
+   otherYear: new Intl.DateTimeFormat(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      timeZone: 'UTC',
+   }),
+};
 
 /** How many days a range covers, both ends counted. */
 export function rangeDays({ start, end }: Range): number {
@@ -198,7 +261,8 @@ async function dummyData({ start, end }: Range, project: string | null): Promise
          !(bots ?? []).includes(p.user.login) &&
          (project == null || projectOfPull(p) === project)
    );
-   const spans: PullSpan[] = people.map(p => ({
+   // drafts left out, as the server's spans leave them (lib/projects.js)
+   const spans: PullSpan[] = people.filter(p => !p.draft).map(p => ({
       author: p.user.login,
       project: projectOfPull(p),
       opened: epoch(p.created_at),
@@ -221,6 +285,10 @@ async function dummyData({ start, end }: Range, project: string | null): Promise
       decide_rotation: dummyRotation,
       ongoing: dummyOngoing,
       pull_links: linked,
+      ...(() => {
+         const { untracked, grew } = dummyTracking();
+         return { untracked, grew: Object.keys(grew), grew_counts: grew };
+      })(),
       window: windowStats(spans, start, end, {
          teamOf: teamLookup(dummyTeams ?? DUMMY_TEAMS),
          reviews,
@@ -282,9 +350,27 @@ export function ongoingSlugs(data: ProjectsData | null | undefined): ReadonlySet
    ]);
 }
 
+/**
+ * One window's projects data, tracked (trackedData): Not tracked projects
+ * left out, unless `all` asks for every project, or the data is one named
+ * project's, which is read whole.
+ */
 export function useProjectsData(
    range: Range | null,
-   project: string | null = null
+   project: string | null = null,
+   { all = false }: { all?: boolean } = {}
+): ProjectsData | null | undefined {
+   const got = useAllProjectsData(range, project);
+   const { initiatives } = useInitiatives();
+   return useMemo(
+      () => (all || project != null ? got : trackedData(got, initiatives)),
+      [got, initiatives, all, project]
+   );
+}
+
+function useAllProjectsData(
+   range: Range | null,
+   project: string | null
 ): ProjectsData | null | undefined {
    const { n } = version.useValue();
    const base = range ? `${range.start}..${range.end}:${project ?? ''}` : '';

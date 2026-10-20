@@ -6,6 +6,7 @@ import {
    type RoadmapUpdate,
 } from '../../../shared/model/roadmap';
 import type { AttachedIssue, IssueHit, IssueRef } from '../../../shared/model/work';
+import type { Initiative } from '../../../shared/model/initiatives';
 import { SCALE_TEAM_ADDS, scaleCount, scaleProjects } from './dummyScale';
 
 // The dummy board's projects, teams and roadmap: what /projects-data and
@@ -378,6 +379,42 @@ export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
          origin: 'fire',
          updated_at: now - 6 * 86400,
       }),
+      // Not tracked (DUMMY_INITIATIVES): ongoing upkeep nobody reports on,
+      // so its row owes no update and it counts nowhere
+      item(14, 'Ops runbooks', -9, 26, {
+         project: 'ops-runbooks',
+         lead: 'djmetzle',
+         status: 'active',
+         end_kind: 'ongoing',
+      }),
+      // a year of finished plans, as prod's backfill left them: done ones
+      // before the window rest in the "Done before" fold, and the picker's
+      // Last 12 months and the ‹ arrow bring them back into the rows
+      ...(
+         [
+            [26, 'Status page move', -78, 5, 'FixBot', 'done'],
+            [27, 'Device page redirects', -70, 6, 'Community', 'done'],
+            [28, 'Shipping rate cache', -63, 7, 'Store', 'dropped'],
+            [15, 'Old billing export', -52, 6, 'Store', 'done'],
+            [16, 'Guide search reindex', -49, 8, 'FixBot', 'done'],
+            [17, 'Legacy cart removal', -46, 10, 'Store', 'done'],
+            [18, 'Wiki image proxy', -44, 4, 'Community', 'dropped'],
+            [19, 'PHP 8.2 upgrade', -41, 9, 'Community', 'done'],
+            [20, 'Answers spam filter', -37, 5, 'Community', 'done'],
+            [21, 'Parts compatibility table', -33, 7, 'Store', 'done'],
+            [22, 'Teardown video embeds', -30, 4, 'FixBot', 'dropped'],
+            [23, 'Review queue SLAs', -27, 6, 'FixBot', 'done'],
+            [24, 'Gift card checkout', -24, 8, 'Store', 'done'],
+            [25, 'Translation memory import', -20, 5, 'Community', 'done'],
+         ] as const
+      ).map(([id, name, start, weeks, team, status]) =>
+         item(id, name, start, weeks, {
+            team,
+            status,
+            updated_at: now - (-start - weeks) * 7 * 86400,
+            status_at: now - (-start - weeks) * 7 * 86400,
+         })
+      ),
    ];
    // about one in eight scaled projects is planned: active since its first
    // PR, in the lane of its lead's team
@@ -580,3 +617,138 @@ export const DUMMY_ISSUES: IssueHit[] = (() => {
       ),
    ];
 })();
+
+/**
+ * The initiatives above the projects, as GET /initiatives sends them, in
+ * rank order: one per standing a lane or a Decide row can take. Release
+ * safety and Store sync hold most of the work; Keep the lights on is the
+ * upkeep; Onboarding is finished in all but name (every project quiet, no
+ * plan under way), so Decide asks "Did it reach its goal?"; Catalog
+ * migration was closed as done while akeneo-4 still has a PR open, so Decide
+ * asks again; Not tracked holds ops-runbooks, which grew since it was set
+ * so ("Still Not tracked?"), and dotfiles. grafana-dashboards, core-primitives
+ * and training-periods are in none, so Unsorted shows and Decide asks where
+ * they go: the first two from their "Needs a plan" rows, the last on its own.
+ * A board scaled with ?projects= files its projects round the initiatives,
+ * every tenth left in Unsorted.
+ */
+export const DUMMY_INITIATIVES: Initiative[] = (() => {
+   if (FRESH) return [];
+   const now = Math.floor(Date.now() / 1000);
+   const filed = (project: string, daysAgo = 30, baseline_prs = 0) => ({
+      project,
+      set_by: 'jarstelfox',
+      set_at: now - daysAgo * 86400,
+      baseline_prs,
+   });
+   const initiative = (
+      id: number,
+      slug: string,
+      name: string,
+      owner: string | null,
+      goal: string,
+      projects: string[],
+      over: Partial<Initiative> = {}
+   ): Initiative => ({
+      id,
+      slug,
+      name,
+      kind: 'initiative',
+      goal,
+      owner,
+      priority: id - 1,
+      status: 'open',
+      status_at: null,
+      created_by: 'jarstelfox',
+      created_at: now - 40 * 86400,
+      updated_by: 'jarstelfox',
+      updated_at: now - 40 * 86400,
+      projects: projects.map(slug => filed(slug)),
+      ...over,
+   });
+   const list = [
+      initiative(
+         1,
+         'release-safety',
+         'Release safety',
+         'rjmccluskey',
+         'Every release ships with security’s sign-off, by both approval paths',
+         ['release-gate-sso', 'sso-second-path']
+      ),
+      initiative(
+         2,
+         'store-sync',
+         'Store sync and checkout',
+         'zdmitchell',
+         'Products, orders and prices stay in step between the store and Shopify',
+         [
+            'shopify-sync',
+            'newsletter-promo',
+            'store-picker',
+            'type-refresh',
+            'shipping-shelf-weight',
+         ]
+      ),
+      initiative(
+         3,
+         'klo',
+         'Keep the lights on',
+         'djmetzle',
+         'The upkeep that keeps the site running and current',
+         ['mysql-8', 'translations'],
+         { kind: 'upkeep' }
+      ),
+      initiative(
+         4,
+         'test-reliability',
+         'Test reliability',
+         'mlahargou',
+         'A red build means a real failure',
+         ['webdriver-deflake']
+      ),
+      initiative(
+         5,
+         'onboarding',
+         'Onboarding',
+         'sivadnor',
+         'New customers get a welcome series that teaches the guides',
+         ['onboarding-emails', 'old-checkout']
+      ),
+      initiative(
+         6,
+         'catalog',
+         'Catalog migration',
+         'zdmitchell',
+         'The catalog runs on Akeneo 4',
+         ['akeneo-4'],
+         { status: 'done', status_at: now - 20 * 86400 }
+      ),
+      initiative(
+         7,
+         'not-tracked',
+         'Not tracked',
+         null,
+         'Personal and team workflow nobody reports on',
+         [],
+         {
+            kind: 'untracked',
+            priority: 99,
+            // set not tracked two months ago with 2 PRs; 31 more opened since
+            projects: [filed('ops-runbooks', 60, 2), filed('dotfiles', 60, 2)],
+         }
+      ),
+   ];
+   // a scaled board's projects, round the open initiatives
+   const open = list.filter(i => i.status === 'open' && i.kind === 'initiative');
+   SCALED.forEach((p, k) => {
+      if (k % 10 === 9) return;
+      open[k % open.length].projects.push(filed(p.slug));
+   });
+   return list;
+})();
+
+/** The not-tracked projects that grew, as /projects-data's grew_counts
+ * sends them: PRs since each was set not tracked, against its count then. */
+export const DUMMY_GROWN: Record<string, { since: number; baseline: number }> = FRESH
+   ? {}
+   : { 'ops-runbooks': { since: 31, baseline: 2 } };

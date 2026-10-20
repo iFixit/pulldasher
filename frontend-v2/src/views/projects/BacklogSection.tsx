@@ -92,7 +92,8 @@ export function BacklogSection({
    const now = useProjectsData(range, slug);
    // the days before come unscoped, as the tab already holds them; a
    // project's numbers are in them by its slug
-   const prev = useProjectsData(previousRange(range));
+   // one slug, or every PR: the full set either way
+   const prev = useProjectsData(previousRange(range), null, { all: true });
    const before = prev
       ? slug
          ? prev.window.projects[slug] ?? NONE

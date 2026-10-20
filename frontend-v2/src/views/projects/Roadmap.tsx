@@ -8,10 +8,8 @@ import {
    type KeyboardEvent,
    type MutableRefObject,
    type PointerEvent,
-   type ReactNode,
 } from 'react';
 import {
-   Check,
    ChevronLeft,
    ChevronRight,
    Flag,
@@ -26,7 +24,6 @@ import { dayStart, firstOpenDay, utcDay } from '../../../../shared/model/project
 import {
    addWeeks,
    blockersOf,
-   bucketOf,
    checkRoadmapFields,
    DONE_WHEN_MAX,
    END_KINDS,
@@ -57,10 +54,27 @@ import {
    Segmented,
    textInputClass,
 } from '../../components/bits';
+import { focusResult, guardAt, PRESS_GUARD, useFocusWhenDrawn } from '../../components/settle';
 import { Icon } from '../../components/Icon';
-import { eyebrowText, Fold, GroupHeader, Rows, SubDoor, useFoldState } from '../../components/Lane';
+import {
+   eyebrowText,
+   GroupHeader,
+   openFold,
+   Rows,
+   SubDoor,
+} from '../../components/Lane';
+import { homesOf, type Initiative } from '../../../../shared/model/initiatives';
+
+import { UNSORTED } from '../../model/initiativeBoard';
 import { useRowKeys } from '../../components/useRowKeys';
-import { dateOf, dayOf, dayWords, useProjectsData, type Range } from '../../model/projectData';
+import {
+   dateOf,
+   dayOf,
+   dayWords,
+   MAX_RANGE_DAYS,
+   useProjectsData,
+   type Range,
+} from '../../model/projectData';
 import { findFilter, lowerFirst, planCell, type PortfolioItem } from '../../model/portfolio';
 import { teamLoad } from '../../model/teamLoad';
 import {
@@ -94,14 +108,33 @@ import {
 import {
    columnsFor,
    commitEnds,
+   dayAcross,
+   defaultWindow,
+   doneBefore,
+   drawnWindow,
+   historyRange,
+   inUnit,
+   isPreset,
    parseZoom,
    quarterOf,
+   resolveWindow,
+   shiftWindow,
+   windowHolding,
+   windowKey,
+   windowOfDays,
+   windowWords,
+   WINDOW_PRESETS,
    shiftZoom,
    zoomAround,
    zoomKey,
    zoomWords,
+   columnNames,
    type Column,
+   type Months,
+   type Scale,
 } from '../../model/roadmapTime';
+import { MAX_WINDOW_MONTHS } from '../../lens';
+import { DateRangePicker } from './DateRangePicker';
 import {
    andList,
    BEING_WORKED_ON,
@@ -116,10 +149,27 @@ import {
    END_WORD,
    NO_UPDATE_YET,
    UPDATE_DUE,
+   NOT_TRACKED_GLOSS,
+   UNSORTED_WORD,
+   NO_PROJECT_YET,
 } from '../../model/words';
-import { askOf, DecideCall, reasonWords, useCallsMadeHere } from './Decide';
+import { DecideCall, useCallsMadeHere } from './Decide';
+import { askOf, isHomeReason, reasonWords } from '../../model/decideCalls';
+import { HomeLine } from './Initiatives';
+import {
+   initiativeLanes,
+   keepInPlace,
+   NO_PROJECT_LANE,
+   ReceiptLine,
+   TimelineLane,
+   LANE_RUN,
+   type LaneRun,
+   type PlanRun,
+   type Receipt,
+   type Standing,
+} from './RoadmapLanes';
 import { LoadChart } from './LoadChart';
-import { NowNextLater } from './NowNextLater';
+import { nnlBucket, NowNextLater } from './NowNextLater';
 import {
    NarrowChip,
    openPlan,
@@ -132,7 +182,6 @@ import {
    capacityWords,
    clearedBy,
    Dotted,
-   inInk,
    isAmber,
    latestOf,
    moveWords,
@@ -148,7 +197,6 @@ import {
    vouchWords,
    when,
    type PlanCall,
-   type Said,
    type Tracked,
 } from './roadmapHealth';
 
@@ -214,6 +262,9 @@ type Span = { start: string; weeks: number };
 
 /** no Decide rows yet, the same array each render */
 const NO_ROWS: DecideRow[] = [];
+const NO_SLUGS: ReadonlySet<string> = new Set();
+/** A row that isn't a drag source or a drop target: a Not tracked plan. */
+const NO_DRAG = { grip: {}, row: {} };
 
 /** what opens under a plan's row: from sm up, in line with the row's name
  * above, past its grip and rank (63px in), so it reads as that row's */
@@ -851,6 +902,9 @@ function PlanPanel({
    onPerson,
    onOpenItem,
    onOpenProject,
+   initiatives = null,
+   navigate,
+   onFile,
 }: {
    item: RoadmapItem;
    all: RoadmapItem[];
@@ -859,9 +913,11 @@ function PlanPanel({
    today: string;
    /** Decide's row for it, asked or answered here, for its calls */
    row: DecideRow;
-   /** opened from a door (its bar, its words, a link): the focus goes to its
-    * calls; back from its fields, the roadmap puts it on Edit details */
-   focusCalls: boolean;
+   /** opened from a door (its bar, a link): the focus goes to its calls;
+    * from a question or a clash ('plan'), to its Plan line, the answers a
+    * Tab away, so an Enter twice never answers; back from its fields, the
+    * roadmap puts it on Edit details */
+   focusCalls: boolean | 'plan';
    /** its update form is open */
    updates: boolean;
    /** kept true while the update form holds words not posted */
@@ -874,6 +930,13 @@ function PlanPanel({
    onPerson: (login: string) => void;
    onOpenItem: (id: number) => void;
    onOpenProject: (slug: string) => void;
+   /** the initiatives, for its project's home line and File elsewhere: the keyboard's
+    * way to file what a drag onto another lane files; none hides it */
+   initiatives?: readonly Initiative[] | null;
+   navigate?: Navigate;
+   /** file its project there (null: Unsorted), as a drop on that lane
+    * does: the receipt and Undo go under the row, which the move remounts */
+   onFile?: (to: string | null) => void;
 }) {
    const ref = useRef<HTMLDivElement>(null);
    const [removing, setRemoving] = useState(false);
@@ -888,7 +951,10 @@ function PlanPanel({
       const onCalls = !!panel.querySelector('[role="toolbar"]')?.contains(document.activeElement);
       if (!(focusCalls && !focused.current) && !onCalls) return;
       focused.current = true;
-      panel.querySelector<HTMLElement>('[data-decide-focus]')?.focus({ preventScroll: true });
+      (focusCalls === 'plan'
+         ? document.getElementById(`roadmap-plan-${item.id}`)
+         : panel.querySelector<HTMLElement>('[data-decide-focus]')
+      )?.focus({ preventScroll: true });
    }, [asked]);
    // the facts behind the row's words, in ink
    const w = planWarnings(item, all, today, trackedBy(linked));
@@ -926,20 +992,28 @@ function PlanPanel({
       >
          <dl className="m-0 grid grid-cols-[4.5rem_minmax(0,1fr)] items-baseline gap-x-3 gap-y-2.5 text-[13px] leading-5 sm:grid-cols-[minmax(7rem,max-content)_minmax(0,1fr)]">
             <dt className={term}>Plan</dt>
-            <dd className="m-0 max-w-[70ch] text-ink-2">
+            <dd
+               id={`roadmap-plan-${item.id}`}
+               tabIndex={-1}
+               className="m-0 max-w-[70ch] rounded text-ink-2"
+            >
                {STATUS_WORD[item.status]}, {planWords(item)}
                {facts}
             </dd>
-            {/* under the plan's words; the whole width on a phone */}
-            <dd className={`-mt-2 ${WIDE}`}>
-               <DecideCall
-                  row={row}
-                  project={linked}
-                  opened
-                  // the row's words above ask the question its answer answers
-                  describedBy={asked ? `roadmap-words-${item.id}` : undefined}
-               />
-            </dd>
+            {/* under the plan's words; the whole width on a phone. A plan
+                done or dropped has nothing left to promise or mark, unless
+                Decide asks about it; Edit details reopens one */}
+            {(asked || (item.status !== 'done' && item.status !== 'dropped')) && (
+               <dd className={`-mt-2 ${WIDE}`}>
+                  <DecideCall
+                     row={row}
+                     project={linked}
+                     opened
+                     // the row's words above ask the question its answer answers
+                     describedBy={asked ? `roadmap-why-${item.id}` : undefined}
+                  />
+               </dd>
+            )}
             {/* what finished looks like, so "Done?" has something to check;
                 upkeep is never done, so it isn't asked for there */}
             {(item.done_when || item.end_kind !== 'ongoing') && (
@@ -998,6 +1072,35 @@ function PlanPanel({
                         />
                      </dd>
                   )}
+               </>
+            )}
+            {navigate && !!initiatives?.length && (
+               <>
+                  <dt className={term}>Initiative</dt>
+                  <dd className="m-0">
+                     {project ? (
+                        <HomeLine
+                           slug={project}
+                           initiatives={initiatives}
+                           navigate={navigate}
+                           onFile={onFile}
+                           // filing is offered once: the Plan line's answer
+                           // files it while Decide asks where it goes
+                           movable={
+                              !row.reasons.some(
+                                 r =>
+                                    isHomeReason(r) ||
+                                    (r.kind === 'new' && !homesOf(initiatives).has(project))
+                              )
+                           }
+                        />
+                     ) : (
+                        <span className="text-[13px] text-ink-3">
+                           {NO_PROJECT_YET}: it joins an initiative through its project, once Edit
+                           details links one
+                        </span>
+                     )}
+                  </dd>
                </>
             )}
             <dt className={term}>Team</dt>
@@ -1148,28 +1251,6 @@ function Gridlines({ axis }: { axis: Axis }) {
    );
 }
 
-/** The quiet line under a row that says what a click just saved, with the
- * way back (Decide's receipt): where the click was, not far away. */
-interface Receipt {
-   /** the row it sits under: `plan:<id>`, `project:<slug>`, or `added` */
-   key: string;
-   words: string;
-   failed?: boolean;
-   undo?: () => void;
-   /** a plan it made, to open */
-   open?: number;
-   /** the project it planned, kept in its place in the list of no plan */
-   project?: PortfolioItem;
-   /** the plan it removed, kept in its place in the list of plans */
-   gone?: RoadmapItem;
-   /** the lane the planned or parked project was in, where it stays */
-   lane?: Standing;
-}
-
-/** Where a project with no plan sits: Decide asks it for a plan, asks it
- * another call (most often whether to park it), or asks nothing. */
-export type Standing = 'plan' | 'call' | 'none';
-
 /** Each project with no plan that Decide asks about, by its lane: any call
  * but a first plan (most often "Park it?") is 'call', even with a plan asked
  * too, so "No plan needed" never holds work Decide asks about. */
@@ -1180,28 +1261,6 @@ export function standingsOf(rows: readonly DecideRow[]): Map<string, Standing> {
       out.set(row.slug, row.reasons.some(r => r.kind !== 'new') ? 'call' : 'plan');
    }
    return out;
-}
-
-function ReceiptLine({ receipt, onOpen }: { receipt: Receipt; onOpen: (id: number) => void }) {
-   const open = receipt.open;
-   return (
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-secondary bg-muted/40 px-3.5 py-1.5 text-xs text-ink-3">
-         <span className="inline-flex items-center gap-1.5 text-[13px] text-ink-2">
-            {!receipt.failed && <Icon icon={Check} size={14} />}
-            {receipt.words.replace(/\.$/, '')}.
-         </span>
-         {open != null && <FactLink onClick={() => onOpen(open)}>Open its plan</FactLink>}
-         {/* a failed Undo keeps its button, to try again */}
-         {receipt.undo && (
-            <QuietButton
-               onClick={receipt.undo}
-               aria-label={receipt.failed ? 'Try the Undo again' : `Undo: ${receipt.words}`}
-            >
-               {receipt.failed ? 'Try again' : 'Undo'}
-            </QuietButton>
-         )}
-      </div>
-   );
 }
 
 /** The words inside a plan's bar, color by its fill. */
@@ -1247,15 +1306,18 @@ function PlanRow({
    item,
    all,
    rank,
+   lanePlace,
    axis,
    today,
    linked,
    call,
    open,
    onOpen,
+   onOpenPlan,
    onPerson,
    onOpenProject,
    onMove,
+   onOtherLane,
    onShow,
    dragHandlers,
    dropHere,
@@ -1263,7 +1325,11 @@ function PlanRow({
    item: RoadmapItem;
    /** every item, for what this one waits on */
    all: RoadmapItem[];
+   /** its priority on the whole roadmap; 0 for none (Not tracked) */
    rank: number;
+   /** its place in an initiative's lane, numbered there in place of the
+    * rank, so a lane reads 1, 2, 3 under its band's own rank */
+   lanePlace?: number;
    axis: Axis;
    today: string;
    linked: PortfolioItem | undefined;
@@ -1271,12 +1337,18 @@ function PlanRow({
    call: PlanCall | null;
    /** its details are open under the row */
    open: boolean;
-   /** open its details */
-   onOpen: () => void;
+   /** open its details; 'plan' puts the focus on their Plan line */
+   onOpen: (focus?: 'plan') => void;
+   /** open another plan's details, the focus on its Plan line: the one a
+    * clash waits on */
+   onOpenPlan: (id: number) => void;
    onPerson: (login: string) => void;
    onOpenProject: (slug: string) => void;
    /** a drag or an arrow key moved or resized it */
-   onMove: (to: Span) => void;
+   /** `elsewhere`: let go over another lane, which it stays out of */
+   onMove: (to: Span, elsewhere?: boolean) => void;
+   /** its bar was let go over another lane, so nothing moved */
+   onOtherLane: () => void;
    /** bring a day into view: the plan is outside the weeks shown */
    onShow: (day: string) => void;
    dragHandlers: {
@@ -1348,12 +1420,20 @@ function PlanRow({
          window.removeEventListener('pointermove', move);
          setPreview(null);
       };
-      const up = () => {
+      const up = (ev: globalThis.PointerEvent) => {
          window.removeEventListener('pointermove', move);
          window.removeEventListener('pointerup', up);
          window.removeEventListener('keydown', cancel);
          setPreview(null);
-         if (!cancelled) commit(latest);
+         // let go over another lane: a bar moves dates, and filing it there
+         // as well would make one drag two changes, so it keeps its lane and
+         // moves only the dates its preview showed
+         const lane = trackRef.current?.closest('[data-lane-id]');
+         const over = document.elementFromPoint?.(ev.clientX, ev.clientY)?.closest('[data-lane-id]');
+         const elsewhere = dragged.current && !!lane && !!over && over !== lane;
+         const changed = latest.start !== item.start || latest.weeks !== item.weeks;
+         if (!cancelled && changed) onMove(latest, elsewhere);
+         else if (!cancelled && elsewhere) onOtherLane();
          // the click that comes with letting go has been heard by then
          setTimeout(() => {
             dragged.current = false;
@@ -1399,24 +1479,36 @@ function PlanRow({
       >
          <div className={`group/plan ${rowGrid} px-3.5 py-1.5 hover:bg-muted`}>
             <span className="flex min-w-0 items-start gap-2">
+               {/* a Not tracked plan has no place in the order: no grip, no rank */}
+               {rank === 0 ? (
+                  <span aria-hidden className="w-[13px] flex-none" />
+               ) : (
+                  <span
+                     {...dragHandlers.grip}
+                     id={`roadmap-grip-${item.id}`}
+                     role="button"
+                     tabIndex={0}
+                     draggable
+                     aria-label={`${item.name}: ${
+                        lanePlace
+                           ? `priority ${lanePlace} in its lane, ${rank} on the whole roadmap`
+                           : `priority ${rank}`
+                     }. Drag, or use the up and down arrow keys, to change its priority`}
+                     title="Drag to change its priority"
+                     // padded and widened by .hit to a 24px target, taking no
+                     // more room in the row. The rank already says the rows are
+                     // ordered, so the grip shows on the row's hover or focus,
+                     // and always on touch, which has no hover
+                     className="hit -m-0.5 flex-none cursor-grab leading-5 touch-none p-0.5 text-ink-3 opacity-0 transition-opacity duration-150 group-hover/plan:opacity-100 group-focus-within/plan:opacity-100 hover:text-ink focus-visible:text-brand focus-visible:opacity-100 active:cursor-grabbing motion-reduce:transition-none [@media(hover:none)]:opacity-100"
+                  >
+                     <Icon icon={GripVertical} size={13} />
+                  </span>
+               )}
                <span
-                  {...dragHandlers.grip}
-                  id={`roadmap-grip-${item.id}`}
-                  role="button"
-                  tabIndex={0}
-                  draggable
-                  aria-label={`${item.name}: priority ${rank}. Drag, or use the up and down arrow keys, to change its place`}
-                  title="Drag to change its priority"
-                  // padded and widened by .hit to a 24px target, taking no
-                  // more room in the row. The rank already says the rows are
-                  // ordered, so the grip shows on the row's hover or focus,
-                  // and always on touch, which has no hover
-                  className="hit -m-0.5 flex-none cursor-grab leading-5 touch-none p-0.5 text-ink-3 opacity-0 transition-opacity duration-150 group-hover/plan:opacity-100 group-focus-within/plan:opacity-100 hover:text-ink focus-visible:text-brand focus-visible:opacity-100 active:cursor-grabbing motion-reduce:transition-none [@media(hover:none)]:opacity-100"
+                  className="w-5 flex-none text-right text-xs leading-5 text-ink-3 tabular-nums"
+                  title={lanePlace ? `Priority ${rank} on the whole roadmap` : undefined}
                >
-                  <Icon icon={GripVertical} size={13} />
-               </span>
-               <span className="w-5 flex-none text-right text-xs leading-5 text-ink-3 tabular-nums">
-                  {rank}
+                  {lanePlace ?? (rank || '')}
                </span>
                <span className="flex min-w-0 flex-col">
                   <span className="flex min-w-0 items-baseline gap-x-1.5">
@@ -1436,7 +1528,7 @@ function PlanRow({
                            type="button"
                            data-roadmap-focus
                            aria-expanded={open}
-                           onClick={onOpen}
+                           onClick={() => onOpen()}
                            className={name}
                            title="Open its plan; it tracks no project yet"
                         >
@@ -1456,19 +1548,31 @@ function PlanRow({
                      )}
                   </span>
                   {rest && (
-                     // plain words, dotted since their hover explains: the
-                     // bar and the name open the plan. What the answer in its
-                     // details is read with, so a reader hears the reason too
-                     <span
-                        id={`roadmap-words-${item.id}`}
-                        title={rest.title}
-                        className="self-start text-[11px] text-ink-3 underline decoration-dotted underline-offset-2"
-                     >
-                        <span className="sr-only">{rest.title}</span>
-                        <span aria-hidden>
+                     // dotted since their hover explains; a click does the
+                     // natural thing: a question opens the details with its
+                     // answers, a clash the plan it waits on. Out of the Tab
+                     // order, since the bar and the name open the plan. What
+                     // the answer in its details is read with, so a reader
+                     // hears the reason too
+                     <>
+                        <button
+                           type="button"
+                           tabIndex={-1}
+                           id={`roadmap-words-${item.id}`}
+                           // named by the words it shows, the reason read after
+                           aria-describedby={`roadmap-why-${item.id}`}
+                           title={rest.title}
+                           onClick={() =>
+                              w.call || !w.waits ? onOpen('plan') : onOpenPlan(w.waits.opens.id)
+                           }
+                           className="hit pressable self-start rounded border-0 bg-transparent p-0 text-left text-[11px] text-ink-3 underline decoration-dotted underline-offset-2 hover:text-brand"
+                        >
                            <SaidWords said={rest} />
+                        </button>
+                        <span hidden id={`roadmap-why-${item.id}`}>
+                           {rest.title}
                         </span>
-                     </span>
+                     </>
                   )}
                </span>
             </span>
@@ -1579,7 +1683,7 @@ function PlanRow({
                         type="button"
                         // the bar opens the same details from the keyboard
                         tabIndex={-1}
-                        onClick={onOpen}
+                        onClick={() => onOpen()}
                         className={`hit @container absolute top-1.5 h-4 border-y p-0 text-left text-[11px] leading-[14px] font-medium whitespace-nowrap ${
                            today < horizon.end ? 'rounded-r-md border-r' : ''
                         } ${isAmber(w.over) ? 'text-warn' : 'text-ink-2'}`}
@@ -1708,8 +1812,7 @@ function InFlightRow({
    // the Monday under the pointer
    const weekAt = (x: number): string => {
       const box = (trackRef.current as HTMLSpanElement).getBoundingClientRect();
-      const at = Math.min(1, Math.max(0, (x - box.left) / box.width));
-      return mondayOf(utcDay(horizon.from + at * (horizon.to - horizon.from)));
+      return mondayOf(dayAcross(horizon.from, horizon.to, (x - box.left) / box.width));
    };
    const spanOf = (a: string, b: string): Span => {
       const [first, last] = a <= b ? [a, b] : [b, a];
@@ -1778,6 +1881,10 @@ function InFlightRow({
                   <Icon icon={Plus} size={13} />
                </button>
             )}
+            {/* the plan rows' rank column, empty: no plan, no place in the
+                order, but the names line up (the plus is 4px wider than the
+                grip it stands for) */}
+            <span aria-hidden className="w-4 flex-none" />
             <span className="min-w-0 break-words">
                <button
                   type="button"
@@ -1823,7 +1930,11 @@ function InFlightRow({
                            onClick={onOpen}
                            // the name opens the same page from the keyboard
                            tabIndex={-1}
-                           title="Open the project and its PRs"
+                           title={`Open the project and its PRs${
+                              item.group?.drafts.length
+                                 ? `, and its ${n(item.group.drafts.length, 'draft')}, not counted`
+                                 : ''
+                           }`}
                         >
                            {saving ? 'Saving its plan…' : n(item.open, 'open PR')}
                         </FactLink>,
@@ -2022,60 +2133,6 @@ function CapacityLine({
    );
 }
 
-/**
- * A lane of the timeline, the board's own fold: its name and how many rows
- * it holds, and for a team, its load in words in the band. One call owed,
- * one amber mark: while the lane's open and shows where its people run
- * out, that line says it, so the band's words stay ink.
- */
-function TimelineLane({
-   id,
-   label,
-   count,
-   gloss,
-   load,
-   lined,
-   defaultOpen = true,
-   showCount = true,
-   children,
-}: {
-   id: string;
-   label: string;
-   count: number;
-   /** false when the label says its count in words */
-   showCount?: boolean;
-   gloss: string;
-   /** a team's load in words; null for none */
-   load: Said | null;
-   /** its capacity line is drawn in it */
-   lined: boolean;
-   /** closed until someone opens it: a ledger of what needs nothing */
-   defaultOpen?: boolean;
-   children: ReactNode;
-}) {
-   const [open] = useFoldState(id, defaultOpen);
-   const words = load && lined && open ? inInk(load) : load;
-   return (
-      <Fold
-         id={id}
-         defaultOpen={defaultOpen}
-         label={label}
-         count={count}
-         showCount={showCount}
-         gloss={gloss}
-         detail={
-            words && (
-               <span className="text-[11px]" title={words.title}>
-                  <SaidWords said={words} />
-               </span>
-            )
-         }
-      >
-         {children}
-      </Fold>
-   );
-}
-
 /** The columns' names and the smaller marks under them (months under
  * quarters, Mondays under months, days under a week), in the sticky header.
  * A column that can fill the width is a button, its zoom glass shown on
@@ -2091,15 +2148,32 @@ function AxisHeader({
    axis: Axis;
    onZoom: (key: string) => void;
 }) {
+   // the axis's width, so month and quarter names shorten or thin out
+   // before they touch
+   const ref = useRef<HTMLSpanElement>(null);
+   const [width, setWidth] = useState(0);
+   useEffect(() => {
+      const el = ref.current;
+      if (!el || typeof ResizeObserver === 'undefined') return;
+      const watch = new ResizeObserver(() => setWidth(el.clientWidth));
+      watch.observe(el);
+      return () => watch.disconnect();
+   }, []);
+   const share = (c: Column) => axis.at(c.end) - axis.at(c.start);
+   const names = columnNames(
+      columns,
+      columns.map(c => (share(c) / 100) * width)
+   );
    return (
       <div className={`${rowGrid} rounded-t-2xl border border-line bg-surface px-3.5 py-1.5`}>
          <span className={`hidden text-ink-3 sm:block ${eyebrowText}`}>Project</span>
-         <span className="relative block h-9">
+         <span ref={ref} className="relative block h-9">
             {columns.map((c, i) => {
                const style = { left: `${axis.at(c.start)}%` };
                const zoom = c.zoom;
-               // a sliver of a week at a month's edge keeps its line, not a name
-               if (axis.at(c.end) - axis.at(c.start) < 8) {
+               // a sliver of a week at a month's edge keeps its line, not a
+               // name; months and quarters always keep their button
+               if (!zoom && share(c) < 8) {
                   return (
                      <span
                         key={c.start}
@@ -2109,26 +2183,20 @@ function AxisHeader({
                      />
                   );
                }
-               // four quarters across a phone fit only without the year, so
-               // it's said where it starts: the first column and each Q1
-               const short = /^Q[2-4] \d{4}$/.test(c.label) && i > 0 ? c.label.slice(0, 2) : null;
-               const label = short ? (
-                  <>
-                     <span className="sm:hidden">{short}</span>
-                     <span className="hidden sm:inline">{c.label}</span>
-                  </>
-               ) : (
-                  c.label
-               );
+               // short, a letter or none when the full names would touch
+               // (columnNames); its button fills the column either way
+               const label = zoom ? names[i] ?? '' : c.label;
                return zoom ? (
                   <button
                      key={c.start}
                      type="button"
                      onClick={() => onZoom(zoom)}
+                     aria-label={label === c.label ? undefined : c.label}
                      title={`Zoom in: fill the width with ${c.label}`}
                      // no .hit here: it sets position: relative, and this sits absolutely on the axis
-                     className={`group/zoom pressable absolute top-0 inline-flex items-center gap-1 rounded-none border-0 border-l border-line bg-transparent py-0 pl-1.5 pr-0 whitespace-nowrap text-ink-2 hover:text-brand ${eyebrowText}`}
-                     style={style}
+                     className={`group/zoom pressable absolute top-0 inline-flex min-h-4 items-center gap-1 rounded-none border-0 border-l border-line bg-transparent py-0 pl-1.5 pr-0 whitespace-nowrap text-ink-2 hover:text-brand ${eyebrowText}`}
+                     // as wide as its column when its name is short or gone
+                     style={label === c.label ? style : { ...style, width: `${share(c)}%` }}
                   >
                      {label}
                      {/* the name zooms; the glass says so on hover and focus,
@@ -2181,6 +2249,11 @@ function AxisHeader({
    );
 }
 
+/** Someone has clicked or pressed a key since the page loaded, so details
+ * opened now came from a door, not from the address. The browser's own
+ * flag; where it has none, assume a door. */
+const handled = () => navigator.userActivation?.hasBeenActive ?? true;
+
 /**
  * The roadmap: the plan a project manager lays out, month by month or
  * quarter by quarter, set against everything actually in flight. Across the
@@ -2194,13 +2267,24 @@ function AxisHeader({
  */
 export function Roadmap({
    items,
+   allItems = items,
+   initiatives = null,
+   untracked = NO_SLUGS,
    teamMembers,
    nav,
    navigate,
    decisions,
 }: {
-   /** the portfolio, for linking plans to projects and their PRs */
+   /** the portfolio, for linking plans to projects and their PRs: the
+    * tracked projects, which every row, count and line reads */
    items: PortfolioItem[];
+   /** every project, Not tracked too: one-slug lookups, the plan form's
+    * choices, and the Not tracked lane */
+   allItems?: PortfolioItem[];
+   /** the initiatives, for their lanes; null while they load */
+   initiatives?: Initiative[] | null;
+   /** the Not tracked slugs */
+   untracked?: ReadonlySet<string>;
    /** developer teams: name to logins */
    teamMembers: Record<string, string[]>;
    nav: ProjectsNav;
@@ -2210,6 +2294,8 @@ export function Roadmap({
    decisions?: DecideRow[] | null;
 }) {
    const { items: plan, loadFailed, problem } = useRoadmap();
+   // every plan, for the Not tracked lane and an initiative's dates
+   const { items: everyPlan } = useRoadmap({ all: true });
    // Decide's rows with the calls made here kept, so a call made in a plan's
    // details keeps its receipt and Undo there
    const callsHere = useCallsMadeHere(decisions ?? NO_ROWS);
@@ -2221,14 +2307,19 @@ export function Roadmap({
    const [panel, setPanel] = useState<'plan' | 'updates' | 'edit'>('plan');
    const [editFocus, setEditFocus] = useState<'name' | 'notes' | 'project' | 'done_when'>('name');
    // whether the open details take the focus to their calls: yes from a
-   // door, no on the way back from their fields
-   const [focusCalls, setFocusCalls] = useState(true);
+   // door, no on the way back from their fields, and no for details a link
+   // or a reload opened before anyone clicked: Enter there would promise
+   // an end nobody chose
+   const [focusCalls, setFocusCalls] = useState<boolean | 'plan'>(handled);
    // the open fields hold changes not saved, or the update form words not
    // posted: another plan or a close waits
    const dirty = useRef(false);
    const [adding, setAdding] = useState(false);
    const [dragging, setDragging] = useState<number | null>(null);
    const [dropTarget, setDropTarget] = useState<number | null>(null);
+   // an initiative's grip being dragged, and the lane a drag is over
+   const [draggingLane, setDraggingLane] = useState<number | null>(null);
+   const [overLane, setOverLane] = useState<string | null>(null);
    const [choosing, setChoosing] = useState<string | null>(null);
    // what the last click saved, under its row, with the way back
    const [receipt, setReceipt] = useState<Receipt | null>(null);
@@ -2240,28 +2331,82 @@ export function Roadmap({
    const [saving, setSaving] = useState<ReadonlySet<string>>(new Set());
    // a run of moves on one plan (arrow presses, or drag after drag) undoes
    // to where the run began; `was` is the plan as the run found it
-   const run = useRef<{
-      key: string;
-      from: Span | number[];
-      team: string | null;
-      was: RoadmapItem;
-   } | null>(null);
-   // the controls to give the focus to after the next render, the first found
-   const refocus = useRef<string[] | null>(null);
+   const run = useRef<PlanRun | LaneRun | null>(null);
+   /** the run of moves on this plan, when the last move was one */
+   const planRun = (key: string) => {
+      const r = run.current;
+      return r?.key === key && 'from' in r ? r : null;
+   };
+   // after a move, a close or an undo, the focus goes back where it was (a
+   // moved row's control can lose it as React moves the row): the first of
+   // these ids drawn, once a render draws one
+   const refocus = useFocusWhenDrawn(el => {
+      // the receipt beside it shows too, below the sticky headers, from
+      // the top of its row, so a plan's name is never what's hidden
+      const said = receipt && document.querySelector<HTMLElement>(`[data-receipt="${receipt.key}"]`);
+      const row = said?.closest<HTMLElement>('[data-roadmap-row]');
+      focusResult(el, said, row?.firstElementChild as HTMLElement | null);
+   });
    const stickyRef = useRef<HTMLDivElement>(null);
+   // the done plans the last render folded: an open plan or a receipt keeps
+   // a row where it was drawn, never pulls one out of the fold
+   const foldedLast = useRef<ReadonlySet<number>>(new Set());
    const now = new Date();
    const today = dayOf(now);
    const timeline = nav.scale !== 'now';
    const scale = nav.scale === 'month' ? 'month' : 'quarter';
    const zoom = timeline ? parseZoom(nav.zoom) : null;
-   const columns = columnsFor(scale, zoom, now);
-   // how fine the lines and marks are: quarters, months (seven across, or a
+   // the window picked, in its unit, or none for the default at this scale
+   // (model/roadmapTime.ts)
+   const chosen = resolveWindow(nav.window, now);
+   const { months: shownMonths, unit } = drawnWindow(scale, chosen, now);
+   const columns = columnsFor(scale, zoom, now, chosen);
+   // how fine the lines and marks are: quarters, months (a window's, or a
    // zoomed quarter's three), or a zoomed month's weeks
    const level =
-      zoom?.kind === 'month' ? 'weeks' : scale === 'quarter' && !zoom ? 'quarters' : 'months';
+      zoom?.kind === 'month' ? 'weeks' : unit === 'quarter' && !zoom ? 'quarters' : 'months';
    // zooming out goes up one step: a month to its quarter when the roadmap
    // is in quarters, else back to the whole view
-   const zoomOut = zoom?.kind === 'month' && scale === 'quarter' ? zoomKey(quarterOf(zoom)) : null;
+   const zoomOut = zoom?.kind === 'month' && unit === 'quarter' ? zoomKey(quarterOf(zoom)) : null;
+   // a window in the URL, or none when it's the default: its months, drawn
+   // in the default's unit
+   const windowNav = (w: Months, u: Scale = unit) =>
+      u === scale && windowKey(w, u) === windowKey(defaultWindow(scale, now), scale)
+         ? null
+         : windowKey(w, u);
+   // the window, moved to hold a day only when it doesn't already: where the
+   // edge chip and zooming out land
+   const holding = (day: string) => {
+      const w = windowHolding(shownMonths, day, unit);
+      return w === shownMonths ? nav.window : windowNav(w);
+   };
+   // Months and Quarters: with a window picked, the same window in that
+   // unit (a preset already in it stays itself); with none, that default.
+   // Now, next, later keeps the window for coming back.
+   const switchScale = (next: ProjectsNav['scale']) =>
+      navigate(
+         next === 'now'
+            ? { scale: next, zoom: null }
+            : {
+                 scale: next,
+                 zoom: null,
+                 window:
+                    chosen && chosen.unit !== next
+                       ? windowNav(inUnit(shownMonths, next), next)
+                       : nav.window,
+              }
+      );
+   // ‹ and ›: a zoom's period, else the window, by its own length
+   const step = (by: number) =>
+      navigate(
+         zoom
+            ? { zoom: zoomKey(shiftZoom(zoom, by)) }
+            : { window: windowNav(shiftWindow(shownMonths, by)) }
+      );
+   const stepWords = (by: number) =>
+      zoom
+         ? `The ${zoom.kind} ${by < 0 ? 'before' : 'after'}`
+         : `${by < 0 ? 'Back' : 'On'} ${n(shownMonths.to - shownMonths.from, 'month')}`;
    const horizon: Horizon = {
       start: columns[0].start,
       end: columns[columns.length - 1].end,
@@ -2270,6 +2415,11 @@ export function Roadmap({
    };
    const place = (day: string) => at(day, horizon);
    const weeks = mondaysBetween(horizon.start, horizon.end);
+   // a week picked on the load chart counts only while the chart draws it as
+   // a week that happened: one the window stepped away from, or one ahead,
+   // is no pick, so the headline, the chip and the rows never disagree
+   const picked =
+      nav.week && weeks.includes(nav.week) && nav.week <= mondayOf(today) ? nav.week : null;
    // the first of every month in the horizon, and every day, for the lines
    const months =
       level === 'quarters'
@@ -2294,7 +2444,11 @@ export function Roadmap({
             ? months.map(day => ({ left: place(day), strong: columns.some(c => c.start === day) }))
             : level === 'months'
             ? [
-                 ...weeks.map(week => ({ left: place(week), strong: false })),
+                 // past seven months the week lines crowd, as their dates do
+                 // (ticks), and every row draws them: the months' alone
+                 ...(columns.length <= 7
+                    ? weeks.map(week => ({ left: place(week), strong: false }))
+                    : []),
                  ...months.map(day => ({ left: place(day), strong: true })),
               ]
             : [
@@ -2302,34 +2456,36 @@ export function Roadmap({
                  ...columns.map(c => ({ left: place(c.start), strong: true })),
               ],
       todayAt: today >= horizon.start && today < horizon.end ? place(today) : null,
-      picked: nav.week
+      picked: picked
          ? {
-              left: place(nav.week),
-              width: place(addWeeks(nav.week, 1)) - place(nav.week),
+              left: place(picked),
+              width: place(addWeeks(picked, 1)) - place(picked),
            }
          : null,
    };
    // under each column's name: its months, its Mondays' dates, or its days
    const ticks =
       level === 'quarters'
-         ? months.map(day => ({
+         ? // past two years, the month names crowd: the month lines say them
+           (columns.length <= 8 ? months : []).map(day => ({
               left: place(day),
               label: dateOf(day).toLocaleDateString(undefined, { month: 'short' }),
               zoom: day.slice(0, 7),
            }))
          : level === 'months'
-         ? weeks
-              .filter(week => week >= horizon.start)
+         ? // past seven months, the Mondays' dates crowd: the week lines say them
+           weeks
+              .filter(week => week >= horizon.start && columns.length <= 7)
               .map(week => ({ left: place(week), label: String(Number(week.slice(8))) }))
          : days.map(day => ({ left: place(day), label: String(Number(day.slice(8))) }));
    // the horizon's own history, so a project's real span starts where its
    // first PR did, not where the date range picker begins
-   const pastRange: Range = {
-      start: horizon.start,
-      end: today < horizon.end ? today : horizon.end,
-   };
+   // capped at the server's 400 days, the most recent ones, for a long window
+   // a window wholly ahead has no history to ask for
+   const pastRange: Range | null = historyRange(horizon.start, horizon.end, today, MAX_RANGE_DAYS);
    const history = useProjectsData(pastRange)?.window.projects ?? {};
-   const bySlug = new Map(items.map(i => [i.slug, i]));
+   // one slug each: the full set, so a Not tracked plan's row has its project
+   const bySlug = new Map(allItems.map(i => [i.slug, i]));
    // the calls Decide asks, by the plan they're about, and by project for
    // work with no plan, each in the words the Overview's Plan cell uses: a
    // row says its call where its one amber mark goes
@@ -2359,7 +2515,32 @@ export function Roadmap({
          if (call.kind !== 'new') projectCalls.set(row.slug, call);
       }
    }
+   // a question about a project with a plan under way (Still Not tracked?)
+   // is said on one plan's row, its first in rank with no question of its
+   // own, so every row Decide asks about shows on the timeline (DESIGN.md,
+   // amendment 1), and once
+   const saysProject = new Map<string, number>();
+   for (const item of [...(everyPlan ?? [])].sort((a, b) => a.priority - b.priority)) {
+      const slug = item.project;
+      if (!slug || saysProject.has(slug) || planCalls.has(item.id)) continue;
+      if (!isUnderWay(item.status) || !projectCalls.has(slug)) continue;
+      saysProject.set(slug, item.id);
+      planCalls.set(item.id, projectCalls.get(slug) as PlanCall);
+   }
+   const asksProject = (item: RoadmapItem) =>
+      !!item.project && saysProject.get(item.project) === item.id;
    const lanes = nav.group === 'team';
+   const byInitiative = nav.group === 'initiative' && !!initiatives?.length;
+   const homes = homesOf(initiatives ?? []);
+   const homeOf = (slug: string | null) => (slug ? homes.get(slug)?.initiative : undefined);
+   // the lane a plan or project sits in by initiative: its home's slug,
+   // Unsorted, or for a plan with no project, the lane of those
+   const laneKey = (slug: string | null) => {
+      if (!slug) return NO_PROJECT_LANE;
+      const home = homeOf(slug);
+      return home && home.kind !== 'untracked' ? home.slug : UNSORTED;
+   };
+   const laneId = (key: string) => `roadmap:initiative:${key}`;
    // Show: every row, only the plans, or only the projects with no plan
    const showPlans = nav.show !== 'unplanned';
    const everything = nav.show !== 'plan';
@@ -2423,14 +2604,45 @@ export function Roadmap({
       });
    // a week picked on the load chart narrows them to exactly what that week
    // counts, by the chart's own rule, so its numbers and its rows agree
-   const picked = nav.week;
    const members = picked ? weekMembers({ today, plans: ordered, spans, ahead })(picked) : null;
    // an origin picked on the load chart keeps only the plans from there;
    // work with no plan has no origin to match
    const fromOrigin = (i: RoadmapItem) => !nav.origin || (i.origin ?? 'unsaid') === nav.origin;
+   // done plans that ended before the window rest in one fold under the
+   // rows, closed, instead of each taking a row; one open stays in its place
+   // one Decide asks about always shows, as the initiative lanes keep it
+   // the open plan, the one being moved (run: set before its save shows) and
+   // the one whose receipt shows stay where the last render drew them
+   const heldHere = (i: RoadmapItem) =>
+      (i.id === nav.item ||
+         receipt?.key === `plan:${i.id}` ||
+         run.current?.key === `plan:${i.id}`) &&
+      !foldedLast.current.has(i.id);
+   const before = new Set(
+      doneBefore(listed, horizon.start).flatMap(i =>
+         i === gone || heldHere(i) || planCalls.has(i.id) ? [] : [i.id]
+      )
+   );
+   useEffect(() => {
+      foldedLast.current = before;
+   });
+   // a week picked on the load chart narrows the fold by the chart's rule
+   // too, so its count and the fold agree
+   const shownBefore = showPlans
+      ? listed.filter(
+           i =>
+              before.has(i.id) &&
+              found(i) &&
+              fromOrigin(i) &&
+              (!members ||
+                 members.plans.has(i.id) ||
+                 (!!i.project && members.projects.get(i.project) === 'on'))
+        )
+      : [];
    const shownPlans = showPlans
       ? listed.filter(
            i =>
+              !before.has(i.id) &&
               found(i) &&
               fromOrigin(i) &&
               (!members ||
@@ -2489,12 +2701,13 @@ export function Roadmap({
          return isUnderWay(i.status) && within(end) ? [{ name: i.name, day: end }] : [];
       }),
    };
-   const projectOptions = [...items]
+   // a list for choosing: every project, Not tracked ones too
+   const projectOptions = [...allItems]
       .sort((a, b) => a.name.localeCompare(b.name))
       .map(i => ({ slug: i.slug, name: i.name, target: i.target?.due_on?.slice(0, 10) ?? null }));
    const people = [
       ...new Set([
-         ...items.flatMap(i => [...i.developers, ...i.nonDevelopers, i.lead ?? '']),
+         ...allItems.flatMap(i => [...i.developers, ...i.nonDevelopers, i.lead ?? '']),
          ...teams,
       ]),
    ].filter(Boolean);
@@ -2517,23 +2730,23 @@ export function Roadmap({
          ?.focus();
       return true;
    };
-   const open = (id: number, which: 'plan' | 'updates') => {
+   const open = (id: number, which: 'plan' | 'updates', focus: true | 'plan' = true) => {
       if (held()) return;
       // a second click on the same door, or on any while a form in it is
       // open, closes it
       if (editing === id && (panel === which || panel !== 'plan')) return close(id);
       setPanel(which);
-      setFocusCalls(true);
+      setFocusCalls(focus);
       if (editing !== id) navigate({ item: id });
    };
    const close = (id: number) => {
       refocus.current = [`roadmap-bar-${id}`, `roadmap-grip-${id}`];
       navigate({ item: null });
    };
-   const openFromReceipt = (id: number) => {
+   const openFromReceipt = (id: number, focus: true | 'plan' = true) => {
       if (held()) return;
       setPanel('plan');
-      setFocusCalls(true);
+      setFocusCalls(focus);
       navigate(openPlan(nav, id));
    };
    // its row on Decide, asked or answered here, else the plan alone, for the
@@ -2542,17 +2755,26 @@ export function Roadmap({
       const mine = callsHere.all.filter(r => r.item?.id === item.id);
       return (
          mine.find(r => r.reasons.length > 0) ??
-         mine[0] ?? { slug: item.project, item, reasons: [] }
+         mine[0] ??
+         // a question about its project, which its row says (Still Not tracked?)
+         (asksProject(item)
+            ? callsHere.all.find(r => !r.item && r.slug === item.project)
+            : undefined) ?? { slug: item.project, item, reasons: [] }
       );
    };
    const say = (next: Receipt | null, words?: string) => {
-      if (next?.key !== run.current?.key) run.current = null;
+      // a lane's receipt goes on the lanes' one run; any other its own
+      const runKey = next?.key.startsWith('initiative:') ? LANE_RUN : next?.key;
+      if (runKey !== run.current?.key) run.current = null;
       setReceipt(next);
       setAnnounced(words ?? (next ? `${next.words.replace(/\.$/, '')}.` : ''));
    };
+   // an Undo that saved: its words stay in the receipt's place, with
+   // nothing to click, so a second click on Undo lands on nothing
+   const said = (key: string, words: string, held?: number) => say({ key, words, held });
    // a save that failed says so where the click was, not in the toolbar;
    // `keep` holds a removed plan's place, and its Undo, to try again
-   const fail = (key: string, keep?: Pick<Receipt, 'gone' | 'undo'>) => {
+   const fail = (key: string, keep?: Pick<Receipt, 'gone' | 'undo' | 'undoes'>) => {
       const why = readRoadmap().problem;
       dismissRoadmapProblem();
       run.current = null;
@@ -2563,18 +2785,16 @@ export function Roadmap({
          ...keep,
       });
    };
-   const moved = (item: RoadmapItem, to: Span) => {
+   const moved = (item: RoadmapItem, to: Span, keptLane = false) => {
       const key = `plan:${item.id}`;
-      if (run.current?.key !== key || Array.isArray(run.current.from)) {
-         run.current = {
-            key,
-            from: { start: item.start, weeks: item.weeks },
-            team: item.team,
-            was: item,
-         };
-      }
-      const { was } = run.current;
-      const from = run.current.from as Span;
+      const going = planRun(key);
+      const start: PlanRun =
+         going && !Array.isArray(going.from)
+            ? going
+            : { key, from: { start: item.start, weeks: item.weeks }, team: item.team, was: item };
+      run.current = start;
+      const { was } = start;
+      const from = start.from as Span;
       void updateRoadmapItem(item.id, to).then(ok => {
          if (!ok) return fail(key);
          const words = moveWords(item.name, from, to);
@@ -2588,23 +2808,48 @@ export function Roadmap({
          );
          say({
             key,
-            words: cleared ? `${words}, which clears its “${cleared}”` : words,
+            words: `${cleared ? `${words}, which clears its “${cleared}”` : words}${
+               keptLane ? ', in its own lane. To put it in another, drag its grip, left of its name' : ''
+            }`,
             undo: () => {
                run.current = null;
                refocus.current = [`roadmap-bar-${item.id}`, `roadmap-grip-${item.id}`];
                void updateRoadmapItem(item.id, from).then(back =>
-                  back ? say(null, `Put ${item.name} back: ${planWords(from)}`) : fail(key)
+                  back ? said(key, `Put ${item.name} back: ${planWords(from)}`) : fail(key)
                );
             },
          });
       });
    };
-   const reorder = (item: RoadmapItem, next: number[], team?: string | null) => {
+   // where a plan sits in the order, in the number its row shows: by
+   // initiative, its place among the rows of its lane (`shown`), named
+   const placeWords = (item: RoadmapItem, order: readonly number[], shown?: readonly number[]) => {
+      if (!byInitiative || !shown) return `priority ${order.indexOf(item.id) + 1}`;
+      const place = order.filter(id => shown.includes(id)).indexOf(item.id) + 1;
+      const key = laneKey(item.project);
+      const lane =
+         key === NO_PROJECT_LANE
+            ? NO_PROJECT_YET
+            : key === UNSORTED
+            ? UNSORTED_WORD
+            : homeOf(item.project)?.name ?? key;
+      return `priority ${place} in ${lane}`;
+   };
+   const reorder = (
+      item: RoadmapItem,
+      next: number[],
+      team?: string | null,
+      shown?: readonly number[]
+   ) => {
       const key = `plan:${item.id}`;
-      if (run.current?.key !== key || !Array.isArray(run.current.from)) {
-         run.current = { key, from: ids, team: item.team, was: item };
-      }
-      const { from, team: fromTeam } = run.current as { from: number[]; team: string | null };
+      const going = planRun(key);
+      const start: PlanRun =
+         going && Array.isArray(going.from)
+            ? going
+            : { key, from: ids, team: item.team, was: item };
+      run.current = start;
+      const { team: fromTeam } = start;
+      const from = start.from as number[];
       void Promise.all([
          reorderRoadmap(next),
          team === undefined ? true : updateRoadmapItem(item.id, { team }),
@@ -2613,19 +2858,23 @@ export function Roadmap({
          const where = team === undefined ? '' : `${team ?? 'No team'}, `;
          say({
             key,
-            words: `Moved ${item.name} to ${where}priority ${next.indexOf(item.id) + 1}`,
+            words: `Moved ${item.name} to ${where}${placeWords(item, next, shown)}`,
             undo: () => {
                run.current = null;
                refocus.current = [`roadmap-grip-${item.id}`];
-               const now = readRoadmap().items?.find(i => i.id === item.id)?.team ?? null;
-               void Promise.all([
-                  reorderRoadmap(from),
-                  now === fromTeam ? true : updateRoadmapItem(item.id, { team: fromTeam }),
-               ]).then(([a, b]) =>
-                  a && b
-                     ? say(null, `Put ${item.name} back at priority ${from.indexOf(item.id) + 1}`)
-                     : fail(key)
-               );
+               const now =
+                  readRoadmap({ all: true }).items?.find(i => i.id === item.id)?.team ?? null;
+               // said at once, as the board shows it back at once, and the
+               // page follows the row so its words stay under the pointer
+               keepInPlace(key, held => {
+                  said(key, `Put ${item.name} back at ${placeWords(item, from, shown)}`, held);
+                  void Promise.all([
+                     reorderRoadmap(from),
+                     now === fromTeam ? true : updateRoadmapItem(item.id, { team: fromTeam }),
+                  ]).then(([a, b]) => {
+                     if (!a || !b) fail(key);
+                  });
+               });
             },
          });
       });
@@ -2651,7 +2900,7 @@ export function Roadmap({
          undo: () => {
             refocus.current = [`roadmap-bar-${was.id}`, `roadmap-grip-${was.id}`];
             void updateRoadmapItem(was.id, back, { undo: times }).then(ok =>
-               ok ? say(null, `Put ${was.name} back as it was`) : fail(key)
+               ok ? said(key, `Put ${was.name} back as it was`) : fail(key)
             );
          },
       });
@@ -2668,7 +2917,7 @@ export function Roadmap({
       const undo = () => {
          refocus.current = [`roadmap-grip-${item.id}`];
          void restoreRoadmapItem(item.id).then(ok =>
-            ok ? say(null, `Put ${item.name} back on the roadmap`) : fail(key, { gone: item, undo })
+            ok ? said(key, `Put ${item.name} back on the roadmap`) : fail(key, { gone: item, undo, undoes: `Removed ${item.name} from the roadmap` })
          );
       };
       say({ key, words: `Removed ${item.name} from the roadmap`, gone: item, undo });
@@ -2709,26 +2958,42 @@ export function Roadmap({
             const next = stepWithin(ids, visible, item.id, up ? -1 : 1);
             if (!next) return setAnnounced(`${item.name} is already ${up ? 'first' : 'last'} here`);
             refocus.current = [`roadmap-grip-${item.id}`];
-            reorder(item, next);
+            reorder(item, next, undefined, visible);
          },
       },
       row: {
          onDragOver: (e: DragEvent) => {
             if (dragging == null) return;
+            // a plan with no project can't be filed in another lane
+            const moving = byInitiative ? ordered.find(i => i.id === dragging) : undefined;
+            if (moving && !moving.project && laneKey(item.project) !== NO_PROJECT_LANE) return;
+            // nor filed into a closed initiative's lane
+            const into = moving && laneKey(moving.project) !== laneKey(item.project);
+            if (into && homeOf(item.project) && homeOf(item.project)?.status !== 'open') return;
             e.preventDefault();
             setDropTarget(item.id);
          },
          onDrop: (e: DragEvent) => {
             e.preventDefault();
+            e.stopPropagation();
+            // a drop is a press: nothing it moves there takes a click yet
+            guardAt(e.clientX, e.clientY);
             const dropped = ordered.find(i => i.id === dragging);
             setDragging(null);
             setDropTarget(null);
+            setOverLane(null);
             if (!dropped || dropped.id === item.id) return;
+            // by initiative, a drop in another initiative's lane files it
+            // there and leaves its priority alone
+            if (byInitiative && laneKey(dropped.project) !== laneKey(item.project)) {
+               return fileByDrag(dropped, laneKey(item.project));
+            }
             // in team lanes, dropping into another team's lane moves it there
             reorder(
                dropped,
                moveBefore(ids, dropped.id, item.id),
-               lanes && dropped.team !== item.team ? item.team : undefined
+               lanes && dropped.team !== item.team ? item.team : undefined,
+               visible
             );
          },
       },
@@ -2819,9 +3084,24 @@ export function Roadmap({
    // first loads; and a new plan's form, which Add can open from far below
    const loaded = plan != null;
    useEffect(() => {
-      if (loaded && nav.item != null)
-         scrollClear(document.getElementById(`roadmap-item-${nav.item}`));
-   }, [loaded, nav.item, panel]);
+      if (!loaded || nav.item == null) return;
+      // a link to a plan opens the lane that holds it first, as a click
+      // on its band would, so the scroll finds the row
+      const row = document.getElementById(`roadmap-item-${nav.item}`);
+      const lane = row?.closest<HTMLElement>('[data-lane-id]');
+      const closed = !!lane?.querySelector('details:not([open])')?.contains(row);
+      if (!closed) return scrollClear(row);
+      openFold(lane?.dataset.laneId as string);
+      // once the lane has opened and laid out
+      const id = nav.item;
+      const wait = window.setTimeout(
+         () => scrollClear(document.getElementById(`roadmap-item-${id}`)),
+         50
+      );
+      return () => window.clearTimeout(wait);
+      // again once the initiatives arrive and lay the rows out in lanes, so
+      // a cold link or a reload opens the lane too
+   }, [loaded, nav.item, panel, byInitiative]);
    useEffect(() => {
       if (adding) scrollClear(document.getElementById('roadmap-new'));
    }, [adding]);
@@ -2843,19 +3123,14 @@ export function Roadmap({
       watch.observe(bar);
       return () => watch.disconnect();
    }, [timeline]);
-   // after a move, a close or an undo, the focus goes back where it was:
-   // a moved row's control can lose it as React moves the row
-   useEffect(() => {
-      const want = refocus.current;
-      if (!want) return;
-      refocus.current = null;
-      const el = want.map(id => document.getElementById(id)).find(Boolean);
-      el?.focus();
-   });
 
-   const planRows = (list: RoadmapItem[], visible: RoadmapItem[] = list) => {
+   const planRows = (
+      list: RoadmapItem[],
+      visible: RoadmapItem[] = list,
+      { ranked = true, placed = false }: { ranked?: boolean; placed?: boolean } = {}
+   ) => {
       const visibleIds = visible.map(i => i.id);
-      return list.map(item => {
+      return list.map((item, at) => {
          const key = `plan:${item.id}`;
          // removed just now: its receipt stands where the row was
          if (item === gone && receipt) {
@@ -2877,23 +3152,36 @@ export function Roadmap({
                <PlanRow
                   item={item}
                   all={ordered}
-                  rank={ids.indexOf(item.id) + 1}
+                  rank={ranked ? ids.indexOf(item.id) + 1 : 0}
+                  lanePlace={placed ? at + 1 : undefined}
                   axis={axis}
                   today={today}
                   linked={linked}
                   call={planCalls.get(item.id) ?? null}
                   open={isOpen}
-                  onOpen={() => open(item.id, 'plan')}
+                  onOpen={focus => open(item.id, 'plan', focus)}
+                  onOpenPlan={id => openFromReceipt(id, 'plan')}
                   onPerson={person}
                   onOpenProject={slug => navigate({ project: slug })}
-                  onMove={to => moved(item, to)}
-                  onShow={day =>
-                     zoom
-                        ? navigate({ zoom: zoomKey(zoomAround(zoom.kind, dateOf(day))) })
-                        : open(item.id, 'plan')
+                  onMove={(to, elsewhere) => moved(item, to, elsewhere && ranked)}
+                  onOtherLane={() =>
+                     say({
+                        key,
+                        words: `Nothing moved: a bar moves its dates${
+                           ranked ? '. To put it in another lane, drag its grip, left of its name' : ''
+                        }`,
+                        failed: true,
+                     })
                   }
-                  dragHandlers={handlersFor(item, visibleIds)}
-                  dropHere={dropTarget === item.id && dragging !== item.id}
+                  onShow={day =>
+                     navigate(
+                        zoom
+                           ? { zoom: zoomKey(zoomAround(zoom.kind, dateOf(day))) }
+                           : { window: holding(day) }
+                     )
+                  }
+                  dragHandlers={ranked ? handlersFor(item, visibleIds) : NO_DRAG}
+                  dropHere={ranked && dropTarget === item.id && dragging !== item.id}
                />
                {receipt?.key === key && <ReceiptLine receipt={receipt} onOpen={openFromReceipt} />}
                {isOpen &&
@@ -2943,6 +3231,14 @@ export function Roadmap({
                         onPerson={person}
                         onOpenItem={openFromReceipt}
                         onOpenProject={slug => navigate({ project: slug })}
+                        initiatives={initiatives}
+                        navigate={navigate}
+                        onFile={to => {
+                           // the details remount in the new lane: the focus
+                           // goes to the receipt's words, not their calls
+                           setFocusCalls(false);
+                           fileByDrag(item, to ?? UNSORTED, { fromDetails: true });
+                        }}
                      />
                   ))}
             </div>
@@ -3009,6 +3305,122 @@ export function Roadmap({
          .filter((t): t is string => !!t && !teams.includes(t))
          .sort((a, b) => a.localeCompare(b)),
    ];
+   const { fileByDrag, laneInitiatives, rankOf, initiativeBody } = initiativeLanes({
+      asksPlan,
+      bySlug,
+      callsHere,
+      counted,
+      dragging,
+      draggingLane,
+      everyPlan,
+      everything,
+      gone,
+      homeOf,
+      inFlightRows,
+      initiatives,
+      item: nav.item,
+      laneId,
+      laneKey,
+      narrowed,
+      navigate,
+      openFromReceipt,
+      ordered,
+      overLane,
+      person,
+      planCalls,
+      planRows,
+      projectCalls,
+      q,
+      receipt,
+      refocus,
+      run,
+      say,
+      said,
+      setAnnounced,
+      setDragging,
+      setDraggingLane,
+      setDropTarget,
+      setOverLane,
+      shownPlans,
+      shownUnplanned,
+   });
+   // ----- Not tracked: closes every grouping, a ledger at rest -----
+   // its plans under way and live projects with no plan, from the full set,
+   // the most recent PR first; no rank, and not dragged or dropped on
+   const trackedIds = new Set(ids);
+   const recent = (slug: string | null) => (slug && bySlug.get(slug)?.lastActivity?.at) || 0;
+   const notTrackedPlans = (everyPlan ?? [])
+      // the open plan and the one whose receipt shows stay, as heldPlan
+      // keeps them in the initiative lanes, so a save keeps its Undo
+      .filter(
+         i =>
+            !trackedIds.has(i.id) &&
+            (isUnderWay(i.status) || i.id === nav.item || receipt?.key === `plan:${i.id}`) &&
+            found(i)
+      )
+      .sort((a, b) => recent(b.project) - recent(a.project));
+   const notTrackedPlanned = new Set(notTrackedPlans.flatMap(i => (i.project ? [i.project] : [])));
+   const notTrackedLoose =
+      everything && !nav.origin
+         ? allItems
+              .filter(
+                 i =>
+                    untracked.has(i.slug) &&
+                    i.status === 'live' &&
+                    !notTrackedPlanned.has(i.slug) &&
+                    (!filter || filter(i))
+              )
+              .sort((a, b) => recent(b.slug) - recent(a.slug))
+         : [];
+   const notTrackedLane = (showPlans ? notTrackedPlans.length : 0) + notTrackedLoose.length > 0 && (
+      <div {...{ 'data-lane-id': 'roadmap:not-tracked' }} className="border-t border-secondary">
+         <TimelineLane
+            id="roadmap:not-tracked"
+            label="Not tracked"
+            count={(showPlans ? notTrackedPlans.length : 0) + notTrackedLoose.length}
+            gloss={`${NOT_TRACKED_GLOSS} They have no place in the order; the most recent PR first.`}
+            load={null}
+            lined={false}
+            // a ledger at rest, open while Decide asks about a row in it
+            defaultOpen={
+               notTrackedPlans.some(i => planCalls.has(i.id)) ||
+               notTrackedLoose.some(p => projectCalls.has(p.slug))
+            }
+            // under the initiative lanes, its label starts where theirs do
+            gutter={byInitiative ? <span aria-hidden className="block w-[17px]" /> : undefined}
+         >
+            {showPlans && planRows(notTrackedPlans, notTrackedPlans, { ranked: false })}
+            {inFlightRows(notTrackedLoose)}
+         </TimelineLane>
+      </div>
+   );
+
+   // ----- Done before the window: a ledger at rest, after every grouping -----
+   // the initiative lanes hold only work under way, so they have no fold
+   // of it either
+   const doneFold = !byInitiative && shownBefore.length > 0 && (
+      <div {...{ 'data-lane-id': 'roadmap:done-before' }} className="border-t border-secondary">
+         <TimelineLane
+            id="roadmap:done-before"
+            label={`Done before ${dateOf(horizon.start).toLocaleDateString(undefined, {
+               month: 'short',
+               year: 'numeric',
+            })}`}
+            count={shownBefore.length}
+            gloss={`${n(
+               shownBefore.length,
+               'plan'
+            )} done before the weeks shown. Press ‹ to step back to their weeks; each one takes its place in the rows again when its bar is on screen.`}
+            load={null}
+            lined={false}
+            // open when the rows were narrowed to find something
+            defaultOpen={narrowed}
+         >
+            {planRows(shownBefore, shownBefore, { ranked: false })}
+         </TimelineLane>
+      </div>
+   );
+
    const body = lanes ? (
       [...laneTitles, null].map(team => {
          const inLane = (t: string | null | undefined) => (t ?? null) === team;
@@ -3058,9 +3470,10 @@ export function Roadmap({
                id={id}
                label={name}
                count={counted(shownPlanned) + shownLoose.length}
+               // the done plans folded under the rows aren't in the lane
                gloss={`${name}: ${of(
                   counted(shownPlanned),
-                  planned.length,
+                  planned.filter(i => !before.has(i.id)).length,
                   'plan'
                )} in priority order${looseWords}.`}
                load={developers ? capacityWords(load.length, developers) : null}
@@ -3089,6 +3502,8 @@ export function Roadmap({
             </TimelineLane>
          );
       })
+   ) : byInitiative ? (
+      initiativeBody
    ) : (
       <>
          {shownPlans.length > 0 && (
@@ -3098,9 +3513,10 @@ export function Roadmap({
                label={`On the roadmap · ${n(counted(shownPlans), 'plan')}`}
                count={counted(shownPlans)}
                showCount={false}
+               // the done plans folded under the rows aren't in the lane
                gloss={`${of(
                   counted(shownPlans),
-                  ordered.length,
+                  ordered.filter(i => !before.has(i.id)).length,
                   'plan'
                )} in priority order: what matters most is on top.`}
                load={null}
@@ -3236,6 +3652,12 @@ export function Roadmap({
                            it for why.
                         </p>
                         <p className="m-0">
+                           The dates button picks the months shown; ‹ and › step that many, and
+                           Today puts back the months it opens on. A plan outside them shows its
+                           dates at the edge: click them to move there. Done plans that ended before
+                           the first month rest in a fold at the bottom.
+                        </p>
+                        <p className="m-0">
                            The bars count the plans and projects with a PR open each week, merged
                            that week included. The lanes count PRs in the last 14 days, so their
                            totals can differ. Click a week to see only that week’s work.
@@ -3271,54 +3693,109 @@ export function Roadmap({
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pb-2">
                <Segmented
                   ariaLabel="roadmap layout"
-                  value={nav.scale}
+                  // the columns drawn, which follow a window picked
+                  value={nav.scale === 'now' ? 'now' : unit}
                   options={[
                      ['month', 'Months'],
                      ['quarter', 'Quarters'],
                      ['now', 'Now, next, later'],
                   ]}
-                  onChange={next => navigate({ scale: next, zoom: null })}
+                  onChange={switchScale}
                />
-               {zoom && (
+               {/* the window: its picker, or a zoom's name, between the steps
+                   back and on by its own length; Today puts back the default */}
+               {timeline && (
                   <span className="inline-flex items-center gap-1">
-                     <QuietButton
-                        size="md"
-                        onClick={() => navigate({ zoom: zoomOut })}
-                        title="Zoom out"
-                     >
-                        <Icon icon={ZoomOut} size={13} className="mr-1" />
-                        {zoomOut
-                           ? zoomWords(quarterOf(zoom))
-                           : scale === 'quarter'
-                           ? 'All quarters'
-                           : 'All months'}
-                     </QuietButton>
+                     {zoom && (
+                        <QuietButton
+                           size="md"
+                           onClick={() =>
+                              navigate(
+                                 zoomOut
+                                    ? { zoom: zoomOut }
+                                    : // out to a window holding it, so you keep your place
+                                      { zoom: null, window: holding(horizon.start) }
+                              )
+                           }
+                           title="Zoom out"
+                        >
+                           <Icon icon={ZoomOut} size={13} className="mr-1" />
+                           <span className="whitespace-nowrap">
+                              {zoomOut
+                                 ? zoomWords(quarterOf(zoom))
+                                 : unit === 'quarter'
+                                 ? 'All quarters'
+                                 : 'All months'}
+                           </span>
+                        </QuietButton>
+                     )}
                      <button
                         type="button"
-                        aria-label={`The ${zoom.kind} before`}
-                        title={`The ${zoom.kind} before`}
-                        onClick={() => navigate({ zoom: zoomKey(shiftZoom(zoom, -1)) })}
+                        aria-label={stepWords(-1)}
+                        title={stepWords(-1)}
+                        onClick={() => step(-1)}
                         className="hit pressable rounded-md border-0 bg-transparent p-1 text-ink-3 hover:text-brand"
                      >
                         <Icon icon={ChevronLeft} size={15} />
                      </button>
-                     <span className="min-w-[7rem] text-center text-[13px] font-semibold text-ink">
-                        {zoomWords(zoom)}
-                     </span>
+                     {zoom ? (
+                        <span className="min-w-[7rem] text-center text-[13px] font-semibold text-ink">
+                           {zoomWords(zoom)}
+                        </span>
+                     ) : (
+                        <DateRangePicker
+                           rangeKey={nav.window ?? ''}
+                           range={{
+                              start: horizon.start,
+                              end: utcDay((dayStart(horizon.end) as number) - DAY),
+                           }}
+                           onChange={key => navigate({ window: key || null })}
+                           presets={WINDOW_PRESETS}
+                           // a preset's months show from the widest screens; the
+                           // column names under it say them anyway
+                           wordsClass="hidden 2xl:inline"
+                           label="Pick the months the roadmap shows"
+                           name="Roadmap window"
+                           words={() => windowWords(shownMonths, unit)}
+                           future
+                           hint={`Click the first day, then the last (at most ${
+                              MAX_WINDOW_MONTHS / 12
+                           } years)`}
+                           keyOf={r => {
+                              const w = windowOfDays(r.start, r.end);
+                              return windowNav(w, w.unit) ?? '';
+                           }}
+                           pickedWords={r => {
+                              const w = windowOfDays(r.start, r.end);
+                              return `${windowWords(w, w.unit)}, in whole ${w.unit}s`;
+                           }}
+                        />
+                     )}
                      <button
                         type="button"
-                        aria-label={`The ${zoom.kind} after`}
-                        title={`The ${zoom.kind} after`}
-                        onClick={() => navigate({ zoom: zoomKey(shiftZoom(zoom, 1)) })}
+                        aria-label={stepWords(1)}
+                        title={stepWords(1)}
+                        onClick={() => step(1)}
                         className="hit pressable rounded-md border-0 bg-transparent p-1 text-ink-3 hover:text-brand"
                      >
                         <Icon icon={ChevronRight} size={15} />
                      </button>
-                     {(today < horizon.start || today >= horizon.end) && (
+                     {(zoom || isPreset(nav.window)
+                        ? today < horizon.start || today >= horizon.end
+                        : !!nav.window) && (
                         <QuietButton
                            size="md"
-                           onClick={() => navigate({ zoom: zoomKey(zoomAround(zoom.kind, now)) })}
-                           title={`Zoom to this ${zoom.kind}`}
+                           onClick={() =>
+                              navigate({
+                                 window: null,
+                                 zoom: zoom ? zoomKey(zoomAround(zoom.kind, now)) : null,
+                              })
+                           }
+                           title={
+                              zoom
+                                 ? `Zoom to this ${zoom.kind}`
+                                 : `Back to ${windowWords(defaultWindow(scale, now), scale)}`
+                           }
                         >
                            Today
                         </QuietButton>
@@ -3331,10 +3808,13 @@ export function Roadmap({
                   Group by
                   <Segmented
                      ariaLabel="group by"
-                     value={lanes ? 'team' : 'none'}
+                     value={lanes ? 'team' : byInitiative ? 'initiative' : 'none'}
                      options={[
                         ['none', 'None'],
                         ['team', 'Team'],
+                        ...(initiatives?.length
+                           ? [['initiative', 'Initiative'] as [string, string]]
+                           : []),
                      ]}
                      onChange={group => navigate({ group })}
                   />
@@ -3350,7 +3830,7 @@ export function Roadmap({
                   placeholder="Find a project, lead or team"
                   value={nav.find}
                   onChange={e => navigate({ find: e.target.value })}
-                  className={`min-w-48 flex-1 px-2.5 sm:w-52 sm:min-w-0 sm:flex-none ${textInputClass}`}
+                  className={`min-w-48 flex-1 px-2.5 sm:w-52 sm:min-w-32 sm:flex-initial ${textInputClass}`}
                />
                {/* what the load chart's counts and bars narrow the rows to,
                    each with its own way out: the chart scrolls away, these
@@ -3440,6 +3920,9 @@ export function Roadmap({
                   origin={nav.origin}
                   onOrigin={origin => navigate({ origin })}
                   onPeople={() => navigate(switchView('people'))}
+                  historyFrom={
+                     pastRange && pastRange.start > horizon.start ? pastRange.start : null
+                  }
                   firstPlan={
                      plan && !plan.length
                         ? {
@@ -3462,23 +3945,31 @@ export function Roadmap({
                         : null
                   }
                />
-               {newPlan}
-               {receiptAdded}
-               {!ordered.length && !unplanned.length && !adding ? (
-                  <div className="px-3.5 py-4 text-[13px] text-ink-3">
-                     Nothing on the roadmap yet, and no projects {BEING_WORKED_ON}. Click Add to the
-                     roadmap to start a plan.
-                  </div>
-               ) : (
-                  <div>{body}</div>
-               )}
-               {narrowed &&
-                  !shownPlans.length &&
-                  !(everything && shownUnplanned.length) &&
-                  nothingMatches(`on the roadmap or ${BEING_WORKED_ON}`)}
+               {/* the press guard covers what moves under a click (rows,
+                   receipts, details), not the load chart above */}
+               <div {...PRESS_GUARD}>
+                  {newPlan}
+                  {receiptAdded}
+                  {!ordered.length && !unplanned.length && !adding ? (
+                     <div className="px-3.5 py-4 text-[13px] text-ink-3">
+                        Nothing on the roadmap yet, and no projects {BEING_WORKED_ON}. Click Add to
+                        the roadmap to start a plan.
+                     </div>
+                  ) : (
+                     <div>
+                        {body}
+                        {doneFold}
+                        {notTrackedLane}
+                     </div>
+                  )}
+                  {narrowed &&
+                     !shownPlans.length &&
+                     !(everything && shownUnplanned.length) &&
+                     nothingMatches(`on the roadmap or ${BEING_WORKED_ON}`)}
+               </div>
             </div>
          ) : (
-            <>
+            <div {...PRESS_GUARD} className="contents">
                {(newPlan || receiptAdded) && (
                   <div className="mb-3">
                      <Rows>
@@ -3487,25 +3978,43 @@ export function Roadmap({
                      </Rows>
                   </div>
                )}
-               {q && !nnlPlans.some(i => bucketOf(i, today)) ? (
+               {q && !nnlPlans.some(i => nnlBucket(i, today, planCalls.get(i.id))) ? (
                   <Rows>{nothingMatches('on the roadmap')}</Rows>
                ) : (
                   <NowNextLater
                      items={nnlPlans}
                      all={ordered}
                      bySlug={bySlug}
-                     laneTitles={lanes ? laneTitles : null}
+                     lanes={
+                        lanes
+                           ? [
+                                ...laneTitles.map(t => ({ key: t as string | null, title: t })),
+                                { key: null, title: 'No team' },
+                             ]
+                           : byInitiative
+                           ? [
+                                ...laneInitiatives.map(i => ({
+                                   key: i.slug as string | null,
+                                   title: rankOf(i) ? `${rankOf(i)} ${i.name}` : i.name,
+                                })),
+                                { key: UNSORTED, title: UNSORTED_WORD },
+                                { key: NO_PROJECT_LANE, title: NO_PROJECT_YET },
+                             ]
+                           : null
+                     }
+                     laneOf={byInitiative && !lanes ? i => laneKey(i.project) : i => i.team}
                      today={today}
                      calls={planCalls}
                      unplanned={unplanned.length}
-                     onOpen={id => openFromReceipt(id)}
+                     asked={notTrackedPlans.filter(i => planCalls.has(i.id))}
+                     onOpen={(id, focus) => openFromReceipt(id, focus)}
                      onPerson={person}
                      onTimeline={() =>
                         navigate({ scale: 'quarter', zoom: null, show: 'unplanned' })
                      }
                   />
                )}
-            </>
+            </div>
          )}
       </section>
    );

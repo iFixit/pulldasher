@@ -31,6 +31,9 @@ export const pastEndMark = (weeks: number, kind: EndKind = 'hard') =>
 export const LAST_14_DAYS = 'last 14 days';
 /** PRs with no project label */
 export const NOT_IN_A_PROJECT = 'Not in a project';
+/** open drafts, wherever the tab lists them: a draft isn't work yet, so
+ * they sit in a closed fold and no count takes them (projects.ts isDraft) */
+export const DRAFTS_NOT_COUNTED = 'Drafts, not counted';
 /** a length of time in a sentence: "42 days" */
 export const days = (count: number) => n(count, 'day');
 /** the same in a table cell or a row's meta line, the board's own form: "42d" */
@@ -45,6 +48,20 @@ export const BEING_WORKED_ON = 'being worked on';
 export const NOT_SAID = 'Not said';
 /** the board's bucket for small work that isn't worth a project */
 export const ONE_OFFS = 'Small work, no project';
+/** a project filed nowhere: in no initiative, Keep the lights on or Not
+ * tracked. Its one name on every band, chooser, hover and split */
+export const UNSORTED_WORD = 'Unsorted';
+/** a project filed into Not tracked, by any view: Decide, a plan's
+ * details, a drop or its page. Its receipt, without a full stop */
+export const MARKED_NOT_TRACKED =
+   'Marked Not tracked, so it counts nowhere. Decide asks again if it grows';
+/** a plan with no project label, which can't be filed until it has one */
+export const NO_PROJECT_YET = 'No project yet';
+/** an initiative's goal, as its own line beside a question about it */
+export const GOAL = 'Goal';
+/** what Not tracked means, the same wherever it's explained */
+export const NOT_TRACKED_GLOSS =
+   'Projects marked Not tracked: personal and team workflow nobody reports on. They count in no load, tile, tab or question and owe no update, but Decide asks again if one doubles in size.';
 /** someone on more projects than the overload line (model/retro.ts) */
 export const OVERLOADED = 'overloaded';
 /** a project whose issues are all closed, as a label */
@@ -86,3 +103,10 @@ export const andList = (names: readonly string[]) =>
    names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
 /** developer-days as every table prints them: a tenth under 10, whole above */
 export const devDays = (d: number) => (d < 10 ? Math.round(d * 10) / 10 : Math.round(d));
+
+/** An Undo's accessible name: what it takes back, without the receipt's
+ * full stop; a failed one names the receipt it tries again. */
+export function undoName(r: { words: string; failed?: boolean; undoes?: string }): string {
+   if (!r.failed) return `Undo: ${r.words.replace(/\.$/, '')}`;
+   return r.undoes ? `Try the Undo again: ${r.undoes.replace(/\.$/, '')}` : 'Try the Undo again';
+}

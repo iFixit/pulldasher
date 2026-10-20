@@ -1,4 +1,5 @@
 import apiController from './api.js';
+import initiativesController from './initiatives.js';
 import projectsController from './projects.js';
 import roadmapController, { canWrite } from './roadmap.js';
 import settingsController from './settings.js';
@@ -13,10 +14,28 @@ import {
    ROADMAP_ORIGINS,
    ROADMAP_STATUSES,
    DECIDE_MIN_PRS,
+   GROWTH_FLOOR,
+   INITIATIVE_GOAL_MAX,
+   INITIATIVE_KINDS,
+   INITIATIVE_NAME_MAX,
+   INITIATIVE_STATUSES,
    STALL_DAYS,
    UPDATE_DUE_DAYS,
    WAITS_ON_MAX,
 } from '../shared/dist/index.js';
+
+/** Every write the Projects tab can see, board and API (app.js): each one
+ * that succeeds has open boards fetch again. */
+export const PROJECT_WRITES = [
+   '/project-issues',
+   '/roadmap',
+   '/initiatives',
+   '/settings',
+   '/api/v1/project-issues',
+   '/api/v1/roadmap',
+   '/api/v1/initiatives',
+   '/api/v1/settings',
+];
 
 /**
  * Every /api/v1 route in one table. app.js registers them from it, and
@@ -47,7 +66,9 @@ export const API_ROUTES = [
          'ready to merge, on hold, waiting on review, being worked on), and its numbers for ' +
          '?start=&end= (YYYY-MM-DD days, default the last 30); ?project=<slug> narrows the numbers to one. ' +
          'A PR counts toward its project label, or with none the project whose issue it links; ' +
-         '`double_labeled` holds the open PRs in two',
+         '`double_labeled` holds the open PRs in two. Each project says its `initiative` (slug, or null for ' +
+         'Unsorted), whether it is `tracked`, and whether it `grew` while not tracked. A project Not tracked because ' +
+         'its PRs are all in projects.untrackedRepos has `initiative: null` with `tracked: false`',
    },
    {
       method: 'get',
@@ -122,15 +143,16 @@ export const API_ROUTES = [
          `A plan whose PRs merged in the last ${UPDATE_DUE_DAYS} days, inside its issues' pace and, for a hard ` +
          'end, inside its end, owes none, unless its last update said at risk or off track, or its open PRs ' +
          `pile up: ${PILE_MIN} or more that grew by ${PILE_GROWTH} in ${UPDATE_DUE_DAYS} days, or whose median ` +
-         `age passed ${PILE_AGE_DAYS} days`,
+         `age passed ${PILE_AGE_DAYS} days. Not-tracked projects owe none`,
    },
    {
       method: 'get',
       path: '/api/v1/decide',
       handlers: [projectsController.getDecide],
       does:
-         'The decisions owed now, worst first, each with its project, roadmap item, and reasons (see ' +
-         '`decide`); days are the team’s (config.js projects.timeZone, default America/Los_Angeles)',
+         'The decisions owed now, worst first, each with its project, roadmap item, `initiative` (its home, or ' +
+         'the one asked about), and reasons (see `decide`); days are the team’s (config.js projects.timeZone, ' +
+         'default America/Los_Angeles). Not-tracked projects are left out, but for the ones that grew',
    },
    {
       method: 'get',
@@ -139,7 +161,7 @@ export const API_ROUTES = [
       does:
          'Projects in flight each week against the developer count, on the roadmap (split by where the ' +
          'work came from) and not; weeks after this one as if nothing changes. ?start=&end= (default 12 ' +
-         'weeks back to 26 ahead)',
+         'weeks back to 26 ahead). Not-tracked projects are left out',
    },
    {
       method: 'get',
@@ -152,7 +174,8 @@ export const API_ROUTES = [
          'What the board reads off them: `in_progress` (marked so, or planned with PRs moving since its ' +
          'start, which the board shows as In progress) and `standing`, where its updates stand: `owed` ' +
          '(its lead owes one), `vouched` (none owed: its PRs vouch for it), `current` (its latest stands), ' +
-         'or null (none yet, none owed)',
+         'or null (none yet, none owed). `untracked`: its project is Not tracked, so it owes nothing and ' +
+         'counting views leave it out',
    },
    {
       method: 'post',
@@ -218,6 +241,63 @@ export const API_ROUTES = [
    },
    {
       method: 'get',
+      path: '/api/v1/initiatives',
+      handlers: [initiativesController.list],
+      does:
+         'Every initiative in rank order (top first): slug, name, goal, owner, kind (`initiative`, `upkeep` for ' +
+         'Keep the lights on, `untracked` for Not tracked), status and `status_at`, the projects filed in it ' +
+         '(`projects`: each `{project, set_by, set_at, baseline_prs}`) and `span`, read off their plans: the earliest start, ' +
+         'the latest end under way, how many plans under way have an end or none, and `end_kind` (soft, ongoing, ' +
+         'or ended on `ended`). A project with no filing is Unsorted',
+   },
+   {
+      method: 'post',
+      path: '/api/v1/initiatives',
+      handlers: [canWrite, initiativesController.create],
+      does:
+         'Add an initiative, ranked last: {slug, name, goal?, owner?, kind?}; 409 when the slug is taken, or ' +
+         'when one of kind upkeep or untracked already exists (there is one of each)',
+   },
+   {
+      method: 'put',
+      path: '/api/v1/initiatives/file',
+      handlers: [canWrite, initiativesController.file],
+      does:
+         'File a project: {project, initiative: <slug> or null for none, expect?, baseline_prs?, set_at?, undo?}. ' +
+         '`expect` is the home you saw (a slug or null); 409 with the current `home` when it changed. 409 when ' +
+         'the initiative is closed, unless it is an undo (`undo: true`, or `set_at` sent). null is a 409 for a ' +
+         'project Not tracked because its PRs are all in projects.untrackedRepos, unless it is an undo. ' +
+         'Answers `project` as its label spells it, `before` and `home` (initiative, set_by, set_at, ' +
+         'baseline_prs); undo by sending `before` back with its set_at, baseline_prs and `undo: true`. ' +
+         'Into Not tracked with no baseline_prs, the count is its old baseline plus the PRs since (when it was ' +
+         'already not tracked), else its PR count now',
+   },
+   {
+      method: 'patch',
+      path: '/api/v1/initiatives/:id',
+      handlers: [canWrite, initiativesController.update],
+      does:
+         'Change its name, goal, owner or status (open, done, dropped). Only kind `initiative` closes (409 for ' +
+         'upkeep and untracked). Closing is a 409 naming the projects in it ' +
+         'still going (`live`: a plan under way or open PRs). {status: "open", restate: true} is Keep open; ' +
+         '{undo: {updated_at, status_at}} puts back the times a change replaced',
+   },
+   {
+      method: 'delete',
+      path: '/api/v1/initiatives/:id',
+      handlers: [canWrite, initiativesController.remove],
+      does: 'Delete an initiative that holds no projects (409 while it holds any), freeing its slug',
+   },
+   {
+      method: 'post',
+      path: '/api/v1/initiatives/:id/move',
+      handlers: [canWrite, initiativesController.move],
+      does:
+         'Move one initiative just above another: {before: <id>}, or {before: null} for the bottom. Only ' +
+         'initiatives’ ranks change, never a plan’s priority',
+   },
+   {
+      method: 'get',
       path: '/api/v1/settings',
       handlers: [settingsController.get],
       does: 'The settings people change, and whether each is saved or config.js’s',
@@ -267,6 +347,14 @@ export function apiIndex(req, res) {
          notes: 'up to 2000 characters',
          waits_on: `ids of other items this one waits on, at most ${WAITS_ON_MAX}, never a loop`,
       },
+      initiative: {
+         slug: 'required on create, a label-style slug like site-speed; kept for good',
+         name: `required on create, up to ${INITIATIVE_NAME_MAX} characters`,
+         goal: `one line, up to ${INITIATIVE_GOAL_MAX} characters`,
+         owner: 'a GitHub login, or null: orders its projects and takes the calls for ones with no lead',
+         kind: { values: INITIATIVE_KINDS, means: 'set on create: upkeep is Keep the lights on, untracked is Not tracked' },
+         status: INITIATIVE_STATUSES,
+      },
       update: {
          health: ROADMAP_HEALTHS,
          body: 'up to 2000 characters, may be empty',
@@ -288,13 +376,24 @@ export function apiIndex(req, res) {
             moving: 'parked, but its PRs changed after it was parked',
             issues_done:
                'every issue in its project is closed (`done`, `dropped`), and the plan running today hasn’t changed since the last one closed; `open` = its PRs still open',
+            unfiled: `in no initiative, with ${DECIDE_MIN_PRS} or more PRs or a plan under way (asked once any initiative exists; a project asked \`new\` is filed from that call)`,
+            no_project:
+               'an active plan with no project, which can’t be filed in an initiative until it has one (asked once any initiative exists); answer by PATCHing its `project`',
+            untracked_grew: `not tracked, and opened \`since\` PRs since it was set so: at least its count then (\`baseline\`) and ${GROWTH_FLOOR}`,
+            goal_reached:
+               'no project of the open `initiative` has a plan under way or PRs open, every plan in it stopped 14 days ago or more, and no project with no plan merged lately; Keep open quiets it until a plan or filing in it changes',
+            reopened_in_closed:
+               'its `initiative` is closed (`as` done or dropped), but it has open PRs or a plan under way again: the same rule that refuses a close. On the project’s own row when it has one',
          },
          to_clear:
             'Make the call as a roadmap write. With no item: POST /api/v1/roadmap {name, project, status, ' +
             'start, weeks, end_kind: "hard"}. With one: PATCH /api/v1/roadmap/:id with {status: "active", weeks, ' +
             'end_kind: "hard"} to commit, {end_kind: "ongoing"} for upkeep with no end, ' +
             '{status: "parked"}, {status: "done"}, or {status: "dropped"}. Any PATCH to an item counts as ' +
-            `a decision, and quiets a stall for ${STALL_DAYS} days.`,
+            `a decision, and quiets a stall for ${STALL_DAYS} days. Initiative calls are writes to ` +
+            'PUT /api/v1/initiatives/file (unfiled; untracked_grew: file it in the Not tracked initiative again ' +
+            'to keep it, or elsewhere) or PATCH /api/v1/initiatives/:id (goal_reached: status done or dropped, ' +
+            'or {status: "open", restate: true} to keep it open; reopened_in_closed: status open).',
       },
       settings: {
          developer_teams:

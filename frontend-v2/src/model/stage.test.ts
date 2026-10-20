@@ -45,6 +45,8 @@ function dp(
          repo: 'iFixit/ifixit',
          number,
          user: { login: o.author ?? 'dana' },
+         // GitHub's draft flag is what makes the status 'draft'
+         draft: status === 'draft',
          // a claim is a review request the reviewer made of themselves
          requested_reviewers: o.claim ? [o.claim.login] : [],
          review_requests: o.claim ? [{ ...o.claim, self: true }] : [],
@@ -131,7 +133,7 @@ describe('issueStanding', () => {
       expect(issueStanding({ state: 'open', prs: [pr(1), pr(2)] }, live).stage).toBe('review');
       expect(issueStanding({ state: 'open', prs: [pr(1), pr(4)] }, live).stage).toBe('hold');
       const mixed = issueStanding({ state: 'open', prs: [pr(1), pr(4), pr(2), pr(3)] }, live);
-      expect([mixed.stage, mixed.pull?.data.number]).toEqual(['work', 3]);
+      expect([mixed.stage, mixed.pull?.data.number]).toEqual(['review', 2]);
       // an open PR the board can't read counts as being worked on
       expect(issueStanding({ state: 'open', prs: [pr(1), pr(9)] }, live)).toEqual({
          stage: 'work',
@@ -143,6 +145,15 @@ describe('issueStanding', () => {
       expect(issueStanding({ state: 'open', prs: [pr(8, 'merged')] }, live).stage).toBe('merged');
       expect(issueStanding({ state: 'open', prs: [pr(8, 'closed')] }, live).stage).toBe('none');
       expect(issueStanding({ state: 'open', prs: [] }, live).stage).toBe('none');
+   });
+
+   it('never takes its stage from a draft, on the board or as sent', () => {
+      expect(issueStanding({ state: 'open', prs: [pr(1), pr(3)] }, live).stage).toBe('ready');
+      expect(issueStanding({ state: 'open', prs: [pr(3)] }, live).stage).toBe('none');
+      const sent = { ...pr(9), draft: true as const };
+      expect(issueStanding({ state: 'open', prs: [sent, pr(8, 'merged')] }, live).stage).toBe(
+         'merged'
+      );
    });
 
    it('leaves a closed issue done or dropped, whatever its PRs say', () => {
@@ -257,6 +268,12 @@ const plan = (o: Partial<RoadmapItem>): RoadmapItem =>
 const at = (day: string) => Date.parse(`${day}T12:00:00Z`) / 1000;
 
 describe('lateWords', () => {
+   it('says a former draft was marked ready late, not opened late', () => {
+      expect(lateWords(at('2026-09-02'), [plan({})], null, 'marked ready')).toBe(
+         'marked ready after the end date'
+      );
+   });
+
    it('says a PR opened after its plan ended', () => {
       const plans = [plan({})];
       // the plan's last day is Aug 30
@@ -418,5 +435,19 @@ describe('withBoardStates', () => {
       // merged and closed since the page loaded; reopened; and one the board never read
       expect(fresh.issues[0].prs.map(p => p.state)).toEqual(['merged', 'closed']);
       expect(fresh.unlinked.map(p => p.state)).toEqual(['open', null]);
+   });
+
+   it('reads a draft marked ready, or made one, off the board', () => {
+      const sent = { ...page, unlinked: [{ ...ref(5, 'open'), draft: true }, ref(6, 'open')] };
+      const now = new Map([
+         [5, dp(5, 'needs_cr')],
+         [6, dp(6, 'draft')],
+      ]);
+      const fresh = withBoardStates(
+         sent as ProjectWork,
+         r => now.get(r.number),
+         () => undefined
+      );
+      expect(fresh.unlinked.map(p => p.draft)).toEqual([undefined, true]);
    });
 });

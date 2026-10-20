@@ -5,7 +5,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { DecideReason } from '../../../../shared/model/decide';
 import type { RoadmapItem } from '../../../../shared/model/roadmap';
 import type { DecideRow } from '../../../../shared/model/decide';
-import { askAll, bulkWords, type Call, DecideCall, sharedAsk } from './Decide';
+import { DecideCall } from './Decide';
+import { askAll, bulkWords, type Call, sharedAsk } from '../../model/decideCalls';
 
 // React's act() warns unless the environment says it's a test
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -84,6 +85,16 @@ describe('the calls on a row Decide asks about', () => {
       expect(buttons(el)).toEqual(expect.arrayContaining(['Park', 'Drop', 'Mark doneSuggested']));
    });
 
+   it('put the focus on the first row’s label once opened, so a second Enter answers nothing', async () => {
+      const el = render(false, done);
+      const other = [...el.querySelectorAll('button')].find(b => b.textContent === 'Other answers');
+      // Enter on a button is a click with no pointer (detail 0)
+      act(() => other?.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 0 })));
+      await act(() => new Promise(requestAnimationFrame));
+      expect(document.activeElement?.textContent).toBe('Promise to finish by');
+      expect(document.activeElement?.tagName).toBe('SPAN');
+   });
+
    it('stand open where someone opened the plan to change it', () => {
       const el = render(true, done);
       expect(el.textContent).toContain('Or instead');
@@ -129,7 +140,7 @@ describe('a section whose rows all ask the same thing', () => {
          end: '2026-10-31',
          through: 'the end of Oct',
       };
-      expect(bulkWords(Array<Call>(7).fill(oct), 'do')).toBe('Promise all 7 by Oct 31');
+      expect(bulkWords(Array<Call>(7).fill(oct), 'do')).toBe('Promise all 7 by the end of Oct');
    });
 
    it('gives each row an outlined answer, unmarked, and every other answer a click away', () => {
@@ -137,7 +148,7 @@ describe('a section whose rows all ask the same thing', () => {
       const buttons = () => [...el.querySelectorAll('button')];
       expect(buttons().map(b => b.textContent)).toEqual(['Mark done', 'Other answers']);
       expect(buttons()[0].className).not.toContain('bg-brand');
-      expect(buttons()[0].getAttribute('aria-label')).toBe('Mark Visual regression checks done');
+      expect(buttons()[0].getAttribute('aria-label')).toBe('Mark done: Visual regression checks');
       act(() => buttons()[1].click());
       expect(buttons().map(b => b.textContent)).toEqual(
          expect.arrayContaining(['Park', 'Drop', 'Mark doneSuggested'])

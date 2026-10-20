@@ -313,3 +313,59 @@ describe('what fills itself in', () => {
       expect(facts.get('b')?.issues).toBeNull();
    });
 });
+
+describe('Not tracked plans', () => {
+   it('fills the places tracked plans held, in their new order, and keeps every other plan’s', async () => {
+      const { mergeOrder } = await load();
+      // 2 and 4 are Not tracked: a view shows 1, 3, 5 and reorders them 5, 1, 3
+      const full = [1, 2, 3, 4, 5].map(id => item(id));
+      const merged = mergeOrder(full, [5, 1, 3]);
+      // (1) the tracked ids fill exactly the slots tracked plans held
+      expect([0, 2, 4].map(i => merged[i])).toEqual([5, 1, 3]);
+      // (2) every Not tracked plan keeps its index
+      expect(merged[1]).toBe(2);
+      expect(merged[3]).toBe(4);
+      expect(merged).toEqual([5, 2, 1, 4, 3]);
+   });
+
+   it('sends the whole order when a view reorders only the tracked plans', async () => {
+      const { answer } = scriptedFetch();
+      const data = await load();
+      const first = data.loadRoadmap();
+      answer({ items: [item(1), item(2, { untracked: true }), item(3)] });
+      await first;
+      expect(data.readRoadmap().items?.map(i => i.id)).toEqual([1, 3]);
+      const save = data.reorderRoadmap([3, 1]);
+      const sent = JSON.parse(String(vi.mocked(fetch).mock.calls[1][1]?.body));
+      expect(sent).toEqual({ ids: [3, 2, 1] });
+      // on screen at once, the Not tracked one still in its place
+      expect(data.readRoadmap({ all: true }).items?.map(i => i.id)).toEqual([3, 2, 1]);
+      answer({ items: [item(3), item(2, { untracked: true }), item(1)] });
+      expect(await save).toBe(true);
+   });
+
+   it('leaves a Not tracked plan out of every list but the full set', async () => {
+      const { trackedPlans } = await load();
+      const plans = [item(1, { project: 'a' }), item(2, { project: 'b', untracked: true })];
+      expect(trackedPlans(plans, null).map(i => i.id)).toEqual([1]);
+      // a filing made on this board since wins over the server's flag
+      const filed = (slug: string, kind: 'initiative' | 'untracked') => ({
+         id: kind === 'untracked' ? 9 : 1,
+         slug: kind,
+         name: kind,
+         kind,
+         goal: '',
+         owner: null,
+         priority: 0,
+         status: 'open' as const,
+         status_at: null,
+         created_by: null,
+         created_at: null,
+         updated_by: null,
+         updated_at: null,
+         projects: [{ project: slug, set_by: null, set_at: 0, baseline_prs: 0 }],
+      });
+      expect(trackedPlans(plans, [filed('b', 'initiative')]).map(i => i.id)).toEqual([1, 2]);
+      expect(trackedPlans(plans, [filed('a', 'untracked')]).map(i => i.id)).toEqual([]);
+   });
+});

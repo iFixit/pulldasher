@@ -52,9 +52,17 @@ DBPull.prototype.save = function () {
    // A webhook's body carries no push time; an upsert that leaves out the
    // column keeps the stored one, where REPLACE would blank it.
    if (pullData.date_pushed == null) delete pullData.date_pushed;
-   var q_update = 'INSERT INTO pulls SET ? ON DUPLICATE KEY UPDATE ?';
+   // ready_at: when it last left draft, so the Projects windows count it
+   // from then. A stored draft saved as ready is stamped with its update
+   // time (a ready_for_review hook's own time; a refresh's is the latest
+   // change since, a little late), one saved as a draft clears it, and one
+   // never seen as a draft keeps none. It's assigned before `?` so `draft`
+   // still reads the stored flag: an upsert's assignments run left to right.
+   var q_update =
+      'INSERT INTO pulls SET ? ON DUPLICATE KEY UPDATE ' +
+      '`ready_at` = IF(? = 1, NULL, IF(`draft` = 1, COALESCE(?, UNIX_TIMESTAMP()), `ready_at`)), ?';
 
-   return db.query(q_update, [pullData, pullData]);
+   return db.query(q_update, [pullData, pullData.draft, pullData.date_updated, pullData]);
 };
 
 export default DBPull;

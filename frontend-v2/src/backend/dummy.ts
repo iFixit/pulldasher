@@ -123,6 +123,11 @@ const DUMMY_PROJECT_PULLS: Record<string, number[]> = {
    // its one PR moved this week, so its plan, marked Planned from Monday,
    // reads In progress: Decide's "Filled in on its own this week"
    translations: [22],
+   // Not tracked (backend/dummyProjects.ts DUMMY_INITIATIVES): ops-runbooks
+   // has a plan and grew since it was set not tracked, so Decide asks
+   // "Still Not tracked?"; dotfiles is personal workflow that asks nothing
+   'ops-runbooks': [28, 33, 39, 46],
+   dotfiles: [49, 51],
    misc: [3, 18, 20, 29, 43, 47, 53],
 };
 const SECOND_PROJECT: Record<number, string> = { 50: 'webdriver-deflake' };
@@ -131,6 +136,11 @@ const SECOND_PROJECT: Record<number, string> = { 50: 'webdriver-deflake' };
 // stall have one to show
 const QUIET_FOR_DAYS: Record<number, number> = { 26: 25 };
 const ALL_WAITING_ON_REVIEW = new Set(DUMMY_PROJECT_PULLS['store-picker']);
+// drafts, which the Projects tab lists but never counts: both of Newsletter
+// promo's, a project with a plan and only drafts; one of MySQL 8's, a mix
+// of drafts and real PRs, and a draft of the viewer's for People; and a
+// one-off's, which lists under the Overview's PRs outside projects
+const DRAFTS = new Set([23, 44, 45, 47]);
 const projectsByIndex = new Map<number, string[]>();
 for (const [slug, indexes] of Object.entries(DUMMY_PROJECT_PULLS))
    for (const i of indexes) projectsByIndex.set(i, [...(projectsByIndex.get(i) ?? []), slug]);
@@ -138,7 +148,8 @@ for (const [i, slug] of Object.entries(SECOND_PROJECT))
    projectsByIndex.set(Number(i), [...(projectsByIndex.get(Number(i)) ?? []), slug]);
 
 function withProject(given: PullData, i: number): PullData {
-   const pull = QUIET_FOR_DAYS[i] == null ? given : quietly(given, QUIET_FOR_DAYS[i]);
+   const quiet = QUIET_FOR_DAYS[i] == null ? given : quietly(given, QUIET_FOR_DAYS[i]);
+   const pull = DRAFTS.has(i) ? { ...quiet, draft: true } : quiet;
    const out: PullData = ALL_WAITING_ON_REVIEW.has(i)
       ? {
            ...pull,

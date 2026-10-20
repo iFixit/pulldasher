@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { n } from '../../../../shared/format';
 import { STALL_DAYS, type DecideRow } from '../../../../shared/model/decide';
 import type { Today } from '../../../../shared/model/projects';
+import type { Initiative } from '../../../../shared/model/initiatives';
+import { PRESS_GUARD } from '../../components/settle';
 import { FactLink, LoadFailed } from '../../components/bits';
 import { Fold, FoldRows, laneShown, RestGroup, SubDoor } from '../../components/Lane';
 import type { RowOptions } from '../../components/Row';
@@ -31,6 +33,7 @@ import {
    andList,
    BEING_WORKED_ON,
    days,
+   DRAFTS_NOT_COUNTED,
    LAST_14_DAYS,
    noPrActivity,
    NOT_IN_A_PROJECT,
@@ -46,6 +49,7 @@ import { AS_OPENED, Portfolio, Yours, type Workers } from './Portfolio';
 import { useWhoIsOnWhat, type WhoRow } from './WhoIsOnWhat';
 
 const NO_ROWS: DecideRow[] = [];
+const NO_SLUGS: ReadonlySet<string> = new Set();
 
 /** Scroll a section of the page into view, under the sticky header. */
 const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ block: 'start' });
@@ -465,9 +469,13 @@ function AgeCharts({
  */
 export function Overview({
    today,
+   fullToday = today,
    data,
    prefix,
    items,
+   allItems = items,
+   initiatives = null,
+   untracked = NO_SLUGS,
    teamOf,
    nameOf,
    nav,
@@ -477,10 +485,19 @@ export function Overview({
    me,
    onPerson,
 }: {
+   /** the tracked Today: every count on the page */
    today: Today;
+   /** Today with Not tracked projects too: who is on what, per person */
+   fullToday?: Today;
    data: ProjectsData | null | undefined;
    prefix: string;
+   /** the tracked projects: the tiles, the list and its charts */
    items: PortfolioItem[];
+   /** every project: yours, and the Not tracked group */
+   allItems?: PortfolioItem[];
+   initiatives?: Initiative[] | null;
+   /** the Not tracked slugs */
+   untracked?: ReadonlySet<string>;
    teamOf: (login: string) => string | null;
    nameOf: (slug: string) => string;
    nav: ProjectsNav;
@@ -490,13 +507,18 @@ export function Overview({
    me: string;
    onPerson: (login: string) => void;
 }) {
-   const { rows, who, line, over, tooMany } = useWhoIsOnWhat(data?.teams, today, teamOf);
+   // per person, so it counts every project they're on, tracked or not
+   const { rows, who, line, over, tooMany } = useWhoIsOnWhat(data?.teams, fullToday, teamOf);
    // who worked on each lately, and the calls Decide asks of each, which
-   // give every row's Plan cell its words and its one amber mark
-   const listed = useMemo(
-      () => withCalls(rows ? withWorkers(items, peopleByProject(rows)) : items, decisions),
-      [items, rows, decisions]
+   // give every row's Plan cell its words and its one amber mark; from the
+   // full set, so your Not tracked projects stay yours, and the list, tiles
+   // and charts take the tracked ones from it
+   const all = useMemo(
+      () => withCalls(rows ? withWorkers(allItems, peopleByProject(rows)) : allItems, decisions),
+      [allItems, rows, decisions]
    );
+   const listed = useMemo(() => all.filter(i => !untracked.has(i.slug)), [all, untracked]);
+   const notTracked = useMemo(() => all.filter(i => untracked.has(i.slug)), [all, untracked]);
    // the calls owed, and the ones made in the list's rows since it opened
    const calls = useCallsMadeHere(decisions ?? NO_ROWS);
    // a row answered in place keeps its place, its tab and its receipt, as a
@@ -505,13 +527,13 @@ export function Overview({
    const answered = new Set([...calls.settled.values()].map(m => m.row.slug));
    const stood = useRef(new Map<string, PortfolioItem>());
    useEffect(() => {
-      for (const item of listed) if (!answered.has(item.slug)) stood.current.set(item.slug, item);
+      for (const item of all) if (!answered.has(item.slug)) stood.current.set(item.slug, item);
    });
    const placeOf = (item: PortfolioItem) =>
       (answered.has(item.slug) && stood.current.get(item.slug)) || item;
-   // your projects, first, as the list places them
+   // your projects, first, as the list places them, Not tracked ones too
    const yours = new Set(
-      listed
+      all
          .map(placeOf)
          .filter(i => isYours(i, me))
          .map(i => i.slug)
@@ -543,7 +565,7 @@ export function Overview({
    const outside = today.misc.length + today.unsorted.length;
    const allOpen = today.live.reduce((sum, g) => sum + g.open.length, 0) + outside;
    return (
-      <div className="flex flex-col gap-6">
+      <div {...PRESS_GUARD} className="flex flex-col gap-6">
          {data === null && (
             <LoadFailed
                what="the project issues, so projects show by their label"
@@ -556,7 +578,7 @@ export function Overview({
                onRetry={retryRetroData}
             />
          )}
-         <Yours {...list} slugs={yours} />
+         <Yours {...list} items={all} slugs={yours} />
          <Tiles
             items={listed}
             today={today}
@@ -568,14 +590,26 @@ export function Overview({
             nav={nav}
             navigate={navigate}
          />
-         <Portfolio {...list} nameOf={nameOf} teams={teams} above={yours} />
+         <Portfolio
+            {...list}
+            nameOf={nameOf}
+            teams={teams}
+            above={yours}
+            initiatives={initiatives ?? []}
+            untrackedItems={notTracked}
+         />
          <AgeCharts items={listed} nav={nav} navigate={navigate} />
-         {outside + today.doubleLabeled.length > 0 && (
+         {outside + today.doubleLabeled.length + today.drafts.length > 0 && (
             <RestGroup
                title="PRs outside projects"
-               sub={`${n(outside, 'open PR')}, ${
-                  allOpen ? Math.round((100 * outside) / allOpen) : 0
-               }% of all open PRs`}
+               sub={
+                  // with only drafts here, "0 open PRs" would read as nothing at all
+                  outside || !today.drafts.length
+                     ? `${n(outside, 'open PR')}, ${
+                          allOpen ? Math.round((100 * outside) / allOpen) : 0
+                       }% of all open PRs`
+                     : `None open, ${n(today.drafts.length, 'draft')}, not counted`
+               }
             >
                <Fold
                   count={today.misc.length}
@@ -613,6 +647,19 @@ export function Overview({
                      list={today.doubleLabeled}
                      opts={opts}
                      id="projects:double"
+                     cap={laneShown(40, opts)}
+                  />
+               </Fold>
+               <Fold
+                  count={today.drafts.length}
+                  label={DRAFTS_NOT_COUNTED}
+                  gloss="Open drafts no project above lists: one-offs, ones in no project, and ones whose project is closed or has nothing else open. A draft isn’t work yet, so no count takes one until it’s marked ready. A project’s own drafts are on its page."
+                  id="projects:drafts"
+               >
+                  <FoldRows
+                     list={today.drafts}
+                     opts={opts}
+                     id="projects:drafts"
                      cap={laneShown(40, opts)}
                   />
                </Fold>

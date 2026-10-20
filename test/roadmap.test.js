@@ -561,6 +561,37 @@ async function withProjects(issues, run) {
    }
 }
 
+test('the roadmap still loads when the initiatives can’t be read, and reads them again after', async () => {
+   const errors = mock.method(console, 'error', () => {});
+   await withProjects([issueRow(1, 'alpha')], async () => {
+      const inner = projectQuery;
+      projectQuery = sql => {
+         if (sql.includes('FROM `initiatives`')) throw new Error('table gone');
+         return inner(sql);
+      };
+      const made = await call('POST', '/roadmap', { name: 'Alpha', project: 'alpha' });
+      assert.equal(made.status, 201);
+      const { status, body } = await call('GET', '/roadmap', undefined, {});
+      assert.equal(status, 200);
+      assert.equal(body.items[0].untracked, false);
+      // the failure isn't kept: once the table reads again, a plan whose
+      // project is Not tracked says so on the next read
+      projectQuery = sql => {
+         if (sql.includes('FROM `initiatives`')) {
+            return [{ id: 1, slug: 'shelf', name: 'Not tracked', kind: 'untracked', priority: 1, status: 'open' }];
+         }
+         if (sql.includes('FROM `initiative_projects`')) {
+            return [{ project: 'alpha', initiative_id: 1, set_by: null, set_at: 1, baseline_prs: 0 }];
+         }
+         return inner(sql);
+      };
+      const again = await call('GET', '/roadmap', undefined, {});
+      assert.equal(again.body.items[0].untracked, true);
+   });
+   assert.ok(errors.mock.calls.some(c => String(c.arguments[0]).includes('initiatives failed')));
+   errors.mock.restore();
+});
+
 test('a new plan starts on its issue’s Start date, placed by its Priority', async () => {
    await withProjects(
       [
@@ -829,4 +860,48 @@ test('the project standing needs a signed-in session, like the board’s other r
    const gated = [];
    authManager.setupRoutes({ get: path => gated.push(path) });
    assert.ok(gated.includes('/project-standing'));
+});
+
+test('a not-tracked plan says so, owes no update, and leaves updates-owed', async () => {
+   const old = Date.UTC(2026, 0, 5) / 1000;
+   const plan = (id, project) => ({
+      id,
+      name: `Plan ${id}`,
+      project,
+      team: null,
+      lead_login: 'dana',
+      status: 'active',
+      origin: null,
+      start: '2026-01-05',
+      weeks: 60,
+      priority: id,
+      notes: '',
+      waits_on: null,
+      updated_by: 'dana',
+      updated_at: old,
+      created_at: old,
+   });
+   rows.push(plan(1, 'alpha'), plan(2, 'beta'));
+   await withProjects([], async () => {
+      const base = projectQuery;
+      projectQuery = sql => {
+         if (sql.includes('FROM `initiatives`')) {
+            return [{ id: 2, slug: 'not-tracked', name: 'Not tracked', kind: 'untracked', priority: 0, status: 'open' }];
+         }
+         if (sql.includes('FROM `initiative_projects`')) {
+            return [{ project: 'alpha', initiative_id: 2, set_by: null, set_at: 1, baseline_prs: 0 }];
+         }
+         return base(sql);
+      };
+      forgetProjectCaches();
+      const { body } = await call('GET', '/roadmap', undefined, {});
+      const by = id => body.items.find(i => i.id === id);
+      assert.deepEqual([by(1).untracked, by(1).standing], [true, null]);
+      assert.deepEqual([by(2).untracked, by(2).standing], [false, 'owed']);
+      const owed = await call('GET', '/updates-owed', undefined, {});
+      assert.deepEqual(
+         owed.body.leads.flatMap(l => l.plans.map(p => p.id)),
+         [2]
+      );
+   });
 });

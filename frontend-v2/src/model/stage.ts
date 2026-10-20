@@ -1,6 +1,6 @@
 import { ago, n } from '../../../shared/format';
 import type { ClosedIssue } from '../../../shared/model/decide';
-import { dayStart } from '../../../shared/model/projects';
+import { dayStart, isDraft } from '../../../shared/model/projects';
 import { issuePace, paceFinish, type RoadmapItem } from '../../../shared/model/roadmap';
 import { prStage, type PrStage } from '../../../shared/model/stage';
 import { CR_INCOMPLETE, type DerivedPull } from '../../../shared/model/status';
@@ -60,6 +60,16 @@ export const STAGE_ORDER: readonly IssueStage[] = [
    'dropped',
 ];
 
+/** An open draft, by its live row when the board has one (newer), else by
+ * what the page was sent: listed, never counted (projects.ts isDraft). */
+export function isDraftPull(
+   pr: IssuePull,
+   live: (ref: IssueRef) => DerivedPull | undefined
+): boolean {
+   const p = live(pr);
+   return p ? isDraft(p) : pr.state === 'open' && !!pr.draft;
+}
+
 // an issue is as far along as its least finished open PR
 const LEAST_FINISHED: readonly PrStage[] = ['work', 'review', 'hold', 'ready'];
 
@@ -78,7 +88,8 @@ export function issueStanding(
    let least: IssueStanding | null = null;
    for (const pr of issue.prs) {
       const p = live(pr);
-      if (!p && pr.state !== 'open') continue;
+      // a draft isn't work yet: it sets no stage
+      if ((!p && pr.state !== 'open') || isDraftPull(pr, live)) continue;
       // an open PR the board can't read is still being worked on, as far as anyone knows
       const stage = p ? prStage(p) : 'work';
       const rank = LEAST_FINISHED.indexOf(stage);
@@ -188,7 +199,10 @@ function reviewWaits(p: DerivedPull, own: (words: string) => string, onRow: bool
 export function lateWords(
    createdAt: number | null,
    plans: readonly RoadmapItem[],
-   closed: ClosedIssue | null = null
+   closed: ClosedIssue | null = null,
+   /** what happened at `createdAt`: a former draft's is the day it was
+    * marked ready, which is when it started as work */
+   did: 'opened' | 'marked ready' = 'opened'
 ): string | null {
    if (createdAt == null) return null;
    const plan = planOfWork(plans, createdAt);
@@ -198,9 +212,9 @@ export function lateWords(
          ? { as: plan.status, at: plan.status_at ?? plan.updated_at }
          : closed;
    if (mark?.at && createdAt > mark.at) {
-      return mark.as === 'done' ? 'opened after it was marked done' : 'opened after it was dropped';
+      return mark.as === 'done' ? `${did} after it was marked done` : `${did} after it was dropped`;
    }
-   return plan && createdAt >= afterEndOf(plan) ? 'opened after the end date' : null;
+   return plan && createdAt >= afterEndOf(plan) ? `${did} after the end date` : null;
 }
 
 /** When a plan took effect: its first day, or when it was put on the
@@ -296,9 +310,13 @@ export function withBoardStates(
    known: (ref: IssueRef) => PullData | undefined
 ): ProjectWork {
    const now = (pr: IssuePull): IssuePull => {
-      const gone = live(pr) ? undefined : known(pr);
-      const state = live(pr) ? 'open' : gone ? (gone.merged_at ? 'merged' : 'closed') : pr.state;
-      return state === pr.state ? pr : { ...pr, state };
+      const p = live(pr);
+      const gone = p ? undefined : known(pr);
+      const state = p ? 'open' : gone ? (gone.merged_at ? 'merged' : 'closed') : pr.state;
+      // marked ready (or back to a draft) since the page loaded
+      const draft = p ? isDraft(p) : state === 'open' && !!pr.draft;
+      if (state === pr.state && draft === !!pr.draft) return pr;
+      return { ...pr, state, draft: draft || undefined };
    };
    return {
       ...page,

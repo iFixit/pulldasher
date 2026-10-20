@@ -17,7 +17,8 @@ import statsController from './controllers/stats.js';
 import userNamesController from './controllers/user-names.js';
 import projectsController from './controllers/projects.js';
 import roadmapController, { canWrite, forgetProjectCaches } from './controllers/roadmap.js';
-import { API_ROUTES, apiIndex } from './controllers/api-routes.js';
+import initiativesController from './controllers/initiatives.js';
+import { API_ROUTES, PROJECT_WRITES, apiIndex } from './controllers/api-routes.js';
 import settingsController from './controllers/settings.js';
 import { syncRepoIssues } from './lib/project-issue-sync.js';
 import { loadSettingsWithRetry } from './lib/settings.js';
@@ -107,8 +108,6 @@ function projectsChanged() {
    forgetProjectCaches();
    pullManager.projectsChanged();
 }
-// every write the Projects tab can see
-const PROJECT_WRITES = ['/project-issues', '/roadmap', '/settings', '/api/v1/project-issues', '/api/v1/roadmap', '/api/v1/settings'];
 app.use(PROJECT_WRITES, function (req, res, next) {
    if (req.method !== 'GET') {
       res.on('finish', function () {
@@ -130,6 +129,14 @@ app.delete('/roadmap/:id', canWrite, roadmapController.remove);
 app.get('/roadmap/:id/updates', roadmapController.updates);
 app.post('/roadmap/:id/updates', canWrite, roadmapController.postUpdate);
 app.delete('/roadmap/:id/updates/:update', canWrite, roadmapController.removeUpdate);
+// initiatives, the layer above projects: read like the roadmap, written
+// behind canWrite, every route under /initiatives (PROJECT_WRITES)
+app.get('/initiatives', initiativesController.list);
+app.post('/initiatives', canWrite, initiativesController.create);
+app.put('/initiatives/file', canWrite, initiativesController.file);
+app.patch('/initiatives/:id', canWrite, initiativesController.update);
+app.delete('/initiatives/:id', canWrite, initiativesController.remove);
+app.post('/initiatives/:id/move', canWrite, initiativesController.move);
 app.get('/settings', settingsController.get);
 app.patch('/settings', canWrite, settingsController.update);
 app.post('/hooks/main', hooksController.main);

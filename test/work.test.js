@@ -879,3 +879,15 @@ test('a search that fails for another reason is the caller’s, asked once and n
    await assert.rejects(() => searchIssues(settings, 'stickers limited'), /rate limit/);
    assert.equal(calls, first * 2);
 });
+
+test('a PR opened as a draft before a plan’s end and marked ready after it counts as after the end', async () => {
+   fresh();
+   // opened Aug 10 as a draft, before the plan's end (Aug 30), ready Sep 15
+   LABELED_PULLS.push(pullRow(220, 'dana', '2026-08-10', { draft: 0, ready_at: at('2026-09-15') }));
+   try {
+      const work = await loadWork(settings);
+      assert.ok(work.plans[0].afterEnd.some(p => p.number === 220));
+   } finally {
+      LABELED_PULLS.pop();
+   }
+});

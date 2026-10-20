@@ -370,6 +370,9 @@ export function Fold({
    detail,
    id,
    defaultOpen = false,
+   gutter,
+   keepEmpty = false,
+   long = !!gutter,
    children,
 }: {
    count: number;
@@ -391,12 +394,22 @@ export function Fold({
    /** initial state when nothing is stored yet — e.g. auto-open the one fold
     * that's the only content on an otherwise-quiet board */
    defaultOpen?: boolean;
+   /** a control of its own in the gutter left of the band, outside its click
+    * target (the roadmap's grip that reorders initiatives) */
+   gutter?: ReactNode;
+   /** drawn with nothing in it, its count unsaid: a band that stands for
+    * something on its own (an initiative in the roadmap's table of contents) */
+   keepEmpty?: boolean;
+   /** its name can run long (an initiative's): laid out as a gutter's band,
+    * its name ending in an ellipsis, its count kept, and on a phone its
+    * detail on its own line. A band with a gutter is long */
+   long?: boolean;
    children: ReactNode;
 }) {
    const detailsRef = useRef<HTMLDetailsElement>(null);
    const glossId = useId();
    const stored = foldOpenStore.useValue();
-   if (!count) return null;
+   if (!count && !keepEmpty) return null;
    const explicit = id ? stored[id] : undefined;
    const open = explicit ?? defaultOpen;
    // native <details> owns its own open/closed state on click; we only need to
@@ -413,19 +426,35 @@ export function Fold({
          foldOpenStore.set({ ...foldOpenStore.get(), [id]: next });
    };
    // the label and its count stay on one line: on a phone a long detail
-   // beside them split "FIXBOT · 3" across two
+   // beside them split "FIXBOT · 3" across two. A long band (an
+   // initiative's, on the Roadmap and the Overview) wraps its detail to the
+   // line below instead, so the label stays on the chevron's line, and a
+   // name wider than the band ends in an ellipsis, its count kept
    const labelInner = (
-      <span className="shrink-0 whitespace-nowrap">
-         <span className={tone === 'do' ? 'text-brand-700' : 'text-ink-3'}>{label}</span>
-         {showCount && <span className="tabular-nums text-ink-3"> · {count}</span>}
+      <span className={long ? 'flex min-w-0 whitespace-nowrap' : 'shrink-0 whitespace-nowrap'}>
+         <span
+            className={`${tone === 'do' ? 'text-brand-700' : 'text-ink-3'} ${
+               long ? 'min-w-0 truncate' : ''
+            }`}
+         >
+            {label}
+         </span>
+         {showCount && count > 0 && (
+            // a flex item drops a leading space, so a long band's takes a fixed one
+            <span className="shrink-0 tabular-nums text-ink-3">
+               {long ? '\u00a0' : ' '}· {count}
+            </span>
+         )}
       </span>
    );
-   return (
+   const fold = (
       <details
          ref={detailsRef}
          id={id ? foldDomId(id) : undefined}
          // a jump to it lands below the sticky headers
-         className="group scroll-mt-36 border-t border-secondary first:border-t-0"
+         className={`group scroll-mt-36 ${
+            gutter ? '' : 'border-t border-secondary first:border-t-0'
+         }`}
          open={id ? open : undefined}
          onToggle={id ? onToggle : undefined}
       >
@@ -433,9 +462,11 @@ export function Fold({
             // the band is the one focus stop; a screen reader hears the gloss
             // with it, the way a mouse gets it on hover
             aria-describedby={gloss ? glossId : undefined}
-            className={`flex cursor-pointer list-none items-center gap-2 bg-muted/40 px-3.5 py-[6px] transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none [&::-webkit-details-marker]:hidden ${
-               caps ? eyebrowText : 'text-[11px] font-semibold'
-            }`}
+            className={`flex cursor-pointer list-none items-center gap-x-2 bg-muted/40 py-[6px] pr-3.5 ${
+               long ? 'flex-wrap' : ''
+            } transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none [&::-webkit-details-marker]:hidden ${
+               gutter ? 'pl-8' : 'pl-3.5'
+            } ${caps ? eyebrowText : 'text-[11px] font-semibold'}`}
          >
             <Icon
                icon={ChevronRight}
@@ -447,7 +478,13 @@ export function Fold({
                   label={`what “${label}” means`}
                   side="right"
                   hover
-                  rootClass="relative inline-flex"
+                  // at most the band less its chevron, so a long name stays
+                  // on the chevron's line and ends in an ellipsis
+                  rootClass={
+                     long
+                        ? 'relative inline-flex min-w-0 max-w-[calc(100%-1.25rem)]'
+                        : 'relative inline-flex'
+                  }
                   width="w-max max-w-[280px]"
                   panelClass="p-2 text-xs"
                   trigger={t => (
@@ -467,7 +504,7 @@ export function Fold({
                            if (el) el.open = !el.open;
                         }}
                         // dotted, as every explanation on hover is
-                        className={`hit rounded border-0 bg-transparent p-0 text-left underline decoration-dotted underline-offset-2 ${
+                        className={`hit min-w-0 rounded border-0 bg-transparent p-0 text-left underline decoration-dotted underline-offset-2 ${
                            caps ? eyebrowText : 'text-[11px] font-semibold'
                         }`}
                      >
@@ -483,7 +520,14 @@ export function Fold({
                labelInner
             )}
             {detail && (
-               <span className="ml-auto flex min-w-0 items-center gap-3 font-normal normal-case tracking-normal text-ink-3">
+               <span
+                  // a long band puts its detail on its own line on a phone,
+                  // under the label, whether it would fit or not, so every
+                  // band's detail starts at one x
+                  className={`flex min-w-0 items-center gap-3 font-normal normal-case tracking-normal text-ink-3 ${
+                     long ? 'basis-full pl-5 sm:ml-auto sm:basis-auto sm:pl-0' : 'ml-auto'
+                  }`}
+               >
                   {detail}
                </span>
             )}
@@ -495,6 +539,15 @@ export function Fold({
          )}
          <div className="border-t border-secondary">{children}</div>
       </details>
+   );
+   if (!gutter) return fold;
+   // the gutter sits over the band's left padding, a sibling of the band, so
+   // a click there never folds it
+   return (
+      <div className="relative border-t border-secondary first:border-t-0">
+         <span className="absolute top-0 left-1.5 z-[1] flex h-[29px] items-center">{gutter}</span>
+         {fold}
+      </div>
    );
 }
 

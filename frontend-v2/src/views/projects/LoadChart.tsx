@@ -65,6 +65,13 @@ export interface Ahead {
    ends: PlanDay[];
 }
 
+/** The share of the chart's width the developer line's name takes, about,
+ * at either end. */
+const LABEL_ROOM = 10;
+/** The least share of the chart's width right of today that holds "Next 4
+ * weeks: …"; with less, it isn't said. */
+const AHEAD_ROOM = 25;
+
 /** "Next 4 weeks: 2 start, 3 should end", each count a dotted
  * underline whose hover names the plans and their days. */
 function AheadWords({ ahead }: { ahead: Ahead }) {
@@ -162,6 +169,7 @@ export function LoadChart({
    onOrigin,
    onPeople,
    firstPlan,
+   historyFrom = null,
 }: {
    weeks: LoadWeek[];
    /** this week's load, whatever weeks the chart shows */
@@ -192,7 +200,12 @@ export function LoadChart({
     * to plan the first of them (null when none is asked); null once a plan
     * exists */
    firstPlan?: { asked: number; onStart: (() => void) | null } | null;
+   /** the first day of PR history the window has, when the server's cap
+    * leaves its earlier weeks with plans alone; null when it has them all */
+   historyFrom?: string | null;
 }) {
+   // weeks wholly before the history counted plans alone
+   const plansOnly = (week: string) => !!historyFrom && addWeeks(week, 1) <= historyFrom;
    // only the weeks that happened: a projection from the plans can only fall
    const weeks = all.filter(w => !w.projected);
    // a picked week's numbers stand in for this week's
@@ -212,6 +225,19 @@ export function LoadChart({
    };
    const top = Math.max(developers, ...weeks.map(total), 1) * 1.15;
    const pct = (v: number) => `${(v / top) * 100}%`;
+   // the developer line's name sits at the end of the line with the lower
+   // bars under it (the right, unless today is there), above any that cross it
+   const tallestBy = (side: 'left' | 'right') =>
+      Math.max(
+         0,
+         ...weeks
+            .filter(w =>
+               side === 'right' ? at(w.week) >= 100 - LABEL_ROOM : at(w.week) < LABEL_ROOM
+            )
+            .map(total)
+      );
+   const devSide = tallestBy('right') <= tallestBy('left') ? 'right' : 'left';
+   const devAt = Math.max(developers, tallestBy(devSide));
    const each = developers ? inFlight / developers : null;
    const over = developers ? inFlight - developers : 0;
    return (
@@ -289,6 +315,11 @@ export function LoadChart({
                   weekName={weekName}
                />
             </div>
+            {historyFrom && (
+               <span className="text-[11px] text-ink-3">
+                  PR history from {dayWords(historyFrom)}; the weeks before count plans only
+               </span>
+            )}
          </div>
          <div className="min-w-0">
             {/* today, in brand words over its line: the line marks it, so
@@ -319,6 +350,18 @@ export function LoadChart({
                   } else if (e.key === 'Escape') onPick(null);
                }}
             >
+               {/* the weeks with no PR history, hatched: their bars are plans only */}
+               {historyFrom && at(historyFrom) > 0 && (
+                  <span
+                     aria-hidden
+                     className="pointer-events-none absolute inset-y-0 left-0"
+                     style={{
+                        width: `${at(historyFrom)}%`,
+                        background:
+                           'repeating-linear-gradient(135deg, color-mix(in oklab, var(--ink) 7%, transparent) 0 3px, transparent 3px 7px)',
+                     }}
+                  />
+               )}
                {weeks.map(w => {
                   const left = at(w.week);
                   const isPicked = w.week === picked;
@@ -339,10 +382,11 @@ export function LoadChart({
                               ? 'color-mix(in oklab, var(--ink) 12%, transparent)'
                               : 'transparent',
                         }}
-                        title={`${weekWords(
-                           w,
-                           developers
-                        )}. Click to show only that week’s plans and projects.`}
+                        title={`${weekWords(w, developers)}${
+                           plansOnly(w.week)
+                              ? '. No PR history this far back, so only plans count'
+                              : ''
+                        }. Click to show only that week’s plans and projects.`}
                      >
                         <span style={{ height: pct(w.onPlan), background: ON_PLAN }} />
                         <span
@@ -364,8 +408,10 @@ export function LoadChart({
                          it; the way to the teams on People */}
                      <FactLink
                         onClick={onPeople}
-                        className="absolute right-0 bg-surface px-1 text-[11px] leading-4 tabular-nums"
-                        style={{ bottom: pct(developers) }}
+                        className={`absolute ${
+                           devSide === 'right' ? 'right-0' : 'left-0'
+                        } bg-surface px-1 text-[11px] leading-4 tabular-nums`}
+                        style={{ bottom: pct(devAt) }}
                         title={`${n(developers, 'developer')} on the developer teams${
                            each == null
                               ? ''
@@ -384,8 +430,8 @@ export function LoadChart({
                   />
                )}
                {/* the weeks ahead, in words the rows can check, in the room
-                   right of today */}
-               {when !== 'past' && (
+                   right of today, when a window ending near today leaves some */}
+               {when !== 'past' && (todayAt == null || todayAt <= 100 - AHEAD_ROOM) && (
                   <span
                      className="absolute top-1/2 right-0 -translate-y-1/2 pl-3 text-[11px] leading-4 text-ink-2"
                      style={{ left: todayAt != null ? `${todayAt}%` : 0 }}

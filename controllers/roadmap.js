@@ -15,6 +15,7 @@ import {
    restoreItem,
    updateItem,
 } from '../lib/roadmap.js';
+import { serially, tracking, trackedOnly } from '../lib/initiatives.js';
 import { sharedValue } from '../lib/ttl-cache.js';
 import { loadPullLinks, loadWork } from '../lib/work.js';
 import {
@@ -62,6 +63,22 @@ const latelyNow = sharedValue(LATELY_MS, async () => {
    return latelyBySlug(today, work?.pace ?? {}, ongoing, now);
 });
 
+/** Every initiative, each project's home, and which projects are Not
+ * tracked and which of those grew (lib/initiatives.js tracking): one
+ * computation every controller shares, kept as long as what they did lately
+ * and forgotten with it on every write. */
+const trackingNow = sharedValue(LATELY_MS, async () => {
+   const settings = projectSettings();
+   return settings
+      ? tracking(settings)
+      : { initiatives: [], homes: new Map(), untracked: new Set(), grown: new Map() };
+});
+
+/** What trackingNow keeps. */
+export function trackedNow() {
+   return trackingNow.get();
+}
+
 /** What each project did lately (latelyNow); empty when the reads fail:
  * every plan is then judged by its updates alone, as before. */
 async function lately() {
@@ -73,20 +90,37 @@ async function lately() {
    }
 }
 
+/** The Not tracked slugs (trackedNow); none when the read fails, so the
+ * roadmap still loads, every plan read as tracked. The counting endpoints
+ * read trackedNow directly and fail loud instead. */
+async function untrackedNow() {
+   try {
+      return (await trackedNow()).untracked;
+   } catch (err) {
+      console.error('roadmap: reading the initiatives failed:', err);
+      return new Set();
+   }
+}
+
 /**
  * Items as the roadmap sends them: each with what its project did lately
  * (shared/model/roadmap.ts PlanLately), and what the board reads off it, so
  * a script says what the board says: `in_progress` (marked so, or planned
  * with its PRs moving since its start: inProgress) and `standing`, where its
  * updates stand (updateStanding: owed, vouched or current), judged by the
- * team's day.
+ * team's day. `untracked` says its project is Not tracked, set before
+ * the standing is read, so a not-tracked plan owes nothing.
  */
 async function sent(items) {
-   const bySlug = await lately();
+   const [bySlug, untracked] = await Promise.all([lately(), untrackedNow()]);
    const now = Date.now() / 1000;
    const today = teamDay(now);
    return items.map(item => {
-      const read = { ...item, lately: (item.project && bySlug.get(item.project)) || null };
+      const read = {
+         ...item,
+         untracked: Boolean(item.project && untracked.has(item.project)),
+         lately: (item.project && bySlug.get(item.project)) || null,
+      };
       return {
          ...read,
          in_progress: inProgress(read),
@@ -132,6 +166,7 @@ const standingNow = sharedValue(STANDING_MS, async () => {
  * issues and their links, changed it (app.js). */
 export function forgetProjectCaches() {
    latelyNow.forget();
+   trackingNow.forget();
    standingNow.forget();
 }
 
@@ -178,12 +213,19 @@ function idOf(req) {
  * the future would hide every call until it passed). Null when the body
  * sends none or they don't check out.
  */
-function undoTimes(undo, now = Math.floor(Date.now() / 1000)) {
+export function undoTimes(undo, now = Math.floor(Date.now() / 1000)) {
    if (!undo || typeof undo !== 'object') return null;
    const ok = t => Number.isInteger(t) && t > 0 && t <= now;
    if (!ok(undo.updated_at)) return null;
    if (undo.status_at != null && !ok(undo.status_at)) return null;
    return { updated_at: undo.updated_at, status_at: undo.status_at ?? null };
+}
+
+/** Whether a plan edit can change if its project is going in an initiative:
+ * its status, or which project it tracks. Those run one at a time with
+ * initiative closes, so a close can't pass its check while one lands. */
+export function decidesGoing(fields) {
+   return 'status' in fields || 'project' in fields;
 }
 
 export default {
@@ -228,20 +270,24 @@ export default {
       const now = Math.floor(Date.now() / 1000);
       respondOrError(
          res,
-         listItems().then(sent).then(items => ({
-            server_time: now,
-            leads: updatesOwed(items, now, teamDay(now)).map(({ lead, owed }) => ({
-               lead,
-               plans: owed.map(({ item, kind, days }) => ({
-                  id: item.id,
-                  name: item.name,
-                  project: item.project,
-                  // never updated, or not for a while
-                  owes: kind === 'missing' ? 'a first update' : 'a new update',
-                  days,
+         Promise.all([listItems().then(sent), trackedNow()]).then(([all, { untracked }]) => {
+            // not-tracked plans owe nothing
+            const { items } = trackedOnly(untracked, { items: all });
+            return {
+               server_time: now,
+               leads: updatesOwed(items, now, teamDay(now)).map(({ lead, owed }) => ({
+                  lead,
+                  plans: owed.map(({ item, kind, days }) => ({
+                     id: item.id,
+                     name: item.name,
+                     project: item.project,
+                     // never updated, or not for a while
+                     owes: kind === 'missing' ? 'a first update' : 'a new update',
+                     days,
+                  })),
                })),
-            })),
-         })),
+            };
+         }),
          'updates query failed'
       );
    },
@@ -259,7 +305,8 @@ export default {
       waitsOnError(null, checked.fields)
          .then(async error => {
             if (error) return res.status(400).json({ error });
-            const item = await createItem(checked.fields, req.roadmapLogin);
+            // a new plan can be under way: one at a time with initiative closes
+            const item = await serially(() => createItem(checked.fields, req.roadmapLogin));
             res.status(201).json({ item: await sentOne(item) });
          })
          .catch(err => {
@@ -321,7 +368,7 @@ export default {
       const id = idOf(req);
       if (!id) return res.status(400).json({ error: 'the id must be a positive whole number' });
       if (req.body?.restore === true) {
-         return restoreItem(id)
+         return serially(() => restoreItem(id))
             .then(sentOne)
             .then(item =>
                item
@@ -338,10 +385,14 @@ export default {
       waitsOnError(id, checked.fields)
          .then(async error => {
             if (error) return res.status(400).json({ error });
-            const item = await updateItem(id, checked.fields, req.roadmapLogin, {
-               restate: req.body?.restate === true,
-               undo: undoTimes(req.body?.undo),
-            });
+            const save = () =>
+               updateItem(id, checked.fields, req.roadmapLogin, {
+                  restate: req.body?.restate === true,
+                  undo: undoTimes(req.body?.undo),
+               });
+            // a status or a project decides whether a plan is going in an
+            // initiative: one at a time with initiative closes
+            const item = await (decidesGoing(checked.fields) ? serially(save) : save());
             if (item) res.json({ item: await sentOne(item) });
             else res.status(404).json({ error: 'no such roadmap item' });
          })

@@ -1,7 +1,7 @@
 import { Check } from 'lucide-react';
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { issueUrl, n } from '../../../../shared/format';
-import { closedIssues, RANK, type DecideRow } from '../../../../shared/model/decide';
+import { closedIssues, type DecideRow } from '../../../../shared/model/decide';
 import {
    projectOf,
    targetOf,
@@ -30,6 +30,7 @@ import {
    Segmented,
    textInputClass,
 } from '../../components/bits';
+import { PRESS_GUARD } from '../../components/settle';
 import { Icon } from '../../components/Icon';
 import { foldDomId, openFold, SubDoor } from '../../components/Lane';
 import type { RowOptions } from '../../components/Row';
@@ -40,6 +41,7 @@ import { reloadProjectWork, useProjectWork } from '../../model/projectWork';
 import { updateRoadmapItem } from '../../model/roadmapData';
 import {
    addedLater,
+   isDraftPull,
    issueForecast,
    plannedAt,
    prStage,
@@ -55,9 +57,19 @@ import {
    END_WORD,
    LAST_14_DAYS,
    NO_UPDATE_YET,
+   NOT_TRACKED_GLOSS,
    UPDATE_DUE,
 } from '../../model/words';
-import { answerWords, planRow, reasonParts, usePlanCalls, type Call } from './Decide';
+import { DecideCall, planRow, usePlanCalls } from './Decide';
+import {
+   answerWords,
+   isHomeReason,
+   primaryOf,
+   reasonParts,
+   type Call,
+} from '../../model/decideCalls';
+import { HomeLine } from './Initiatives';
+import type { Initiative } from '../../../../shared/model/initiatives';
 import { BacklogSection } from './BacklogSection';
 import {
    flagText,
@@ -469,6 +481,8 @@ export function ProjectPage({
    navigate,
    item,
    plans,
+   initiatives = null,
+   untracked = false,
    ongoingSaved,
    opts,
    onPerson,
@@ -491,6 +505,10 @@ export function ProjectPage({
    item: PortfolioItem | undefined;
    /** the roadmap's plans, null while they load */
    plans: readonly RoadmapItem[] | null;
+   /** the initiatives, for its home line; null while they load */
+   initiatives?: readonly Initiative[] | null;
+   /** it's Not tracked: it owes nothing, and counts nowhere */
+   untracked?: boolean;
    /** the projects marked ongoing on the board (not by label) */
    ongoingSaved: string[];
    /** how the board draws its PR rows */
@@ -578,11 +596,11 @@ export function ProjectPage({
    // project, or none), and the last two weeks' merges
    const liveIndex = new Map(
       [
-         ...today.live.flatMap(g => g.open),
-         ...today.quiet.flatMap(g => g.open),
+         ...[...today.live, ...today.quiet].flatMap(g => [...g.open, ...g.drafts]),
          ...today.misc,
          ...today.unsorted,
          ...today.doubleLabeled,
+         ...today.drafts,
       ].map(p => [issueKey(p.data), p])
    );
    const knownIndex = new Map([...merged, ...closed].map(p => [issueKey(p), p]));
@@ -620,9 +638,12 @@ export function ProjectPage({
    const byStage = new Map<PrStage, string[]>(PR_STAGES.map(s => [s, []]));
    const unread: string[] = [];
    const mergedLately: string[] = [];
+   // listed, never counted: a draft isn't work yet
+   const drafts: string[] = [];
    for (const [key, pr] of onPage) {
       const p = pulls.live(pr);
-      if (p) byStage.get(prStage(p))?.push(key);
+      if (isDraftPull(pr, pulls.live)) drafts.push(key);
+      else if (p) byStage.get(prStage(p))?.push(key);
       else if (pr.state === 'open') unread.push(key);
       else if (pulls.known(pr)?.merged_at) mergedLately.push(key);
    }
@@ -652,17 +673,20 @@ export function ProjectPage({
       row.item?.update && update && row.item.update.at === update.at
          ? { ...row.item, update: { ...row.item.update, body: '' } }
          : row.item;
+   // where it belongs is asked by its home line; the Plan fields answer the rest
+   const homeAsks = calls.filter(row => row.reasons.length && isHomeReason(primaryOf(row)));
+   const planAsks = asks.filter(row => !isHomeReason(primaryOf(row)));
    // each row asks one question, its worst reason's (the one its strip
    // outlines the answer to), after the facts of all of them
-   const asked = asks.map(row => {
-      const primary = row.reasons.reduce((a, r) => (RANK[r.kind] < RANK[a.kind] ? r : a));
+   const asked = planAsks.map(row => {
+      const primary = primaryOf(row);
       const sentences = [primary, ...row.reasons.filter(r => r !== primary)].map(r =>
          // the page's Status already says there's no plan
          reasonParts(r, quoteless(row), r.kind === 'new')
       );
       return {
          key: `${row.slug ?? ''}:${row.item?.id ?? ''}`,
-         name: asks.length > 1 && row.item ? `${row.item.name}: ` : '',
+         name: planAsks.length > 1 && row.item ? `${row.item.name}: ` : '',
          facts: sentences.map(s => s.facts).join(' '),
          question: sentences[0].question,
       };
@@ -677,7 +701,7 @@ export function ProjectPage({
       !asks.some(row => row.reasons.some(r => r.kind === update.health));
    // Decide's rows here, asked or decided; a call made under the plan, where
    // Decide asked nothing, keeps its receipt there
-   const decideRows = calls.filter(row => row.reasons.length);
+   const decideRows = calls.filter(row => row.reasons.length && !isHomeReason(primaryOf(row)));
    // the row the Plan fields answer: Decide's, while it asks, else the plan's
    const fieldRow = decideRows[0] ?? planRow(slug, plan, calls);
    const org = project?.repo.split('/')[0] ?? 'iFixit';
@@ -753,7 +777,7 @@ export function ProjectPage({
    const activityKey = lastActivity && issueKey(lastActivity.pr);
 
    return (
-      <>
+      <div {...PRESS_GUARD} className="contents">
          <p role="status" aria-live="polite" className="sr-only">
             {said}
          </p>
@@ -820,6 +844,39 @@ export function ProjectPage({
                   )}
                </span>
             </div>
+            {initiatives && initiatives.length > 0 && (
+               <div className="mt-1">
+                  {/* while Decide asks where it goes, its answers below are
+                      the one way to move it */}
+                  <HomeLine
+                     slug={slug}
+                     initiatives={initiatives}
+                     navigate={navigate}
+                     onSaid={setSaid}
+                     movable={!homeAsks.length}
+                  />
+                  {/* where it belongs, when Decide asks: its question and answers */}
+                  {homeAsks.map(row => {
+                     const parts = reasonParts(primaryOf(row), row.item);
+                     return (
+                        <div
+                           key={row.reasons.map(r => r.kind).join()}
+                           className="mt-1.5 text-[13px]"
+                        >
+                           <p className="m-0 max-w-[70ch] text-ink-2">
+                              {parts.facts} <span className="text-warn">{parts.question}</span>
+                           </p>
+                           <DecideCall row={row} project={item} />
+                        </div>
+                     );
+                  })}
+                  {untracked && !homeAsks.length && (
+                     <p className="m-0 mt-0.5 max-w-[70ch] text-xs text-ink-3">
+                        {NOT_TRACKED_GLOSS}
+                     </p>
+                  )}
+               </div>
+            )}
             <div
                className={`mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-ink-3 ${DOTTED}`}
             >
@@ -1044,6 +1101,13 @@ export function ProjectPage({
                         {loose.length > 0 && (
                            <span className="block">{pullCount(loose, 'not tied to an issue')}</span>
                         )}
+                        {drafts.length > 0 && (
+                           // so "None open" never reads as nothing at all
+                           <span className="block">
+                              {pullCount(drafts, drafts.length === 1 ? 'draft' : 'drafts')}, not
+                              counted
+                           </span>
+                        )}
                         {(mergedLately.length > 0 || lastActivity) && (
                            <span className="block">
                               <Counts>
@@ -1165,6 +1229,6 @@ export function ProjectPage({
                headerExtra={rangePicker}
             />
          </div>
-      </>
+      </div>
    );
 }

@@ -89,20 +89,23 @@ export function weekMembers({
    const onRoadmap = new Set(kept.flatMap(p => (p.project ? [p.project] : [])));
    const open = new Set(spans.filter(s => s.end == null).map(s => s.slug));
    const undecided = [...(ahead ?? open)].filter(slug => open.has(slug) && !decided.has(slug));
-   const running = (p: RoadmapItem, week: string) =>
-      p.start <= sunday(week) && (endOf(p) ?? week) >= week;
+   // each plan's end once, not once a week: a five-year window asks
+   // hundreds of weeks of hundreds of plans
+   const ends = new Map(kept.map(p => [p.id, endOf(p)]));
    return week => {
+      const last = sunday(week);
+      const running = (p: RoadmapItem) => p.start <= last && (ends.get(p.id) ?? week) >= week;
       const projects = new Map<string, 'on' | 'off'>();
       const counted = new Set<number>();
       if (week <= thisWeek) {
          for (const s of spans) {
-            if (s.start <= sunday(week) && (s.end ?? today) >= week) {
+            if (s.start <= last && (s.end ?? today) >= week) {
                projects.set(s.slug, onRoadmap.has(s.slug) ? 'on' : 'off');
             }
          }
          // a plan with no PRs yet is still work in flight once it's under way
          for (const p of kept) {
-            if (!p.project && (p.status === 'active' || p.status === 'done') && running(p, week)) {
+            if (!p.project && (p.status === 'active' || p.status === 'done') && running(p)) {
                counted.add(p.id);
             }
          }
@@ -111,9 +114,9 @@ export function weekMembers({
       for (const p of kept) {
          if (!isUnderWay(p.status)) continue;
          // past its end already and still open: it keeps going
-         const end = endOf(p);
+         const end = ends.get(p.id) ?? null;
          const overrun = !!p.project && open.has(p.project) && end != null && end < thisWeek;
-         if (running(p, week) || overrun) {
+         if (running(p) || overrun) {
             counted.add(p.id);
             if (p.project) projects.set(p.project, 'on');
          }

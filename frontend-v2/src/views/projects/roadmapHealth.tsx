@@ -25,6 +25,7 @@ import {
    planFor,
    ROADMAP_HEALTHS,
    UPDATE_DUE_DAYS,
+   weeksPast,
    type EndKind,
    type HealthStanding,
    type RoadmapHealth,
@@ -271,13 +272,6 @@ export function healthWords(s: HealthStanding, changedAt: number | null = null):
    }
 }
 
-/** A plan by its place in the order, "#2", which its row shows beside its
- * name; by name when it isn't in the list. */
-const rankOf = (item: RoadmapItem, all: readonly RoadmapItem[]) => {
-   const at = all.indexOf(item);
-   return at < 0 ? item.name : `#${at + 1}`;
-};
-
 /**
  * What an item waits on, in words for its row: "after Search reindex", or
  * how the plan clashes with it (the item starts before one of them ends, or
@@ -317,7 +311,8 @@ export function waitsWords(
          ? `Waits on ${clashes[0].name}, which was ${clashes[0].status}`
          : clashes[0].end_kind === 'ongoing'
          ? `Waits on ${clashes[0].name}, which has no end`
-         : `Starts before ${rankOf(clashes[0], all)} is done`;
+         : // by name: a number would point at whatever row shows it in this grouping
+           `Starts before ${clashes[0].name} is done`;
    return { ...said([{ text, owed: 'clash' }], title), opens };
 }
 
@@ -380,13 +375,17 @@ export function planWarnings(
    now?: number,
    call: PlanCall | null = null
 ): PlanWarnings {
+   // a not-tracked plan owes nothing, so says nothing owed (R4)
+   if (item.untracked) {
+      return { status: null, health: null, over: null, target: null, waits: null, call };
+   }
    // ongoing work has no end to run past
    const end = endOf(item);
    const under = item.status === 'planned' || item.status === 'active';
    const weeksFrom = (a: string, b: string) =>
       Math.ceil(((dayStart(b) as number) - (dayStart(a) as number)) / (7 * DAY));
    const isOver = under && !!project?.live && !!end && today > end;
-   const weeks = isOver ? weeksFrom(end as string, today) : 0;
+   const weeks = isOver ? weeksPast(end as string, today) : 0;
    const hard = item.end_kind === 'hard';
    const after = `Still ${BEING_WORKED_ON} ${n(weeks, 'week')} after its`;
    const over = isOver
@@ -836,7 +835,8 @@ export function PlanFacts({
    /** it has work in flight, so the roadmap's list of work with no plan has it */
    live?: boolean;
 }) {
-   const { items } = useRoadmap();
+   // one slug: the full set, so a Not tracked project's plan line is real
+   const { items } = useRoadmap({ all: true });
    if (!items) return null;
    const plan = planFor(slug, items);
    const link = (label: string, patch: Parameters<Navigate>[0]) => (

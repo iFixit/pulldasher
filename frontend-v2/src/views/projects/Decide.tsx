@@ -5,31 +5,26 @@ import {
    useMemo,
    useRef,
    useState,
-   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
+import { flushSync } from 'react-dom';
 import { Check } from 'lucide-react';
 import { epoch, issueUrl, n } from '../../../../shared/format';
 import {
    compareRows,
    decideProjects,
    decideQueue,
-   DECIDE_MIN_PRS,
-   STALL_DAYS,
    type ClosedIssue,
    type DecideReason,
    type DecideRow,
+   type GrownProject,
 } from '../../../../shared/model/decide';
-import { firstOpenDay, projectSlugs, type Today } from '../../../../shared/model/projects';
+import type { Initiative } from '../../../../shared/model/initiatives';
+import { projectSlugs, type Today } from '../../../../shared/model/projects';
 import { decideTurn, type DecideRotation } from '../../../../shared/model/settings';
 import {
    addWeeks,
    healthStanding,
-   HEALTH_WORD,
    isUnderWay,
-   mondayOf,
-   planEnd,
-   weeksThrough,
-   type RoadmapFields,
    type RoadmapItem,
    type RoadmapOrigin,
    type Vouch,
@@ -52,6 +47,7 @@ import {
    Segmented,
    textInputClass,
 } from '../../components/bits';
+import { focusResult, PRESS_GUARD, settle } from '../../components/settle';
 import { Icon } from '../../components/Icon';
 import { ClosedRow } from '../../components/ClosedRow';
 import { Fold, GroupHeader, Rows, SubDoor, Truncated } from '../../components/Lane';
@@ -61,8 +57,15 @@ import { mainTeam, type PortfolioItem } from '../../model/portfolio';
 import { teamLoad, type InFlight } from '../../model/teamLoad';
 import { dayOf, dayWords } from '../../model/projectData';
 import { changeProjectIssue, useProjectWork } from '../../model/projectWork';
-import { commitEnds, type CommitEnd } from '../../model/roadmapTime';
 import { saveDecideRotation, setOngoing } from '../../model/settingsData';
+import {
+   fileProject,
+   readInitiatives,
+   updateInitiative,
+   type Home,
+} from '../../model/initiativesData';
+import { NO_PROJECT, UNSORTED } from '../../model/initiativeBoard';
+import { homesOf } from '../../../../shared/model/initiatives';
 import {
    ALL_ISSUES_CLOSED,
    andList,
@@ -70,15 +73,13 @@ import {
    COMMIT_THROUGH,
    COPY_AS_TEXT,
    DONE_WHEN,
+   GOAL,
    IN_PROGRESS,
    LAST_14_DAYS,
-   missedTarget,
-   NEEDS_A_PLAN,
-   noPrActivity,
    ONGOING,
-   pastEnd,
    PLAN_IT,
    targetOn,
+   UNSORTED_WORD,
 } from '../../model/words';
 import type { WorkData } from '../../model/workData';
 import {
@@ -101,18 +102,65 @@ import {
    type Navigate,
    type ProjectsNav,
 } from './parts';
-import { PLAN_STATUS_WORD, vouchWords, when } from './roadmapHealth';
+import { vouchWords } from './roadmapHealth';
+import {
+   answerOf,
+   answerWords,
+   arrowsAmong,
+   askAll,
+   askedInitiative,
+   askOf,
+   bulkWords,
+   callWords,
+   endsFor,
+   filedWhere,
+   isHomeCall,
+   isHomeReason,
+   kindsOf,
+   midLine,
+   nameOf,
+   ongoingPlan,
+   primaryOf,
+   reasonFacts,
+   rowKey,
+   rowWords,
+   sectionOf,
+   SECTIONS,
+   sharedAsk,
+   stop,
+   upperFirst,
+   writeFor,
+   type Call,
+   type Filed,
+   type HomeCall,
+} from '../../model/decideCalls';
+import {
+   forgetHomePick,
+   HomeChooser,
+   HomeStrip,
+   InitiativeSwitch,
+   useChosenHomes,
+   useHomeChooser,
+} from './HomeCalls';
 
 /** The decisions owed now, worst first, for this view, the tab's label and
- * the Overview's tile. */
+ * the Overview's tile. `today` and `items` are the tracked ones; the
+ * initiatives raise the questions about where projects belong, and `grown`
+ * names the Not tracked projects that grew, which `today` leaves out. */
 export function decideRows(
    today: Today,
    items: readonly RoadmapItem[],
    closed: ReadonlyMap<string, ClosedIssue>,
    work: WorkData | null | undefined = null,
-   ongoing: ReadonlySet<string> = new Set()
+   ongoing: ReadonlySet<string> = new Set(),
+   {
+      initiatives = [],
+      grown = [],
+   }: { initiatives?: readonly Initiative[]; grown?: readonly GrownProject[] } = {}
 ): DecideRow[] {
    return decideQueue({
+      initiatives,
+      grown,
       live: decideProjects(today),
       items,
       closed,
@@ -131,521 +179,6 @@ export function decideRows(
       today: dayOf(new Date()),
       now: Date.now() / 1000,
    });
-}
-
-const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
-
-/** What "Mark ongoing" is for, said where each section that offers it
- * explains itself, since a title on the button is missed by touch and
- * screen readers. */
-const ONGOING_HELP = `${ONGOING} is for upkeep with no finish line. For work that ends but can’t be sized, promise a month, and Decide checks in when it ends.`;
-
-/** The queue's sections, worst first, as decide.ts ranks them: the reasons
- * each holds, its title, and what lands there and in what order, for the
- * title's hover. A row sits in the first section any of its reasons names. */
-const SECTIONS: {
-   kinds: DecideReason['kind'][];
-   title: string;
-   more: string[];
-}[] = [
-   {
-      kinds: ['reopened'],
-      title: 'Done or dropped, still worked on',
-      more: [
-         'Marked done or dropped, on the roadmap or by closing its issue, but a week after that a PR is still open, or a new PR opened more than a week after it was marked.',
-         ONGOING_HELP,
-      ],
-   },
-   {
-      kinds: ['issue_closed'],
-      title: 'Issue closed, plan still going',
-      more: [
-         'Its issue was closed after the plan last changed, and the plan still says it’s going.',
-      ],
-   },
-   {
-      kinds: ['moving'],
-      title: 'Parked, still worked on',
-      more: [
-         'Its PRs had activity after it was parked: a push, a person’s comment, stamp or review, opening or merging.',
-      ],
-   },
-   {
-      kinds: ['off_track'],
-      title: 'Off track',
-      more: ['Its latest update says off track, and the plan hasn’t changed since.'],
-   },
-   {
-      kinds: ['missed'],
-      title: 'Missed its target date',
-      more: [
-         'The target date on its issue passed with PRs still open, and the plan hasn’t changed since.',
-      ],
-   },
-   {
-      kinds: ['over', 'ended'],
-      title: 'Overdue',
-      more: [
-         'Its promised end date has passed. An estimated end date is never asked about, and ongoing work has none. The ones still getting new PRs come first, then the longest overdue.',
-      ],
-   },
-   {
-      kinds: ['issues_done'],
-      title: ALL_ISSUES_CLOSED,
-      more: [
-         'Every issue in the project is closed, and the plan hasn’t changed since the last one closed.',
-      ],
-   },
-   {
-      kinds: ['stalled'],
-      title: 'Stalled',
-      more: [
-         `PRs still open, ${lowerFirst(
-            noPrActivity(STALL_DAYS)
-         )} or more, and no decision in that time. Activity is real work: a push, a person’s comment, stamp or review, opening or merging. The oldest activity comes first.`,
-      ],
-   },
-   {
-      kinds: ['at_risk'],
-      title: 'At risk',
-      more: ['Its latest update says at risk, and the plan hasn’t changed since.'],
-   },
-   {
-      kinds: ['new'],
-      title: NEEDS_A_PLAN,
-      more: [
-         `${DECIDE_MIN_PRS} or more PRs open or merged in the ${LAST_14_DAYS}, some still open, and no plan yet. Smaller work ships without one unless it stalls. The ones open longest come first.`,
-         ONGOING_HELP,
-      ],
-   },
-];
-
-const sectionOf = (row: DecideRow) =>
-   SECTIONS.findIndex(s => row.reasons.some(r => s.kinds.includes(r.kind)));
-
-/** The reason that put a row in its section: the one its question asks. */
-const primaryOf = (row: DecideRow) =>
-   row.reasons.find(r => SECTIONS[sectionOf(row)].kinds.includes(r.kind)) ?? row.reasons[0];
-
-/** A section's question asked of all its rows at once: "Park them for
- * now?", "When will each finish?". */
-export const askAll = (question: string) =>
-   question
-      .replace(/^(Is|When will) it\b/, '$1 each')
-      .replace(/ it\b/, ' them')
-      .replace(/the (plan|end date)\b/, 'the $1s');
-
-/** The words that tell one answer from another, as the section's one click
- * counts them: every target date is the same answer. */
-const answerKey = (call: Call | null) =>
-   !call ? '' : call.kind !== 'commit' ? call.kind : call.target ? 'target' : call.end;
-
-/**
- * The question a section asks once, in its header, when two or more rows
- * ask it with the same suggested answer and have nothing else to say: each
- * row is then one line, its name, lead and the one fact. Null keeps the
- * cards.
- */
-export function sharedAsk(
-   rows: readonly DecideRow[],
-   projectOf: (row: DecideRow) => Pick<PortfolioItem, 'target'> | undefined,
-   today: string
-): string | null {
-   if (rows.length < 2) return null;
-   const keys = new Set<string>();
-   const questions = new Set<string>();
-   for (const row of rows) {
-      if (row.reasons.length !== 1) return null;
-      const [reason] = row.reasons;
-      const { question, call } = askOf(reason);
-      // a done_when or an issues link is a second line the card keeps
-      if (call === 'done' && row.item?.done_when) return null;
-      if (reason.kind === 'issues_done' && reason.open > 0 && row.slug) return null;
-      const answer = answerOf(row, projectOf(row), today);
-      if (!answer) return null;
-      keys.add(answerKey(answer));
-      questions.add(question);
-   }
-   return keys.size === 1 && questions.size === 1 ? [...questions][0] : null;
-}
-
-const rowKey = (row: DecideRow) => `${row.slug ?? ''}:${row.item?.id ?? ''}`;
-const kindsOf = (row: DecideRow) => row.reasons.map(r => r.kind).join(',');
-const nameOf = (row: DecideRow, project?: Pick<PortfolioItem, 'name'>) =>
-   row.item?.name ?? project?.name ?? row.slug ?? 'A plan';
-
-const closedAs = (as: 'done' | 'dropped') => (as === 'done' ? 'completed' : 'not planned');
-const upperFirst = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-/** A fact mid-line: "no PR activity for 268 days", but "PRs open since". */
-const midLine = (s: string) => (/^[A-Z][a-z]/.test(s) ? lowerFirst(s) : s);
-
-/** The calls a row can get. */
-export type Call =
-   | ({ kind: 'commit' } & CommitEnd)
-   | { kind: 'park' }
-   | { kind: 'done' }
-   | { kind: 'drop' }
-   | { kind: 'ongoing' };
-
-/** The question that asks a plan to end later: its answers are only ends
- * after the one it has. */
-const NEW_END = 'Move the end date?';
-
-/** The question a reason asks, and the call that answers yes. */
-export function askOf(reason: DecideReason): {
-   question: string;
-   call: Call['kind'];
-} {
-   switch (reason.kind) {
-      case 'new':
-         // answered under "Promise to finish by": "End of Oct"
-         return { question: 'When will it finish?', call: 'commit' };
-      case 'stalled':
-         return { question: 'Park it for now?', call: 'park' };
-      case 'over':
-      case 'missed':
-      case 'off_track':
-      case 'at_risk':
-         return { question: NEW_END, call: 'commit' };
-      case 'moving':
-         return { question: 'Restart it?', call: 'commit' };
-      case 'ended':
-         return { question: 'Is it done?', call: 'done' };
-      case 'issue_closed':
-         return reason.as === 'done'
-            ? { question: 'Mark the plan done too?', call: 'done' }
-            : { question: 'Drop the plan too?', call: 'drop' };
-      case 'reopened':
-         return reason.as === 'done'
-            ? { question: 'Is it still done?', call: 'done' }
-            : { question: 'Is it still dropped?', call: 'drop' };
-      case 'issues_done':
-         return reason.done
-            ? { question: 'Is it done?', call: 'done' }
-            : { question: 'Drop it?', call: 'drop' };
-   }
-}
-
-/** The ends a row's plan can commit to: its project's target first while
- * that's ahead, then the coming months and quarters, none before the plan
- * starts. An end that leaves a plan under way with the hard end it has
- * would only stamp it changed, so it isn't one, while the same end on a
- * soft one commits to its estimate; a row asking "Move the end date?" offers only the
- * ends that move it later, and ongoing work, with no end, any of them. */
-export function endsFor(
-   row: DecideRow,
-   project: Pick<PortfolioItem, 'target'> | undefined,
-   today: string
-): CommitEnd[] {
-   const target = project?.target?.due_on?.slice(0, 10) ?? null;
-   const plan = row.item;
-   if (!plan) return commitEnds(today, target);
-   const later = row.reasons.length > 0 && askOf(primaryOf(row)).question === NEW_END;
-   const endless = plan.end_kind === 'ongoing';
-   return commitEnds(today, target).filter(c => {
-      if (c.end < plan.start) return false;
-      const weeks = weeksThrough(plan.start, c.end);
-      if (later) return endless || weeks > plan.weeks;
-      return weeks !== plan.weeks || !isUnderWay(plan.status) || plan.end_kind !== 'hard';
-   });
-}
-
-/**
- * The call a row's suggested answer makes, safe to take without reading the
- * rest: the one its question asks, a commit going through its target while
- * that's ahead, else through the nearest end, never one that ends its plan
- * sooner. Null when there's none to outline: a row nobody asked about (a
- * plan under its project's page), or a plan already running past every end
- * offered.
- */
-export function answerOf(
-   row: DecideRow,
-   project: Pick<PortfolioItem, 'target'> | undefined,
-   today: string
-): Call | null {
-   if (!row.reasons.length) return null;
-   const asked = askOf(primaryOf(row)).call;
-   if (asked !== 'commit') return { kind: asked };
-   const plan = row.item;
-   const end = endsFor(row, project, today).find(
-      c => !plan || plan.end_kind === 'ongoing' || weeksThrough(plan.start, c.end) >= plan.weeks
-   );
-   return end ? { kind: 'commit', ...end } : null;
-}
-
-const VERBS: Record<Call['kind'], [string, string]> = {
-   commit: ['Promise', 'Promised'],
-   park: ['Park', 'Parked'],
-   done: ['Mark', 'Marked'],
-   drop: ['Drop', 'Dropped'],
-   ongoing: ['Mark', 'Marked'],
-};
-
-/**
- * What one click on a section does to its rows, or did, in the day each
- * row's own button says: "Promise all 52 by Oct 31", "Promised 52 by Oct
- * 31". Rows whose answers differ say each one and how many ("Promise 5 by
- * Oct 31 and mark
- * 3 done"), and rows going through their own target dates
- * count together.
- */
-export function bulkWords(made: readonly Call[], tense: 'do' | 'did'): string {
-   const groups = new Map<string, { call: Call; count: number }>();
-   for (const call of made) {
-      const key = call.kind === 'commit' ? (call.target ? 'target' : call.end) : call.kind;
-      const group = groups.get(key) ?? { call, count: 0 };
-      group.count++;
-      groups.set(key, group);
-   }
-   const all = groups.size === 1 && tense === 'do' ? 'all ' : '';
-   let said = '';
-   const parts = [...groups.values()].map(({ call, count }, i) => {
-      const verb = VERBS[call.kind][tense === 'do' ? 0 : 1];
-      const tail =
-         call.kind === 'commit'
-            ? ` by ${
-                 !call.target ? dayWords(call.end) : count > 1 ? 'their target dates' : call.through
-              }`
-            : call.kind === 'done' || call.kind === 'ongoing'
-            ? ` ${call.kind}`
-            : '';
-      // "Promise 40 by the end of Oct and 12 by their target dates"
-      const head = verb === said ? '' : `${i ? verb.toLowerCase() : verb} `;
-      said = verb;
-      return `${head}${all}${count}${tail}`;
-   });
-   return andList(parts);
-}
-
-/** The suggested answer in a verb that says what it does, given where the
- * plan already stands: "Keep it done" on a plan that's done. */
-export function answerWords(call: Call, plan: RoadmapItem | null): string {
-   const now = plan?.status;
-   switch (call.kind) {
-      case 'commit': {
-         const day = dayWords(call.end);
-         return !plan
-            ? `Promise to finish by ${day}`
-            : now === 'parked' || now === 'done' || now === 'dropped'
-            ? `Restart, finishing by ${day}`
-            : `Move the end date to ${day}`;
-      }
-      case 'park':
-         return now === 'parked' ? 'Keep it parked' : 'Park';
-      case 'done':
-         return now === 'done' ? 'Keep it done' : 'Mark done';
-      case 'drop':
-         return now === 'dropped' ? 'Keep it dropped' : 'Drop';
-      case 'ongoing':
-         return 'Mark ongoing';
-   }
-}
-
-/**
- * The facts behind a reason, in words. `bare` leaves out what the reason's
- * section title already says, for a row under that title.
- */
-function reasonFacts(reason: DecideReason, item: RoadmapItem | null, bare = false): string {
-   switch (reason.kind) {
-      case 'new': {
-         const since = reason.since ? `PRs open since ${dayWords(reason.since)}` : 'PRs open';
-         return bare ? since : `${since}, and no plan yet`;
-      }
-      case 'stalled':
-         return noPrActivity(reason.days);
-      case 'over':
-         // short form everywhere: the PRs still open go without saying
-         return `${upperFirst(pastEnd(reason.weeks))}${
-            reason.since ? `, ${n(reason.since, 'new PR')} since` : ''
-         }`;
-      case 'ended': {
-         // under its title the PRs are said already: "though 4 opened since"
-         const after = reason.since
-            ? `, though ${bare && item ? reason.since : n(reason.since, 'PR')} opened since`
-            : '';
-         return bare && item
-            ? `Was due ${dayWords(planEnd(item))}. No PRs are open${after}`
-            : `${upperFirst(pastEnd(reason.weeks))}, and no PRs are open${after}`;
-      }
-      case 'missed':
-         // under "Missed its target date", the target is the fact; elsewhere the
-         // miss is what's owed
-         return bare
-            ? `${targetOn(dayWords(reason.due))}, with ${n(reason.open, 'PR')} still open`
-            : `${missedTarget(dayWords(reason.due))}, with ${n(reason.open, 'PR')} open`;
-      case 'off_track':
-      case 'at_risk': {
-         const u = item?.update;
-         const said = u?.body ? `: ${u.body.split('\n')[0]}` : '';
-         if (!bare) return `${HEALTH_WORD[reason.kind]}, says ${u?.author ?? 'its lead'}${said}`;
-         return u ? `Update from ${u.author}, ${when(u.at)}${said}` : 'Its latest update says so';
-      }
-      case 'issue_closed': {
-         const plan = item ? PLAN_STATUS_WORD[item.status].toLowerCase() : 'going';
-         const closed = `closed as ${closedAs(reason.as)} on ${dayWords(reason.on)}`;
-         return bare
-            ? `${upperFirst(closed)}, and the plan says ${plan}`
-            : `Its issue was ${closed}, but the plan still says ${plan}`;
-      }
-      case 'reopened': {
-         const still = [
-            reason.open ? `${n(reason.open, 'PR is', 'PRs are')} still open` : null,
-            reason.late ? `${n(reason.late, 'PR')} opened more than a week later` : null,
-         ]
-            .filter(Boolean)
-            .join(' and ');
-         if (reason.by === 'issue')
-            return `Its issue was closed as ${closedAs(reason.as)}, but ${still}`;
-         const on = item?.status_at ? ` ${when(item.status_at)}` : '';
-         return `Marked ${reason.as} on the roadmap${on}, but ${still}`;
-      }
-      case 'moving': {
-         const at = item?.status_at ?? item?.updated_at;
-         return bare && at ? `Parked ${when(at)}` : 'Parked, but its PRs have had activity since';
-      }
-      case 'issues_done': {
-         const tally = reason.done
-            ? `${reason.done} done${reason.dropped ? `, ${reason.dropped} dropped` : ''}`
-            : `all ${reason.dropped} dropped`;
-         const open = reason.open ? `, but ${n(reason.open, 'PR is', 'PRs are')} still open` : '';
-         return bare
-            ? `${upperFirst(tally)}${open}`
-            : `All its issues are closed (${tally})${open}`;
-      }
-   }
-}
-
-/** A sentence ended once: a reason that quotes an update ending in its own
- * stop keeps that one ("can land. Move the end date?", never "land.. Move
- * the end date?"). */
-const stop = (words: string) => (/[.!?…]$/.test(words) ? words : `${words}.`);
-
-/** Why a row is here and the question it asks, as two pieces, for a page
- * that sets them apart (the question in amber, after every reason's facts). */
-export function reasonParts(
-   reason: DecideReason,
-   item: RoadmapItem | null,
-   bare = false
-): { facts: string; question: string } {
-   return {
-      facts: stop(reasonFacts(reason, item, bare)),
-      question: askOf(reason).question,
-   };
-}
-
-/** Why a row is here and the question it asks, in a sentence that stands
- * alone (a project's page, where there's no section title). */
-export function reasonWords(reason: DecideReason, item: RoadmapItem | null): string {
-   const { facts, question } = reasonParts(reason, item);
-   return `${facts} ${question}`;
-}
-
-/** A row under its section title, as plain text: the question its reason
- * asks, then the other reasons in full. */
-function rowWords(row: DecideRow): string {
-   const primary = primaryOf(row);
-   return [
-      `${stop(reasonFacts(primary, row.item, true))} ${askOf(primary).question}`,
-      ...row.reasons.filter(r => r !== primary).map(r => stop(reasonFacts(r, row.item))),
-   ].join(' ');
-}
-
-/** Where a plan the row makes starts: its item's start, or else the week
- * its first open PR opened. */
-function startOf(row: DecideRow, project: PortfolioItem | undefined, today: string): string {
-   if (row.item) return row.item.start;
-   // a Start date a person set on the project's issue wins, as everywhere
-   // a person's value does; else the work started when its first PR did
-   return mondayOf(
-      project?.project?.fields.start || (project?.group && firstOpenDay(project.group)) || today
-   );
-}
-
-const STATUS = { park: 'parked', done: 'done', drop: 'dropped' } as const;
-
-/**
- * What a call writes to the roadmap: a change to the row's plan, or, for
- * work with none, a new plan from its first open PR's week through this one,
- * unless it commits further. A commit is the commitment that makes an end
- * hard, so Decide asks about it once it passes.
- */
-export function writeFor(
-   call: Exclude<Call, { kind: 'ongoing' }>,
-   row: DecideRow,
-   project: PortfolioItem | undefined,
-   today: string
-):
-   | { id: number; fields: Partial<RoadmapFields>; restate: boolean }
-   | { id: null; fields: Partial<RoadmapFields> } {
-   const start = startOf(row, project, today);
-   // a new end for a plan that hasn't started yet leaves it planned
-   const waiting = row.item?.status === 'planned' && start > today;
-   const fields: Partial<RoadmapFields> =
-      call.kind === 'commit'
-         ? {
-              status: waiting ? 'planned' : 'active',
-              start,
-              weeks: weeksThrough(start, call.end),
-              end_kind: 'hard',
-           }
-         : { status: STATUS[call.kind] };
-   if (row.item) {
-      // done or dropped on a plan already marked so says it again, which
-      // accepts the PRs that came after it, until a new one comes
-      const restate = fields.status === 'done' || fields.status === 'dropped';
-      return { id: row.item.id, fields, restate };
-   }
-   return {
-      id: null,
-      fields: {
-         name: nameOf(row, project),
-         project: row.slug,
-         // with no plan yet, its team is the one most of its developers are on
-         team: project?.team ?? null,
-         lead: project?.lead ?? null,
-         start,
-         weeks: weeksThrough(start, today),
-         ...fields,
-      },
-   };
-}
-
-/** Whether "Mark ongoing" on a row gives its plan under way no end, rather
- * than marking the project ongoing: new work has no plan, and work whose
- * plan finished goes on without one. */
-const ongoingPlan = (row: DecideRow) => !!row.item && isUnderWay(row.item.status);
-
-/**
- * What a call decided and what happens next, by decide.ts's rules: a plan
- * comes back when it runs past its end, parked work when its PRs move, and
- * finished or dropped work a week on (REOPEN_DAYS) if PRs are still open or
- * new ones open, unless the work never ends.
- */
-export function callWords(
-   call: Call,
-   row: DecideRow,
-   project: Pick<PortfolioItem, 'open' | 'ongoing'> | undefined,
-   today: string
-): string {
-   switch (call.kind) {
-      case 'commit':
-         return `Promised to finish by ${call.through}. Decide asks again if it runs past that.`;
-      case 'park':
-         return 'Parked, so it stops counting in the weeks ahead. Decide asks again if its PRs move.';
-      case 'ongoing':
-         return ongoingPlan(row)
-            ? 'Marked ongoing, with no end, so Decide never asks about one.'
-            : 'Marked ongoing, so Decide stops asking it for a plan or an end.';
-      case 'done':
-      case 'drop': {
-         const did = call.kind === 'done' ? 'Marked done' : 'Dropped';
-         if (!row.slug || project?.ongoing) return `${did}.`;
-         const week = dayWords(addWeeks(today, 1));
-         return project && project.open > 0
-            ? `${did}. Decide asks again if a PR is still open on ${week}, or a new one opens after.`
-            : `${did}. Decide asks again if a PR opens after ${week}.`;
-      }
-   }
 }
 
 /** A call made on a row this visit, kept so the row stays in its place
@@ -667,6 +200,10 @@ export interface Made {
    /** made, or taken back, by its section's one click: Undo all takes it
     * back, and the section says what happened rather than each row */
    batch?: boolean;
+   /** the filing that rode along with a plan call (the row's chooser) */
+   filed?: Filed;
+   /** that filing saved though the plan didn't: Try again leaves it be */
+   filedBefore?: Home;
 }
 
 // the calls made since the page loaded, so a trip to a project's page and
@@ -674,6 +211,23 @@ export interface Made {
 const calls = createMemoryStore<{ made: ReadonlyMap<string, Made> }>({
    made: new Map(),
 });
+
+/** Where the focus goes on a row once its answer is back: the answer that
+ * can be pressed, else the row's first control (its name), as j and k
+ * land; never an answer that's off, which would drop it on the page. */
+function leadOf(root: HTMLElement | null): HTMLElement | null {
+   const row = root?.closest<HTMLElement>('[data-decide-row]') ?? root;
+   return (
+      root?.querySelector<HTMLElement>('[data-decide-focus]:not(:disabled)') ??
+      row?.querySelector<HTMLElement>('button:not(:disabled)') ??
+      null
+   );
+}
+
+/** Forget every call made (tests start clean). */
+export function forgetCalls(): void {
+   calls.set({ made: new Map() });
+}
 
 function setMade(key: string, made: Made | null): void {
    const next = new Map(calls.get().made);
@@ -698,22 +252,57 @@ function patchMade(key: string, token: number, state: Made['state'], patch: Part
 export function keepCalls(
    queue: readonly DecideRow[],
    made: ReadonlyMap<string, Made>
-): { owed: DecideRow[]; all: DecideRow[]; settled: ReadonlyMap<string, Made> } {
+): {
+   owed: DecideRow[];
+   all: DecideRow[];
+   settled: ReadonlyMap<string, Made>;
+   open: DecideRow[];
+} {
    const byKey = new Map(queue.map(row => [rowKey(row), row]));
    const settled = new Map<string, Made>();
+   // answered about its home, still asked about its plan: owed, so every
+   // other view keeps the plan in sight, while this row keeps its receipt
+   const pending = new Set<string>();
    const back: DecideRow[] = [];
+   // a home call taken back while its Undo saves: the row still reads as
+   // answered, so it's shown as it was asked, in the same place, where its
+   // Undo's words hold the receipt's slot
+   const asked = new Map<string, DecideRow>();
    for (const [key, m] of made) {
       const again = byKey.get(key);
       if (m.state !== 'made') {
          if (!again && m.row.reasons.length) back.push(m.row);
+         else if (again && m.state === 'undone' && answeredHome(m, again)) asked.set(key, m.row);
       } else if (!again || kindsOf(again) === kindsOf(m.row)) {
          settled.set(key, m);
+      } else if (answeredHome(m, again)) {
+         settled.set(key, m);
+         pending.add(key);
       }
    }
-   const owed = [...queue.filter(row => !settled.has(rowKey(row))), ...back].sort(compareRows);
-   const all = [...owed, ...[...settled.values()].map(m => m.row)].sort(compareRows);
-   return { owed, all, settled };
+   const owed = [
+      ...queue.filter(row => !settled.has(rowKey(row)) || pending.has(rowKey(row))),
+      ...back,
+   ].sort(compareRows);
+   const all = [
+      ...owed.filter(row => !settled.has(rowKey(row))).map(row => asked.get(rowKey(row)) ?? row),
+      ...[...settled.values()].map(m => m.row),
+   ].sort(compareRows);
+   // what every count says is left: a row answered about its home this
+   // visit is still owed for its plan (so the Roadmap and the Overview keep
+   // it in sight), but Decide asks that on the next visit, so no count
+   // takes it now and the badge, the switches and the page agree with
+   // Decide's heading
+   const open = owed.filter(row => !settled.has(rowKey(row)));
+   return { owed, all, settled, open };
 }
+
+/** A filing or status call on a row that also asked about its plan: the
+ * row comes back with only the plan's reasons, which it asks on the next
+ * visit, so this one keeps the receipt and its Undo. */
+const answeredHome = (m: Made, again: DecideRow) =>
+   isHomeCall(m.call) &&
+   kindsOf(again) === kindsOf({ ...m.row, reasons: m.row.reasons.filter(r => !isHomeReason(r)) });
 
 /** keepCalls on this visit's calls, for a view that lists Decide's rows. */
 export function useKeptCalls(queue: readonly DecideRow[]) {
@@ -810,9 +399,62 @@ function afterRow(
    return next;
 }
 
-// the calls whose save landed, by token, with the plan they wrote: what
-// Undo takes back
-const landed = new Map<number, { id: number | null }>();
+// the calls whose save landed, by token, with what they wrote: the plan,
+// the home a filing replaced, the initiative as a status change found it.
+// What Undo takes back
+interface Landed {
+   id: number | null;
+   home?: { project: string; to: string | null; before: Home };
+   /** the plan a link gave a project */
+   linked?: number;
+   initiative?: {
+      id: number;
+      was: { status: Initiative['status']; updated_at: number | null; status_at: number | null };
+   };
+}
+const landed = new Map<number, Landed>();
+
+/** A project's home slug now, or null for none. */
+const homeSlugOf = (slug: string | null) =>
+   (slug && homesOf(readInitiatives().initiatives ?? []).get(slug)?.initiative.slug) ?? null;
+
+/** Write a filing or an initiative's status: what a call on a row that asks
+ * where a project belongs saves. Resolves to what Undo needs, or why not. */
+async function homeWrite(
+   row: DecideRow,
+   call: HomeCall
+): Promise<Omit<Landed, 'id'> | { why: string }> {
+   const slug = row.slug;
+   if (call.kind === 'link') {
+      if (!row.item) return { why: '' };
+      return (await updateRoadmapItem(row.item.id, { project: call.project }))
+         ? { linked: row.item.id }
+         : { why: takeProblem() };
+   }
+   if (call.kind === 'file' || call.kind === 'keep_untracked') {
+      if (!slug) return { why: '' };
+      const r = await fileProject(slug, call.to, { expect: homeSlugOf(slug) });
+      return 'error' in r
+         ? { why: whyNot(r.error) }
+         : { home: { project: slug, to: call.to, before: r.before } };
+   }
+   const id = askedInitiative(row);
+   if (id == null) return { why: '' };
+   const r =
+      call.kind === 'close'
+         ? await updateInitiative(id, { status: call.as })
+         : await updateInitiative(id, { status: 'open' }, { restate: call.kind === 'keep_open' });
+   if ('error' in r) {
+      const live = r.live?.length ? ` Still going in it: ${andList(r.live)}.` : '';
+      return { why: `${whyNot(r.error)}${live}` };
+   }
+   return {
+      initiative: {
+         id,
+         was: { status: r.was.status, updated_at: r.was.updated_at, status_at: r.was.status_at },
+      },
+   };
+}
 let tokens = 0;
 
 /** Why a save didn't land, after "Didn’t save.": the server's reason, or
@@ -836,7 +478,9 @@ function makeCall(
    row: DecideRow,
    call: Call,
    project: PortfolioItem | undefined,
-   batch?: { after: Promise<unknown> }
+   batch?: { after: Promise<unknown> },
+   filed?: Filed,
+   filedBefore?: Home
 ): Promise<unknown> {
    const key = rowKey(row);
    const token = ++tokens;
@@ -845,19 +489,39 @@ function makeCall(
    setMade(key, {
       row,
       call,
-      words: callWords(call, row, project, today),
+      words: callWords(call, row, project, today, filed),
       state: 'made',
       origin: row.item?.origin ?? null,
       token,
       batch: !!batch,
+      filed,
    });
+   // the pick is in the call now: no later answer carries it
+   if (row.slug) forgetHomePick(row.slug);
    return afterRow(
       key,
       async () => {
-         let id: number | null = null;
+         const done: Landed = { id: null };
          let why: string | null = null;
-         if (call.kind === 'ongoing' && row.item && ongoingPlan(row)) {
-            if (await updateRoadmapItem(row.item.id, { end_kind: 'ongoing' })) id = row.item.id;
+         // the filing goes first: if the plan then fails, the project stays
+         // filed, which is harmless, and Try again doesn't file it twice
+         if (filed && row.slug) {
+            if (filedBefore) done.home = { project: row.slug, to: filed.to, before: filedBefore };
+            else {
+               const r = await fileProject(row.slug, filed.to, { expect: filed.from });
+               if ('error' in r) why = whyNot(r.error);
+               else done.home = { project: row.slug, to: filed.to, before: r.before };
+            }
+         }
+         if (why != null) {
+            // nothing saved
+         } else if (isHomeCall(call)) {
+            const r = await homeWrite(row, call);
+            if ('why' in r) why = r.why;
+            else Object.assign(done, r);
+         } else if (call.kind === 'ongoing' && row.item && ongoingPlan(row)) {
+            if (await updateRoadmapItem(row.item.id, { end_kind: 'ongoing' }))
+               done.id = row.item.id;
             else why = takeProblem();
          } else if (call.kind === 'ongoing') {
             const saved = await setOngoing(row.slug as string, true);
@@ -868,22 +532,24 @@ function makeCall(
                const ok = await updateRoadmapItem(write.id, write.fields, {
                   restate: write.restate,
                });
-               if (ok) id = write.id;
+               if (ok) done.id = write.id;
                else why = takeProblem();
             } else {
-               id = (await createRoadmapItem(write.fields))?.id ?? null;
-               if (id == null) why = takeProblem();
+               done.id = (await createRoadmapItem(write.fields))?.id ?? null;
+               if (done.id == null) why = takeProblem();
             }
          }
-         if (why == null) landed.set(token, { id });
-         else patchMade(key, token, 'made', { state: 'failed', why });
+         if (why == null) landed.set(token, done);
+         else
+            patchMade(key, token, 'made', { state: 'failed', why, filedBefore: done.home?.before });
       },
       batch?.after
    );
 }
 
 /** Take a call back: the plan as it was (its end's kind too), the new plan
- * gone, or the project no longer ongoing. */
+ * gone, or the project no longer ongoing; then the home a filing replaced,
+ * or the initiative's status as it was. */
 function undoCall(key: string, batch?: { after: Promise<unknown> }): Promise<unknown> {
    const made = calls.get().made.get(key);
    if (!made) return Promise.resolve();
@@ -897,7 +563,17 @@ function undoCall(key: string, batch?: { after: Promise<unknown> }): Promise<unk
          if (!saved) return;
          let why: string | null = null;
          const was = made.row.item;
-         if (made.call.kind === 'ongoing' && !ongoingPlan(made.row)) {
+         if (saved.linked != null) {
+            // with the times the link replaced, as a plan call's Undo sends
+            const undo =
+               was?.updated_at != null
+                  ? { updated_at: was.updated_at, status_at: was.status_at ?? null }
+                  : undefined;
+            if (!(await updateRoadmapItem(saved.linked, { project: null }, { undo })))
+               why = takeProblem();
+         } else if (isHomeCall(made.call)) {
+            // a filing or a status: no plan to put back
+         } else if (made.call.kind === 'ongoing' && !ongoingPlan(made.row)) {
             const r = await setOngoing(made.row.slug as string, false);
             if ('error' in r) why = whyNot(r.error);
          } else if (was) {
@@ -917,6 +593,33 @@ function undoCall(key: string, batch?: { after: Promise<unknown> }): Promise<unk
             if (!(await updateRoadmapItem(was.id, fields, { undo }))) why = takeProblem();
          } else if (saved.id != null && !(await removeRoadmapItem(saved.id))) {
             why = takeProblem();
+         }
+         // then the home it had, with its time and count, so a Kept growth
+         // row comes back rather than starting its count again
+         if (why == null && saved.home) {
+            const { project: slug, to, before } = saved.home;
+            // expect: only while it's still where the call put it
+            const r = await fileProject(slug, before.initiative, {
+               expect: to,
+               set_at: before.set_at,
+               baseline_prs: before.baseline_prs,
+               undo: true,
+            });
+            if ('error' in r) why = whyNot(r.error);
+         }
+         if (why == null && saved.initiative) {
+            const { id, was: then } = saved.initiative;
+            const r = await updateInitiative(
+               id,
+               { status: then.status },
+               {
+                  undo: {
+                     updated_at: then.updated_at ?? Math.floor(Date.now() / 1000),
+                     status_at: then.status_at,
+                  },
+               }
+            );
+            if ('error' in r) why = whyNot(r.error);
          }
          if (why == null) landed.delete(made.token);
          else
@@ -948,23 +651,6 @@ function sayOrigin(key: string, origin: RoadmapOrigin | null): void {
          patchMade(key, made.token, 'made', { origin: made.origin, why });
       }
    });
-}
-
-/** Left and right, Home and End move the focus among a group's buttons, so
- * the group is one Tab stop: the button with tabIndex 0. */
-function arrowsAmong(e: ReactKeyboardEvent<HTMLElement>): void {
-   const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
-   if (!step && e.key !== 'Home' && e.key !== 'End') return;
-   const buttons = [...e.currentTarget.querySelectorAll<HTMLElement>('button')];
-   const at = buttons.indexOf(document.activeElement as HTMLElement);
-   const to =
-      e.key === 'Home'
-         ? 0
-         : e.key === 'End'
-         ? buttons.length - 1
-         : (at + step + buttons.length) % buttons.length;
-   e.preventDefault();
-   buttons[to]?.focus();
 }
 
 /**
@@ -1007,7 +693,21 @@ export function DecideCall({
    const shown = mine?.state === 'made' || mine?.state === 'failed' ? mine : undefined;
    const name = nameOf(row, project);
    const rootRef = useRef<HTMLDivElement>(null);
+   const receiptRef = useRef<HTMLDivElement>(null);
    const refocus = useRef(false);
+   // the receipt's height when its Undo was clicked here: the words "Put X
+   // back as it was." hold that slot, and the answers come back below it,
+   // so a second click on Undo lands on words, never on an answer. They
+   // leave once the keyboard moves on (a Tab), never under a pointer
+   const [undid, setUndid] = useState<{ height: number; held: boolean } | null>(null);
+   const putBackRef = useRef<HTMLParagraphElement>(null);
+   const tabbing = useRef(false);
+   // the held words go; the focus they had moves to the row's answer
+   const letGo = () => {
+      const had = !!putBackRef.current?.contains(document.activeElement);
+      flushSync(() => setUndid(u => (u?.held ? { height: 0, held: false } : u)));
+      if (had) leadOf(rootRef.current)?.focus({ preventScroll: true });
+   };
    // the height the row had when a click here changed it, kept as the least
    // it has, so the rows below never slide under the pointer, a phone's
    // wrapped lines included
@@ -1015,6 +715,8 @@ export function DecideCall({
    // opened from Change; it stays open through a call and its Undo
    const [open, setOpen] = useState(opened);
    const view = shown?.state ?? (row.reasons.length || open ? 'ask' : 'rest');
+   // where a new or unfiled project goes, filed with its plan call
+   const chooser = useHomeChooser(row);
    const before = useRef(view);
    // after a click here, focus lands on what replaced the button: what was
    // decided, Try again, the row's answer, or Change again; a save or an
@@ -1026,7 +728,9 @@ export function DecideCall({
       const lost = document.activeElement === document.body && view !== 'ask';
       if (!refocus.current && !lost) return;
       refocus.current = false;
-      rootRef.current?.querySelector<HTMLElement>('[data-decide-focus]')?.focus();
+      // after an Undo, its held words; j and k still land on the answer.
+      // Shown below the sticky headers, wherever the row went
+      focusResult(putBackRef.current ?? leadOf(rootRef.current));
    }, [view]);
    const act = (fn: () => void) => () => {
       refocus.current = true;
@@ -1044,7 +748,10 @@ export function DecideCall({
       ? ''
       : mine.state === 'failed'
       ? `Didn’t save the decision on ${name}.${mine.why ?? ''}`
-      : `Undid the decision on ${name}.`;
+      : // undone here, the focus lands on the same words in the row
+      undid != null
+      ? ''
+      : `Put ${name} back as it was.`;
    const live = (
       <span className="sr-only" aria-live="polite">
          {said}
@@ -1065,15 +772,51 @@ export function DecideCall({
          </div>
       );
    }
+   // taken back here: its words where the receipt was, the answers after
+   const putBack = undid?.held && mine?.state === 'undone' && !mine.batch && (
+      <p
+         ref={putBackRef}
+         tabIndex={-1}
+         onKeyDown={e => {
+            tabbing.current = e.key === 'Tab';
+         }}
+         onBlur={() => {
+            if (tabbing.current) setUndid({ height: 0, held: false });
+            tabbing.current = false;
+         }}
+         // a double-click's second press lands here: nothing to select
+         className="m-0 flex select-none items-center rounded text-[13px] text-ink-2"
+         style={{ minHeight: undid.height }}
+      >
+         Put {name} back as it was.
+      </p>
+   );
    return (
       <div ref={rootRef} className={compact ? 'ml-auto' : 'mt-1.5'} style={{ minHeight: held }}>
          {live}
+         {putBack}
          {shown?.state === 'failed' ? (
             <p className="m-0 flex min-h-[30px] flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-ink-2">
-               <span aria-hidden>Didn’t save.{shown.why}</span>
+               <span aria-hidden>
+                  {shown.filed && shown.filedBefore
+                     ? `${
+                          shown.filed.untracked ? 'Marked Not tracked' : `Filed in ${shown.filed.name}`
+                       }; the plan didn’t save.`
+                     : 'Didn’t save.'}
+                  {shown.why}
+               </span>
                <QuietButton
                   data-decide-focus
-                  onClick={act(() => makeCall(shown.row, shown.call, project))}
+                  onClick={act(() =>
+                     makeCall(
+                        shown.row,
+                        shown.call,
+                        project,
+                        undefined,
+                        shown.filed,
+                        shown.filedBefore
+                     )
+                  )}
                   aria-label={`Try the decision on ${name} again`}
                >
                   Try again
@@ -1086,7 +829,10 @@ export function DecideCall({
                </QuietButton>
             </p>
          ) : shown ? (
-            <div className="flex min-h-[30px] flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-ink-2">
+            <div
+               ref={receiptRef}
+               className="flex min-h-[30px] flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-ink-2"
+            >
                {/* one run of text, so Undo shares the words' last line and
                    the receipt is no taller than the calls it replaced */}
                <span>
@@ -1099,13 +845,29 @@ export function DecideCall({
                      {shown.why && ` ${shown.why}`}
                   </span>{' '}
                   <QuietButton
-                     onClick={act(() => undoCall(rowKey(row)))}
-                     aria-label={`Undo the decision on ${name}`}
+                     onClick={act(() =>
+                        // its words where Undo was, even when a count above
+                        // the row changes with it (a section's, on a phone);
+                        // they go once the pointer moves away or the next
+                        // action starts, the focus back on the row's answer
+                        settle(
+                           () => rootRef.current,
+                           () => {
+                              setUndid({
+                                 height: receiptRef.current?.offsetHeight ?? 0,
+                                 held: true,
+                              });
+                              undoCall(rowKey(row));
+                           },
+                           letGo
+                        )
+                     )}
+                     aria-label={`Undo: ${shown.words.replace(/\.$/, '')}`}
                   >
                      Undo
                   </QuietButton>
                </span>
-               {shown.call.kind !== 'ongoing' && (
+               {shown.call.kind !== 'ongoing' && !isHomeCall(shown.call) && (
                   // optional, after the call: saying it alone never clears a row
                   <OriginRun
                      name={name}
@@ -1114,17 +876,33 @@ export function DecideCall({
                   />
                )}
             </div>
-         ) : (
-            <CallStrip
+         ) : row.reasons.length && isHomeReason(primaryOf(row)) ? (
+            <HomeStrip
                row={row}
                name={name}
-               project={project}
                describedBy={describedBy}
                onCall={call => act(() => makeCall(row, call, project))()}
-               onCancel={row.reasons.length || opened ? undefined : act(() => setOpen(false))}
-               full={opened}
                quiet={compact}
             />
+         ) : (
+            <>
+               {/* where it goes, then the answer that files it there */}
+               {chooser.shown && <HomeChooser name={name} chooser={chooser} />}
+               <CallStrip
+                  row={row}
+                  name={name}
+                  project={project}
+                  describedBy={describedBy}
+                  waiting={chooser.shown && !chooser.chosen}
+                  alsoFiles={chooser.filed && filedWhere(chooser.filed)}
+                  onCall={call =>
+                     act(() => makeCall(row, call, project, undefined, chooser.filed))()
+                  }
+                  onCancel={row.reasons.length || opened ? undefined : act(() => setOpen(false))}
+                  full={opened}
+                  quiet={compact}
+               />
+            </>
          )}
       </div>
    );
@@ -1177,11 +955,19 @@ function CallStrip({
    onCancel,
    full = false,
    quiet = false,
+   waiting = false,
+   alsoFiles,
 }: {
    row: DecideRow;
    name: string;
    /** its project, for its target */
    project: PortfolioItem | undefined;
+   /** the File it in chooser above has nothing picked: the answer waits
+    * for it, outlined and unmarked, as the chooser's own File button does */
+   waiting?: boolean;
+   /** where the call files the project too ("in Release safety"), said to
+    * a screen reader with each answer */
+   alsoFiles?: string;
    describedBy?: string;
    onCall: (call: Call) => void;
    /** close it again, for calls opened from Change */
@@ -1194,6 +980,7 @@ function CallStrip({
 }) {
    const [more, setMore] = useState(false);
    const stripRef = useRef<HTMLDivElement>(null);
+   const moreRef = useRef<HTMLButtonElement>(null);
    const day = dayOf(new Date());
    const answer = answerOf(row, project, day);
    // ongoing answers new work, finished work that keeps going, and any plan
@@ -1210,19 +997,15 @@ function CallStrip({
       ariaLabel: `Promise ${name} by ${c.through}`,
    }));
    const others: Option[] = [
-      { call: { kind: 'park' }, label: 'Park', ariaLabel: `Park ${name}` },
-      {
-         call: { kind: 'done' },
-         label: 'Mark done',
-         ariaLabel: `Mark ${name} done`,
-      },
-      { call: { kind: 'drop' }, label: 'Drop', ariaLabel: `Drop ${name}` },
+      { call: { kind: 'park' }, label: 'Park', ariaLabel: `Park: ${name}` },
+      { call: { kind: 'done' }, label: 'Mark done', ariaLabel: `Mark done: ${name}` },
+      { call: { kind: 'drop' }, label: 'Drop', ariaLabel: `Drop: ${name}` },
       ...(ongoing
          ? [
               {
                  call: { kind: 'ongoing' } as Call,
                  label: ONGOING,
-                 ariaLabel: `Mark ${name} ongoing`,
+                 ariaLabel: `${ONGOING}: ${name}`,
               },
            ]
          : []),
@@ -1234,13 +1017,20 @@ function CallStrip({
       (answer.kind === 'commit'
          ? dates.find(o => o.call.kind === 'commit' && o.call.end === answer.end)
          : others.find(o => o.call.kind === answer.kind));
-   // the strip's one Tab stop
-   const lead = first ?? dates[0] ?? others[0];
+   // the strip's one Tab stop, and where j and k land: the first answer
+   // that can be pressed, so one waiting on an empty chooser never hides
+   // the rest from the keyboard
+   const off = (o: Option) => waiting && o === first;
+   const lead = [first, ...dates, ...others].find(o => o && !off(o));
+   // the answer is off, so Other answers takes the stop
+   const moreLeads = !!first && off(first);
    // every call a button that looks like one, in two labeled rows: how
    // long it runs, or what else becomes of it. The suggested answer is
    // filled and says so; the rest are outlined, never bare words.
    // opened from Other answers, a quiet row's answer says Suggested again
-   const marked = !quiet || more || full;
+   const marked = (!quiet || more || full) && !waiting;
+   // its name holds the words it shows (a voice user says what they see),
+   // then the row's name and where the call files it
    const button = (o: Option, words = o.label) => (
       <button
          key={o.label}
@@ -1248,9 +1038,13 @@ function CallStrip({
          tabIndex={o === lead ? 0 : -1}
          data-decide-focus={o === lead || undefined}
          aria-describedby={o === lead ? describedBy : undefined}
-         aria-label={o.ariaLabel}
+         aria-label={`${words === o.label ? o.ariaLabel : `${words}: ${name}`}${
+            alsoFiles ? `, ${alsoFiles}` : ''
+         }`}
+         disabled={off(o)}
+         title={off(o) ? 'Choose where it goes first' : undefined}
          onClick={() => onCall(o.call)}
-         className={`hit pressable inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-medium ${
+         className={`hit pressable inline-flex min-h-8 max-w-full items-center py-1 text-left gap-1.5 rounded-lg border px-3 text-[13px] font-medium disabled:opacity-60 ${
             o === first && marked
                ? 'border-brand bg-brand text-surface hover:opacity-90'
                : 'border-line bg-surface text-ink-2 hover:border-brand hover:text-brand'
@@ -1262,17 +1056,25 @@ function CallStrip({
          )}
       </button>
    );
-   // opened, the focus moves to the first of the answers it showed
+   // opened, the focus moves to the first row's label, not an answer: a
+   // second Enter (the keyboard's double-click) answers nothing, and Tab
+   // or an arrow reaches the answers
    const showMore = () => {
       setMore(true);
       requestAnimationFrame(() =>
-         stripRef.current?.querySelector<HTMLElement>('button:not([data-decide-focus])')?.focus()
+         stripRef.current?.querySelector<HTMLElement>('[data-strip-label]')?.focus()
       );
    };
    const group = (label: string, options: Option[]) =>
       options.length > 0 && (
          <div className="flex flex-wrap items-center gap-2">
-            <span className="w-full text-xs text-ink-3 sm:w-32 sm:shrink-0">{label}</span>
+            <span
+               data-strip-label
+               tabIndex={-1}
+               className="w-full rounded text-xs text-ink-3 sm:w-32 sm:shrink-0"
+            >
+               {label}
+            </span>
             {options.map(o => button(o))}
          </div>
       );
@@ -1286,12 +1088,14 @@ function CallStrip({
          >
             {button(first, answerWords(first.call, row.item))}
             <button
+               ref={moreRef}
                type="button"
-               tabIndex={-1}
+               tabIndex={moreLeads ? 0 : -1}
+               data-decide-focus={moreLeads || undefined}
                aria-expanded={false}
                aria-label={`Other answers for ${name}`}
                onClick={showMore}
-               className="hit pressable inline-flex h-8 items-center rounded-lg border border-line bg-surface px-3 text-[13px] font-medium text-ink-2 hover:border-brand hover:text-brand"
+               className="hit pressable inline-flex min-h-8 max-w-full items-center py-1 text-left rounded-lg border border-line bg-surface px-3 text-[13px] font-medium text-ink-2 hover:border-brand hover:text-brand"
             >
                Other answers
             </button>
@@ -1304,9 +1108,14 @@ function CallStrip({
          role="toolbar"
          aria-label={`Decisions for ${name}`}
          onKeyDown={e => {
-            if (e.key !== 'Escape' || !onCancel) return arrowsAmong(e);
+            if (e.key !== 'Escape' || (!onCancel && !more)) return arrowsAmong(e);
+            // the innermost thing closes: the answers Other answers opened,
+            // back to it, else the calls Change opened
             e.preventDefault();
-            onCancel();
+            e.stopPropagation();
+            if (!more) return onCancel?.();
+            flushSync(() => setMore(false));
+            moreRef.current?.focus();
          }}
          className="flex flex-col gap-2"
       >
@@ -1387,6 +1196,10 @@ function factsTitle(
       team,
       people.length ? people.join(', ') : null,
       project?.open ? n(project.open, 'open PR') : null,
+      // so a project quiet but for drafts isn't read as having nothing
+      project?.group?.drafts.length
+         ? `${n(project.group.drafts.length, 'draft')}, not counted`
+         : null,
       project?.merged ? `${project.merged} merged in the ${LAST_14_DAYS}` : null,
       target && targetOn(targetWords(target)),
    ]
@@ -1419,9 +1232,10 @@ function useBackToRow(ready: boolean) {
    }, [ready]);
 }
 
-function DecideRowView({
+export function DecideRowView({
    row,
    decided,
+   owner,
    project,
    team,
    nav,
@@ -1434,6 +1248,9 @@ function DecideRowView({
    row: DecideRow;
    /** a call was made on it here */
    decided: boolean;
+   /** the initiative the row is about, when it asks about one: it names
+    * the owner, who takes the call */
+   owner?: Initiative;
    /** its section asks the question once, so the row is one line: name,
     * lead, the one fact and its answer */
    asked?: boolean;
@@ -1456,8 +1273,14 @@ function DecideRowView({
       writeSessionStorage(BACK_TO, key);
       navigate(patch);
    };
+   // a row about an initiative itself opens the initiative's page
+   const asksInitiative = askedInitiative(row) != null && !row.slug;
    const openProject = () =>
-      row.slug ? go({ project: row.slug }) : item && go(openPlan(nav, item.id));
+      asksInitiative && owner
+         ? go({ initiative: owner.slug, project: null })
+         : row.slug
+         ? go({ project: row.slug })
+         : item && go(openPlan(nav, item.id));
    // plain words: the name is the row's one way out, to the project, whose
    // page links to the plan
    const reason = (r: DecideReason, bare: boolean) => stop(reasonFacts(r, item, bare));
@@ -1482,10 +1305,27 @@ function DecideRowView({
                className={`hit pressable rounded border-0 bg-transparent p-0 text-left text-[13px] font-medium underline decoration-line underline-offset-2 hover:text-brand ${
                   decided ? 'text-ink-3' : 'text-ink'
                }`}
-               title={row.slug ? 'Open the project and its PRs' : 'Open its plan on the roadmap'}
+               title={
+                  asksInitiative
+                     ? 'Open the initiative and its projects'
+                     : row.slug
+                     ? 'Open the project and its PRs'
+                     : 'Open its plan on the roadmap'
+               }
             >
                {nameOf(row, project)}
             </button>
+            {/* a question about an initiative is its owner's to take */}
+            {owner?.owner && asksInitiative && (
+               <FactLink
+                  tabIndex={-1}
+                  className="text-xs"
+                  onClick={() => onPerson?.(owner.owner as string)}
+                  title={`${owner.owner} owns ${owner.name}. See them on People`}
+               >
+                  {owner.owner}
+               </FactLink>
+            )}
             <RowLead
                row={row}
                project={project}
@@ -1541,6 +1381,12 @@ function DecideRowView({
                         <span className="text-ink-3">{DONE_WHEN}:</span> {item.done_when}
                      </span>
                   )}
+                  {/* "Did it reach its goal?" beside the goal it asks about */}
+                  {primary.kind === 'goal_reached' && owner?.goal && (
+                     <span className="block">
+                        <span className="text-ink-3">{GOAL}:</span> {owner.goal}
+                     </span>
+                  )}
                </p>
                {row.reasons
                   .filter(r => r !== primary)
@@ -1563,7 +1409,7 @@ function DecideRowView({
  * its row with Try again). Then what it did, with Undo all. Only for two
  * rows or more, since a lone row's answer is the same click.
  */
-function SectionCalls({
+export function SectionCalls({
    title,
    rows,
    owed,
@@ -1592,10 +1438,18 @@ function SectionCalls({
       });
    const standing = batch('made');
    const failed = batch('failed').length;
-   // a row with no answer to suggest waits for a person
+   // a row with no answer to suggest waits for a person, as does one whose
+   // File it in chooser is empty (its own answer is off until a pick); the
+   // rest file where their chooser says, guess included, as their own
+   // answer would
+   const homeOf = useChosenHomes();
+   let waiting = 0;
    const answers = owed.flatMap(row => {
       const call = answerOf(row, projectOf(row), day);
-      return call ? [{ row, call }] : [];
+      if (!call) return [];
+      const home = homeOf(row);
+      if (home.waiting) waiting++;
+      return home.waiting ? [] : [{ row, call, filed: home.filed }];
    });
    const view = standing.length ? 'did' : 'ask';
    const before = useRef(view);
@@ -1615,16 +1469,21 @@ function SectionCalls({
    }, [view]);
    const words = bulkWords(
       answers.map(a => a.call),
-      'do'
+      'do',
+      !waiting
    );
    const all = () => {
       refocus.current = true;
       setSaid('');
-      inTurn(answers.map(a => after => makeCall(a.row, a.call, projectOf(a.row), { after })));
+      inTurn(
+         answers.map(
+            a => after => makeCall(a.row, a.call, projectOf(a.row), { after }, a.filed)
+         )
+      );
    };
    const undoAll = () => {
       refocus.current = true;
-      setSaid(`Undid ${n(standing.length, 'decision')} under ${title}.`);
+      setSaid(`Put ${n(standing.length, 'decision')} under ${title} back as they were.`);
       inTurn(standing.map(m => after => undoCall(rowKey(m.row), { after })));
    };
    // the rows' failures, said once for all of them
@@ -1661,7 +1520,7 @@ function SectionCalls({
                   data-decide-focus
                   onClick={all}
                   aria-label={`${words}, under ${title}`}
-                  className="hit pressable inline-flex h-8 items-center rounded-lg border border-brand bg-brand px-3 text-[13px] font-medium text-surface hover:opacity-90"
+                  className="hit pressable inline-flex min-h-8 max-w-full items-center py-1 text-left rounded-lg border border-brand bg-brand px-3 text-[13px] font-medium text-surface hover:opacity-90"
                >
                   {words}
                </button>
@@ -1807,7 +1666,7 @@ function ParkLine({
             {state === 'failed'
                ? `Didn’t park ${name}.${parked?.why ?? ''}`
                : parked?.state === 'undone'
-               ? `Undid parking ${name}.`
+               ? `Put ${name} back as it was.`
                : parked?.why ?? ''}
          </span>
       </li>
@@ -2369,6 +2228,9 @@ export function teamOrder(configured: readonly string[], named: readonly (string
 export function Decide({
    today,
    items,
+   allItems = items,
+   initiatives = null,
+   grown = [],
    closed,
    teamOf,
    teamMembers,
@@ -2386,6 +2248,13 @@ export function Decide({
    today: Today;
    /** the portfolio from the same, for names, leads, sizes and teams */
    items: PortfolioItem[];
+   /** every project, Not tracked ones too: a row's one-slug lookups */
+   allItems?: PortfolioItem[];
+   /** the initiatives, which raise where-it-belongs questions; null while
+    * they load */
+   initiatives?: Initiative[] | null;
+   /** the Not tracked projects that grew (initiativeBoard.ts grownProjects) */
+   grown?: readonly GrownProject[];
    closed: ReadonlyMap<string, ClosedIssue>;
    teamOf: (login: string) => string | null;
    teamMembers: Record<string, string[]>;
@@ -2420,26 +2289,60 @@ export function Decide({
       );
    }
    const day = dayOf(new Date());
-   const bySlug = new Map(items.map(i => [i.slug, i]));
+   // one slug each: from every project, so a grown Not tracked project has
+   // its name and team
+   const bySlug = new Map(allItems.map(i => [i.slug, i]));
    const projectOf = (row: DecideRow) => (row.slug ? bySlug.get(row.slug) : undefined);
+   // the initiative each row is about: the one it asks about, or its
+   // project's home; for the owner it names and the Initiative switch
+   const homes = homesOf(initiatives ?? []);
+   const initiativeOfRow = (row: DecideRow) =>
+      (initiatives ?? []).find(i => i.id === askedInitiative(row)) ??
+      (row.slug ? homes.get(row.slug)?.initiative : undefined);
    // the team a row belongs to: its plan's, or the team most of its
    // developers are on, as the roadmap's lanes split them
    const teamOfRow = (row: DecideRow): string | null => {
       const project = projectOf(row);
       return row.item?.team ?? (project ? mainTeam(project, teamOf) : null);
    };
-   const kept = keepCalls(decideRows(today, plans, closed, work, ongoing), made);
-   const inTeam = (row: DecideRow) => !nav.team || (teamOfRow(row) ?? '(none)') === nav.team;
+   const kept = keepCalls(
+      decideRows(today, plans, closed, work, ongoing, { initiatives: initiatives ?? [], grown }),
+      made
+   );
+   // the Initiative switch's key for a row: its initiative, Unsorted, or
+   // for a plan with no project, the No project yet entry, as the Roadmap
+   // lanes split them
+   const withinOf = (row: DecideRow) =>
+      initiativeOfRow(row)?.slug ?? (row.slug ? UNSORTED : NO_PROJECT);
+   const inTeam = (row: DecideRow) =>
+      (!nav.team || (teamOfRow(row) ?? '(none)') === nav.team) &&
+      (!nav.within || withinOf(row) === nav.within);
    const owed = kept.owed.filter(inTeam);
    const shown = kept.all.filter(inTeam);
    const decidedHere = [...kept.settled.values()].filter(m => inTeam(m.row));
-   const whose = !nav.team
+   const withinName = nav.within
+      ? nav.within === UNSORTED
+         ? `${UNSORTED_WORD} projects`
+         : nav.within === NO_PROJECT
+         ? 'plans with no project yet'
+         : (initiatives ?? []).find(i => i.slug === nav.within)?.name ?? nav.within
+      : null;
+   // both when both narrow it: "for Store in Site speed"
+   const teamWords = !nav.team
       ? ''
       : nav.team === '(none)'
       ? ' for work with no team'
       : ` for ${nav.team}`;
-   const heading = owed.length
-      ? `${n(owed.length, 'decision')} to make`
+   const whose = withinName
+      ? teamWords
+         ? `${teamWords} in ${withinName}`
+         : ` for ${withinName}`
+      : teamWords;
+   // as the sections count: a row answered about its home here keeps its
+   // receipt, and its plan question waits for the next visit
+   const toMake = kept.open.filter(inTeam).length;
+   const heading = toMake
+      ? `${n(toMake, 'decision')} to make`
       : decidedHere.length
       ? 'Nothing left to decide'
       : 'Nothing to decide';
@@ -2491,9 +2394,9 @@ export function Decide({
 
    // each team's decisions still owed, for the team switch: "Store · 2",
    // never a zero
-   const teams = teamOrder(Object.keys(teamMembers), kept.owed.map(teamOfRow));
+   const teams = teamOrder(Object.keys(teamMembers), kept.open.map(teamOfRow));
    const owedBy = (team: string) =>
-      kept.owed.filter(row => (teamOfRow(row) ?? '(none)') === team).length;
+      kept.open.filter(row => (teamOfRow(row) ?? '(none)') === team).length;
    const counted = (label: string, count: number) => (count ? `${label} · ${count}` : label);
    const people = [...new Set(Object.values(teamMembers).flat())].sort();
    // a team's load counts its work in flight; the row each one has here
@@ -2505,7 +2408,7 @@ export function Decide({
          reasons: [],
       };
    return (
-      <section className="mb-7">
+      <section {...PRESS_GUARD} className="mb-7">
          <div className="mb-4">
             <GroupHeader
                title={`${heading}${whose}`}
@@ -2552,13 +2455,21 @@ export function Decide({
                {copied ?? ''}
             </span>
             <RunsDecide rotation={rotation} day={day} people={people} onPerson={onPerson} />
+            {(initiatives ?? []).length > 0 && (
+               <InitiativeSwitch
+                  initiatives={initiatives ?? []}
+                  owedIn={slug => kept.open.filter(row => withinOf(row) === slug).length}
+                  value={nav.within}
+                  onChange={within => navigate({ within })}
+               />
+            )}
             {teams.length > 0 && (
                <div className="mt-3">
                   <Segmented
                      ariaLabel="team"
                      value={nav.team ?? ''}
                      options={[
-                        ['', counted('All teams', kept.owed.length)],
+                        ['', counted('All teams', kept.open.length)],
                         // a team with nothing owed has nothing to show
                         ...teams
                            .filter(t => owedBy(t) > 0 || nav.team === t)
@@ -2600,7 +2511,7 @@ export function Decide({
                         : `Nothing left to decide for ${nav.team}`
                   }
                   sub={
-                     nav.team && kept.owed.length
+                     nav.team && kept.open.length
                         ? 'Other teams have decisions waiting.'
                         : decidedHere.length
                         ? `${n(
@@ -2610,7 +2521,7 @@ export function Decide({
                         : 'Rows show up here when work needs a plan, stalls, is overdue or misses its target date, or is marked done or parked but still worked on.'
                   }
                />
-               {nav.team && kept.owed.length > 0 && (
+               {nav.team && kept.open.length > 0 && (
                   <p className="m-0 mb-6 text-center text-[13px]">
                      <QuietButton onClick={() => navigate({ team: null })}>
                         Show all teams
@@ -2674,6 +2585,7 @@ export function Decide({
                               key={rowKey(row)}
                               row={row}
                               decided={decided(row)}
+                              owner={initiativeOfRow(row)}
                               project={projectOf(row)}
                               team={teamOfRow(row)}
                               nav={nav}

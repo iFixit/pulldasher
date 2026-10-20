@@ -309,7 +309,7 @@ icon with a class bolted on.
 - **A view's picks stay with it.** Switching views clears the old view's
   sort, team, person, week, narrowing, grouping and Show choice, so one
   view never quietly narrows the next; the date range, the find and the
-  roadmap's zoom carry over, each shown where it applies. The view switcher
+  roadmap's window and zoom carry over, each shown where it applies. The view switcher
   is a tab list drawn like the app's lens tabs (it goes somewhere; a pill
   segmented control is for a choice within a view): arrows move focus,
   Enter switches, and Decide's count rides as a corner badge so it can't
@@ -328,6 +328,11 @@ icon with a class bolted on.
 - **j and k move between a list's rows** wherever a list is long enough to
   triage (`components/useRowKeys.ts`), opening a "+ N more" on the way past
   so every row is reachable, the way they move between PRs on the board.
+  They land on a row's first target that can be pressed; a target that's
+  off (an answer waiting on its chooser) gives way to the row's first
+  control that isn't a field (its name: j typed in a select picks an
+  option), and a row with nowhere to land is stepped past, so j and k reach
+  every row from every row.
 - **One filled button, one failure line.** `PrimaryButton` ends a form;
   a failed load is `LoadFailed` (grey, with Try again: nobody owes a
   failed fetch, so never amber, and red stays CI's); a save confirms in
@@ -387,6 +392,17 @@ icon with a class bolted on.
     server. Of 298 merged PRs, 54% linked an issue and 2% carried a project
     label. One that links two projects' issues counts under the first and
     shows in "In two projects".
+  - **A draft isn't work yet: never counted, always one click away in a
+    closed fold.** Draft PRs are common and mostly a prompt, so no number
+    on the tab or the API takes one (open counts, live vs quiet, idle days,
+    people, flags, health, Decide, the window, who is on what): a project
+    with only drafts is quiet. Each one waits in a closed "Drafts, not
+    counted" fold where someone would look: at the end of its project's
+    PRs, in its project's row, in its author's row on People, and under
+    the Overview's PRs outside projects for the rest. Under an issue it
+    stays where it is, saying "a draft, not counted", out of the issue's
+    numbers. Where a line says nothing is open, it names the drafts ("None
+    open", then "2 drafts, not counted"), so nobody reads it as nothing.
   - **Issues join by their links.** An issue a project's PRs link joins it,
     its line saying "linked by PR #N", with a Remove that sticks. It's one
     hop, from an issue the project has by label, by hand or as its own, so a
@@ -538,10 +554,15 @@ icon with a class bolted on.
 - **A date outside this year says its year** ("Oct 17, 2025"), everywhere
   `dayWords` writes one; a year-old "since Oct 17" on a 2026 roadmap read as
   a future date.
-- **One date range per page, picked with one control**: the button that
+- **One range per view, picked with one control**: the button that
   names the range, opening the presets an analytics tool offers beside a
   two-month calendar (react-day-picker, lazy with its stylesheet). A preset
-  applies on click; a hand-picked range applies with Apply. Rejected: a row
+  applies on click; a hand-picked range applies with Apply. Look back's
+  range is the past days it measures (`range`, days after today blocked);
+  the Roadmap's is the window it draws (`window`, a preset like `ytd` or
+  whole months `2025-10..2026-09`, future days allowed, no 400-day cap).
+  Neither view shows the other's, and no key in the URL means the default,
+  so a link from before the picker opens as it did. Rejected: a row
   of segment buttons plus two date inputs (shaped for developers, not the
   product manager reading the numbers), and a second control for the
   chart's own window (two knobs on one concept). A chart instead shows at
@@ -578,8 +599,8 @@ icon with a class bolted on.
 - **A plan's row at rest is one line: rank and name.** A second line only
   when Decide asks something, and then only its question, in amber with a
   dotted underline, its reason on hover; or, in ink, a clash with what it
-  waits on, by rank ("Starts before #2 is done", the name on hover), since
-  order is the roadmap's own business. So a row's height says it wants
+  waits on, by name ("Starts before Shopify sync is done"): a row number
+  reads differently in every grouping, so it would need a legend. So a row's height says it wants
   you, and amber on the Roadmap means Decide's questions only. An update
   owed ("Update due", "No update yet") is said where the lead looks, the
   Overview's Plan column and the opened plan, and a health word with
@@ -653,9 +674,40 @@ icon with a class bolted on.
   `?projects=100`, not at a dozen rows. The header with the column names stays
   in place while the rows scroll, and month lines (quarter lines stronger)
   run through every row, so a span reads against the calendar anywhere on
-  the page. A column name zooms that quarter or month to the full width;
-  the toolbar zooms back out one step and pages to the period before or
-  after, and the browser's Back does the same, since the zoom is in the URL.
+  the page. The window is picked with the date range button (This quarter,
+  Next 2 quarters, Next 6 months, Year to date, Last 12 months, This year,
+  or any months on the calendar); with none picked it's last quarter and the
+  next three (Quarters) or last month and the next six (Months). Each
+  preset is drawn in the unit its name says, whatever the month (This
+  quarter, Next 6 months, Year to date and Last 12 months in months; Next 2
+  quarters and This year in quarters), so a bookmark keeps its layout. A
+  span picked on the calendar follows its length: months up to four months,
+  and up to a year that doesn't fall on whole quarters; whole quarters past
+  that, rounded out. A window is at most five years; a longer link is cut
+  to five and the URL says so. The Months and Quarters switch shows the
+  unit drawn: with no window picked it picks that default, and with one it
+  redraws the same window in that unit (out to whole quarters), so the lit
+  option does nothing and Now, next, later keeps the window for coming
+  back. Column names never collide and never drop a column's zoom button:
+  full names while they fit, then short ones ("Nov", "Q4" with the year
+  where it starts), then letters ("N"), then fewer names (a year in Q1's or
+  January's place). Only a zoomed month's cut-off weeks lose their name
+  under 8% of the width. Past seven month columns the Mondays' dates drop
+  out of the header, and past eight quarters the month names do; the lines
+  stay. ‹ and › step by the window's own length on every view; Today puts
+  back the default, and shows whenever today is outside the window or a
+  hand-picked span is on screen. A plan's edge chip moves the window to
+  start at its plan. A window wholly ahead asks for no history. A column
+  name zooms that quarter or month to the full width; the toolbar zooms
+  back out one step to a window holding it (your place is kept) and pages
+  to the period before or after, and the browser's Back does the same,
+  since the window and zoom are in the URL. Done plans that ended before the window rest in one closed
+  fold under the rows, "Done before Oct 2025 · 12", so a year of history
+  never buries the plan; ‹ brings each back into the rows as its weeks come
+  into view. The initiative lanes hold only work under way, so they have no
+  such fold. A done or dropped plan's details offer no Decide calls unless
+  Decide asks about it; a done plan Decide asks about is never folded, and a
+  week picked on the load chart narrows the fold by the chart's own rule.
 - **Everything on the roadmap does what it names when clicked.** Nothing
   a planner would reach for is inert:
   - a week's bar in the load chart picks that week (arrow keys move the pick,
@@ -664,7 +716,9 @@ icon with a class bolted on.
   - the chart's counts filter to what they count ("94 with no plan") and
     pick their week, so a count and its rows agree, and the developer
     line's label opens the teams
-  - a column or month name zooms in; while zoomed, Today comes back
+  - a column or month name zooms in; Today comes back to the default
+    window, or while zoomed to this period
+  - a plan's chip at the timeline's edge moves the window to it
   - a plain click on a bar opens its details, and only a drag moves it; on a
     project with no plan, a plain click opens the chooser, and only a drag
     plans it. Escape cancels a drag, a saved move offers Undo in place, and
@@ -758,9 +812,14 @@ icon with a class bolted on.
   button, so it sits in the same place down the list, then a bordered
   "Other answers" that opens the "Promise to finish by" and "Or instead"
   rows in place. The collapsed button uses the project page's answer words
-  ("Move the end date to Oct 31", "Restart, finishing by Oct 31", "Promise
-  to finish by Oct 31", "Mark done", "Park", "Drop", "Mark ongoing") so it
-  answers the question alone; the expanded rows keep the short "End of Oct".
+  ("Move the end date to the end of Oct", "Restart, finishing by the end of
+  Oct", "Promise to finish by the end of Oct", "Mark done", "Park", "Drop",
+  "Mark ongoing") so it answers the question alone; the expanded rows keep
+  the short "End of Oct". A promise says its end one way everywhere: the
+  buttons, the section's bulk button, the receipt and the accessible names
+  all read "by the end of Oct" (or "by its target date, Nov 1"). A button's
+  accessible name starts with the words it shows ("Mark done: Akeneo"), so
+  a voice user can say what they see.
   The reason is one short sentence ("3 weeks overdue, 4 new PRs since.") on
   Decide, the project page and the Overview's hover. A section whose rows
   all share one question and one suggested answer asks it once in its
@@ -770,7 +829,11 @@ icon with a class bolted on.
   Other answers; rows whose answers differ keep the full card. On the project page the
   row listing a project's child projects is labeled "Projects in it", not
   "Parts", which at iFixit means repair parts; every card starts collapsed. After a call, focus lands on the receipt's
-  words, with Undo the next Tab, so an extra Enter never undoes it. The
+  words, with Undo the next Tab, so an extra Enter never undoes it. After
+  Undo, "Put X back as it was." holds the receipt's place, with nothing to
+  click in it, and the answers come back below, so a double-click on Undo
+  never answers again; the Roadmap's receipts and a project page's filing
+  do the same. The
   roadmap names the same call on the plan's row, the question in amber. Every receipt says what happens next and
   offers Undo, which puts the plan back with the times the call replaced,
   so the row is asked again after a reload too; a failed save says so in
@@ -817,6 +880,138 @@ icon with a class bolted on.
   developers can staff"), turns the priority order into what to park, and opens Decide
   on that team. It only shows with nothing narrowing the rows, since a
   cut through a filtered list would mean nothing.
+- **Initiatives come first, on the Roadmap and the Overview.** Both open
+  grouped by initiative (the one shared Group by), so the resting page is
+  the short ranked list a manager compares, not every plan. An initiative is
+  a name, a goal, one owner and its own rank; its dates are read off its
+  projects' plans, never kept by hand. Every project has one home: an
+  initiative, Keep the lights on, Not tracked, or none (Unsorted, shown only
+  when it holds a project, and asked about on Decide until it's empty). Not
+  tracked work is left out once, where the data comes in, so every count,
+  load, capacity line and question is tracked unless it names the full set
+  on purpose (a person's own list, one project, history); its rows close
+  the Roadmap and the Overview in a ledger that rests closed, with no rank
+  and nothing owed. Three amendments to the rules above, for initiative
+  lanes only (2026-10):
+  1. **A lane holds what's under way.** An initiative lane holds its plans
+     planned or in progress, its live projects with no plan, and any plan
+     Decide asks about, whatever its status; its finished, dropped and
+     parked plans live on its page under "Done or dropped". Team lanes and
+     Group by None still draw every plan: Keep the lights on would
+     otherwise open to twice the rows.
+  2. **Its grip sits in the gutter, left of the band.** The band keeps the
+     Fold contract (a click anywhere on it folds; rank, name, the rows it
+     holds, the chevron, and one ink phrase of dates and counts, "Jul 13 to
+     Nov 1 · 1 plan with an end date · 3 ongoing"), so the grip that ranks it is its
+     own control outside that target, with the arrow keys, the way a row's
+     grip works. Dropping a plan on another initiative files its project
+     there and leaves its priority alone; its keyboard twin is File
+     elsewhere, in the plan's details and on the project's page. A closed
+     initiative's lane takes no plan, as no chooser offers it.
+  3. **Lanes rest closed unless they hold a Decide call.** Twenty closed
+     bands read as the table of contents a manager ranks on; twenty open
+     ones are the long page again. A link that opens a plan opens its lane
+     first, as a click on the band would.
+
+  Inside a lane its rows are numbered by their place there (1, 2, 3), under
+  the band's own number; a row's priority on the whole roadmap is in its
+  grip's label and the number's hover, never a second number beside it.
+  "Priority" is the one word for order, for lanes and rows alike, on grips,
+  hovers and receipts; a receipt names the number its row shows ("Moved
+  Cache warmer to priority 1 in Site speed"). A band with no grip keeps
+  the grip's column, so every label starts at one x, and a row with no
+  number keeps the number's, so every name in a lane does too. An
+  initiative's band, on the Roadmap and the Overview alike, ends a long
+  name in an ellipsis, keeps its count, and on a phone puts its detail on
+  its own line. A closed initiative
+  says "Closed as done Sep 20" everywhere; an open one whose plans all
+  stopped says "Nothing under way since Sep 20".
+  "File" is the one word for putting a project in an initiative: the
+  opener ("File elsewhere"), the chooser, the button, the receipt ("Filed
+  in Release safety", "Filed Image CDN in FixBot chat") and its hover.
+  Filing into Not tracked is the one exception, with one receipt on every
+  view (Decide, a plan's details, a project's page): "Marked Not tracked,
+  so it counts nowhere. Decide asks again if it grows." Not tracked is
+  the home's name, capital N, in every answer and receipt ("Keep Not
+  tracked", "Still Not tracked?"). Under an Unsorted band a row's Plan
+  cell asks its question ("Which initiative is it in?"), not the band's
+  name again.
+  There is one chooser, one layout, on every view: "File in [select]
+  File Cancel". An Unsorted row's File is its answer; Track it, File
+  elsewhere, a plan's details and a project's page open it with Cancel;
+  Needs a plan shows it alone, since its plan answer carries the pick.
+  A plan with no project asks the same way: "Its project [select] Link".
+  An opener (Track it, File elsewhere) stays where it is on every view,
+  says it's open, and opens the chooser on the line below; a second click
+  on it closes it. With nothing offered chosen (a home that closed since),
+  the chooser says "Choose where it goes". Filing is offered once: while
+  a plan's Plan line asks where its project goes, its Initiative line
+  only says the home.
+  The chooser shows only while the project is filed nowhere; a filed
+  project's plan answer stays a plan answer. Filing from a plan's details
+  is a drop's keyboard twin: its receipt and Undo sit under the row in
+  its new lane, with the focus on the receipt's words. A question or a
+  clash in a row's words does the natural thing on a click: the question
+  opens the plan's details, the clash the plan it waits on, each with the
+  focus on the details' Plan line, so a second Enter answers nothing; the
+  answers are a Tab away. A question about a project with a plan under
+  way (Still Not tracked?) is said on that plan's row, and its lane opens.
+- **Escape closes the innermost thing and gives the focus back to what
+  opened it**: a chooser (not the details around it), the answers Other
+  answers opened, an edit form. An answer strip's one Tab stop is its
+  first answer that can be pressed, so an answer waiting on an empty
+  chooser never hides Other answers from the keyboard. Opened, Other
+  answers puts the focus on its first row's label, not an answer, so a
+  second Enter (the keyboard's double-click) answers nothing.
+- **After a click, a still pointer can't press what came under it**
+  (`components/settle.ts`). A click often changes what sits under the
+  pointer: a receipt replaces the answers, a row joins a section above,
+  Other answers opens its ends. In the parts of a view that move when the
+  initiatives feature answers a click (Decide, the Roadmap's lanes and
+  details, the project and initiative pages, the Overview; not the load
+  chart), a pointer click or a drop notes what's within 24 px of its
+  point and where it sits. For 1.6 s, until the pointer moves away or a
+  person scrolls (a wheel, the scrollbar, a touch pan, any key but a
+  modifier alone), a press there reaches nothing (and the control dims
+  with a small nudge; under reduced motion it dims and takes a dashed
+  outline in its own colour) only if it lands on a control that arrived
+  or moved since, or on the control just pressed within a double-click or
+  saying new words. Where a control sits is its centre and its size
+  before transforms, so a press's own scale is no move. The control just
+  pressed is judged first: a toggle or a grip takes every press, whatever
+  its press or its new label did to its box. A control that stayed put
+  takes every press: a toggle closes again, the next week, a neighbour, a
+  grip's drag. A press the browser counts as a double or triple click on
+  the control just pressed is one click, an opener's too (it stays open);
+  so a double or triple click is one click, and a press "to be sure" a
+  second later lands on nothing new. A pointer moved onto a control that
+  arrived means it once it rests there or a double-click's span has
+  passed, so a sloppy double-click's drift doesn't. A touch has no
+  pointer move between taps, so a tap on what came under a still finger
+  waits out the 1.6 s, by design: a finger can't wobble off and back. What the click
+  left (a receipt, Undo's words) gets the focus and is shown whole below
+  the sticky headers, wherever it went. Undo's held words ("Put X back as
+  it was.") stand where the receipt was until the pointer moves away, a
+  Tab, or the next action. A failed Undo says the server's reason and
+  keeps Try again. A run of lane moves, on one lane or several, keeps one
+  receipt whose Undo puts the whole order back. Every Undo is named by
+  what it takes back: "Undo: " and its receipt's words, without their
+  full stop; a failed one is "Try the Undo again: " and the same words.
+- **One drag, one change.** A bar moves a plan's dates; its grip moves it
+  to another lane (files it, by initiative). A bar let go over another
+  lane moves the dates its preview showed and stays in its own lane, and
+  the receipt says the grip is what files it, since filing there too
+  would change its dates and its project's home at once (a drag that
+  drifts onto the next lane keeps its date change).
+- **A question on the Roadmap is a row's amber words.** An initiative's
+  own question (Did it reach its goal?) sits on a row like a plan's, its
+  answers outlined at the row's end, not filled under a paragraph; the
+  board's guess still says Suggested, as it does on Decide. On a
+  phone a chooser's label goes above its select, as an answer row's does.
+  "Unsorted" is the one word for a project filed nowhere, on every band,
+  chooser, hover and split (the sentence form is "filed nowhere"). A plan
+  with no project can't be filed, so it sits in its own "No project yet"
+  lane, and Decide asks which project it is once it's active.
 - **A plan's health is a word, amber only when someone owes something.**
   "On track" reads plain. "At risk", "Off track" and an overdue update are
   amber, because each asks someone to act: the planner to replan, the lead

@@ -52,7 +52,8 @@ async function dummyRetro({ start, end }: Range): Promise<RetroData> {
    const prefix = projectLabelPrefix ?? 'project:';
    const from = dayStart(start) ?? 0;
    const to = (dayStart(end) ?? from) + 86400;
-   const touches: Touch[] = pulls.flatMap(p => {
+   // days on a draft aren't days on a project yet, as the server counts them
+   const touches: Touch[] = pulls.filter(p => !p.draft).flatMap(p => {
       const on = { repo: p.repo, number: p.number, owner: p.user.login };
       return [
          { login: p.user.login, at: epoch(p.created_at), ...on },

@@ -11,6 +11,7 @@ import {
 import { Check, ChevronRight, Plus, X } from 'lucide-react';
 import { n } from '../../../../shared/format';
 import type { PersonWindow, Today, WeekPoint } from '../../../../shared/model/projects';
+import type { DerivedPull } from '../../../../shared/model/status';
 import { mondayOf } from '../../../../shared/model/roadmap';
 import type { DeveloperTeams } from '../../../../shared/model/settings';
 import {
@@ -21,7 +22,16 @@ import {
    textInputClass,
 } from '../../components/bits';
 import { Icon } from '../../components/Icon';
-import { Fold, foldDomId, GroupHeader, openFold, SubDoor } from '../../components/Lane';
+import {
+   Fold,
+   foldDomId,
+   FoldRows,
+   GroupHeader,
+   laneShown,
+   openFold,
+   SubDoor,
+} from '../../components/Lane';
+import type { RowOptions } from '../../components/Row';
 import { useRowKeys } from '../../components/useRowKeys';
 import { findFilter, type FindFields, type PortfolioItem } from '../../model/portfolio';
 import {
@@ -46,7 +56,7 @@ import {
 } from '../../model/retro';
 import { retryRetroData } from '../../model/retroData';
 import { saveDeveloperTeams } from '../../model/settingsData';
-import { days, devDays, NOT_IN_A_PROJECT, OVERLOADED } from '../../model/words';
+import { days, devDays, DRAFTS_NOT_COUNTED, NOT_IN_A_PROJECT, OVERLOADED } from '../../model/words';
 import { PersonCell, StatsCard } from '../stats/parts';
 import { ChartSlot, SplitWeeksChart } from './lazyCharts';
 import {
@@ -597,10 +607,37 @@ function cellText(row: PersonRow, key: Column['key']): string {
    return key === 'reviewing' ? `${Math.round(100 * value)}%` : String(Math.round(value));
 }
 
+/** A person's row opened in place: their projects, then their open drafts
+ * folded at its end. */
+function Detail({
+   drafts,
+   opts,
+   ...rest
+}: Parameters<typeof PersonProjects>[0] & { drafts: DerivedPull[]; opts: RowOptions }) {
+   const id = `people:drafts:${rest.row.login.toLowerCase()}`;
+   return (
+      <>
+         <PersonProjects {...rest} />
+         {drafts.length > 0 && (
+            <div className="mt-3 max-w-[70ch]">
+               <Fold
+                  count={drafts.length}
+                  label={DRAFTS_NOT_COUNTED}
+                  gloss="Their open drafts. A draft isn’t work yet, so none of their counts take one until it’s marked ready."
+                  id={id}
+               >
+                  <FoldRows list={drafts} opts={opts} id={id} cap={laneShown(8, opts)} />
+               </Fold>
+            </div>
+         )}
+      </>
+   );
+}
+
 /** A person's projects, opened in place, as a list under their name: what
  * they did on each and their days there, the week they stopped when they
  * have, and its plan, which opens on the roadmap. */
-function Detail({
+function PersonProjects({
    row,
    items,
    nameOf,
@@ -892,6 +929,8 @@ function PeopleList({
    me,
    nav,
    navigate,
+   drafts,
+   opts,
 }: {
    rows: PersonRow[];
    line: number;
@@ -903,6 +942,9 @@ function PeopleList({
    me: string;
    nav: ProjectsNav;
    navigate: Navigate;
+   /** each person's open drafts, by lowercase login */
+   drafts: ReadonlyMap<string, DerivedPull[]>;
+   opts: RowOptions;
 }) {
    // rows opened by a click, by lowercase login; the picked person's is
    // open while the pick stands
@@ -1111,6 +1153,8 @@ function PeopleList({
                      onToggle={toggle}
                      detail={row => (
                         <Detail
+                           drafts={drafts.get(row.login.toLowerCase()) ?? []}
+                           opts={opts}
                            row={row}
                            items={items}
                            nameOf={nameOf}
@@ -1161,6 +1205,7 @@ export function People({
    items,
    nav,
    navigate,
+   opts,
 }: {
    data: ProjectsData | null | undefined;
    prev: ProjectsData | null | undefined;
@@ -1173,8 +1218,19 @@ export function People({
    items: PortfolioItem[];
    nav: ProjectsNav;
    navigate: Navigate;
+   /** how the board draws a person's draft rows */
+   opts: RowOptions;
 }) {
    const { who: loads, line, middle } = useWhoIsOnWhat(data?.teams, today, teamOf, range);
+   // each person's open drafts, wherever they sit: listed, never counted
+   const draftsBy = useMemo(() => {
+      const by = new Map<string, DerivedPull[]>();
+      for (const p of [...today.live, ...today.quiet].flatMap(g => g.drafts).concat(today.drafts)) {
+         const key = p.data.user.login.toLowerCase();
+         by.set(key, [...(by.get(key) ?? []), p]);
+      }
+      return by;
+   }, [today]);
    // the numbers on screen: the range's once both halves land, and until
    // then the last range's, dimmed, rather than a page blanked to one line
    // (a failed load says so instead)
@@ -1190,7 +1246,8 @@ export function People({
    // before it paler, so a short range still shows its trend; they keep
    // their last weeks up the same way
    const chartDays = chartWindow(range);
-   const flow = useProjectsData(chartDays);
+   // per person: every project, Not tracked ones too
+   const flow = useProjectsData(chartDays, null, { all: true });
    const freshFlow = flow !== undefined ? { flow, shown: chartDays, picked: range } : null;
    const keptFlow = useRef(freshFlow);
    if (freshFlow) keptFlow.current = freshFlow;
@@ -1402,6 +1459,8 @@ export function People({
                me={me}
                nav={nav}
                navigate={navigate}
+               drafts={draftsBy}
+               opts={opts}
             />
          </div>
          {/* right under the folds they sort, above the charts they split */}

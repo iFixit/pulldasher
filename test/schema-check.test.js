@@ -128,3 +128,21 @@ test('names the roadmap and settings tables a database from before them lacks, i
    ]);
    mock.restoreAll();
 });
+
+test('names the initiatives file until both its tables are in', async () => {
+   mock.method(db, 'query', async () => all.filter(r => r.t !== 'initiative_projects'));
+   assert.deepEqual(await missingMigrations(), ['0039-initiatives--add-tables.sql']);
+   mock.restoreAll();
+});
+
+test('names the ready_at migration until pulls has the column', async () => {
+   mock.method(db, 'query', async () => all.filter(r => !(r.t === 'pulls' && r.c === 'ready_at')));
+   assert.deepEqual(await missingMigrations(), ['0040-pulls--add-ready-at.sql']);
+   mock.restoreAll();
+});
+
+test('names the ready_at index until pulls has it', async () => {
+   mock.method(db, 'query', async () => all.filter(r => r.c !== 'key:pulls_ready_at'));
+   assert.deepEqual(await missingMigrations(), ['0041-pulls--add-ready-at-index.sql']);
+   mock.restoreAll();
+});

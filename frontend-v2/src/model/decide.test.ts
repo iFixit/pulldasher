@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { dayStart, type Today } from '../../../shared/model/projects';
 import {
    closedIssues,
+   compareRows,
    decideQueue,
    type DecideProject,
    type DecideReason,
@@ -13,21 +14,23 @@ import type { IssueCounts, ProjectIssue } from '../../../shared/model/work';
 import type { PullData } from '../../../shared/types';
 import type { RoadmapItem, RoadmapUpdate } from '../../../shared/model/roadmap';
 import {
-   answerOf,
-   bulkWords,
-   callWords,
    capOwed,
-   endsFor,
    filledIn,
    keepCalls,
    planRow,
-   reasonWords,
    teamOrder,
    whyNot,
-   writeFor,
-   type Call,
    type Made,
 } from '../views/projects/Decide';
+import {
+   answerOf,
+   bulkWords,
+   callWords,
+   endsFor,
+   reasonWords,
+   writeFor,
+   type Call,
+} from './decideCalls';
 import { teamLoad } from './teamLoad';
 
 const today = '2026-09-30';
@@ -453,7 +456,10 @@ describe('Decide’s calls', () => {
             quiet,
             today
          )
-      ).toBe('Promised to finish by the end of Q1 2027. Decide asks again if it runs past that.');
+      ).toBe(
+         // its answer said Restart: the receipt says it's under way again
+         'Restarted, promised to finish by the end of Q1 2027. Decide asks again if it runs past that.'
+      );
    });
 
    it('gives a plan that hasn’t started a new end without starting it', () => {
@@ -514,7 +520,7 @@ describe('Decide’s calls', () => {
       expect(
          callWords(
             answerOf(row([fresh]), target('2026-10-21'), today) as Call,
-            reopened,
+            row([fresh]),
             { open: 0, ongoing: false },
             today
          )
@@ -599,16 +605,16 @@ describe('Decide’s calls', () => {
          target: true,
       });
       const times = (call: Call, count: number) => Array<Call>(count).fill(call);
-      expect(bulkWords(times(oct, 52), 'do')).toBe('Promise all 52 by Oct 31');
-      expect(bulkWords(times(oct, 52), 'did')).toBe('Promised 52 by Oct 31');
+      expect(bulkWords(times(oct, 52), 'do')).toBe('Promise all 52 by the end of Oct');
+      expect(bulkWords(times(oct, 52), 'did')).toBe('Promised 52 by the end of Oct');
       expect(bulkWords([...times(oct, 40), own(21), own(23)], 'do')).toBe(
-         'Promise 40 by Oct 31 and 2 by their target dates'
+         'Promise 40 by the end of Oct and 2 by their target dates'
       );
       expect(bulkWords([oct, own(21)], 'did')).toBe(
-         'Promised 1 by Oct 31 and 1 by its target date, Oct 21'
+         'Promised 1 by the end of Oct and 1 by its target date, Oct 21'
       );
       expect(bulkWords([oct, { kind: 'done' }, oct, { kind: 'done' }], 'do')).toBe(
-         'Promise 2 by Oct 31 and mark 2 done'
+         'Promise 2 by the end of Oct and mark 2 done'
       );
       expect(bulkWords(times({ kind: 'done' }, 3), 'do')).toBe('Mark all 3 done');
       expect(bulkWords([{ kind: 'park' }, { kind: 'drop' }], 'did')).toBe('Parked 1 and dropped 1');
@@ -760,6 +766,12 @@ describe('reasonWords', () => {
       expect(said('Waiting on the vendor')).toMatch(/vendor\. Move the end date\?$/);
    });
 
+   it('says how a Not tracked project grew in the words its home uses', () => {
+      expect(reasonWords({ kind: 'untracked_grew', since: 31, baseline: 2 }, null)).toMatch(
+         /^33 PRs, 31 since it was marked Not tracked\./
+      );
+   });
+
    it('asks new work in the verb its answer uses', () => {
       expect(reasonWords({ kind: 'new', since: '2026-08-30' }, null)).toBe(
          'PRs open since Aug 30, and no plan yet. When will it finish?'
@@ -850,3 +862,250 @@ describe('filledIn', () => {
 });
 
 const dataOfNumber = (p: unknown) => ((p as { data?: PullData }).data ?? (p as PullData)).number;
+
+describe('decideQueue: where projects belong', () => {
+   const initiative = (
+      id: number,
+      projects: string[],
+      over: Partial<{ kind: 'initiative' | 'upkeep' | 'untracked'; status: 'open' | 'done' | 'dropped'; status_at: number | null }> = {}
+   ) => ({
+      id,
+      kind: 'initiative' as const,
+      status: 'open' as const,
+      status_at: null,
+      projects: projects.map(project => ({ project, set_by: null, set_at: ago(60), baseline_prs: 0 })),
+      ...over,
+   });
+
+   it('asks nothing about homes while no initiative exists', () => {
+      const rows = decideQueue({
+         live: [project('big', { prs: 5 })],
+         items: [item(1, { project: 'planned', start: '2026-10-05', end_kind: 'soft' })],
+         today,
+         now: NOW,
+         // a stall keeps `new` away, so only unfiled could ask
+         ongoing: new Set(['big']),
+      });
+      expect(kinds(rows)).toEqual([]);
+   });
+
+   it('asks a tracked project with no home where it goes: 3+ PRs, or a plan under way', () => {
+      const rows = decideQueue({
+         live: [
+            project('fresh'),
+            project('upkeep', { prs: 5 }),
+            project('small', { prs: 2 }),
+            project('filed', { prs: 9 }),
+         ],
+         items: [
+            item(1, { project: 'future', start: '2026-11-02', end_kind: 'soft' }),
+            item(2, { project: 'finished', status: 'done', updated_at: NOW }),
+         ],
+         ongoing: new Set(['upkeep']),
+         initiatives: [initiative(7, ['filed'])],
+         today,
+         now: NOW,
+      });
+      // `new` files from its own row, so it isn't asked twice; a filed
+      // project is asked only for its plan
+      expect(kinds(rows)).toEqual([
+         ['future', 'unfiled'],
+         ['upkeep', 'unfiled'],
+         ['filed', 'new'],
+         ['fresh', 'new'],
+      ]);
+      expect(rows.find(r => r.slug === 'future')?.item?.id).toBe(1);
+   });
+
+   it('puts a project’s unfiled call on the row it already has', () => {
+      const rows = decideQueue({
+         live: [project('quiet', { lastActivity: ago(30), prs: 4 })],
+         items: [],
+         initiatives: [initiative(7, [])],
+         today,
+         now: NOW,
+      });
+      expect(kinds(rows)).toEqual([['quiet', 'stalled', 'unfiled']]);
+   });
+
+   it('asks about a grown not-tracked project, with its counts', () => {
+      const rows = decideQueue({
+         live: [],
+         items: [],
+         grown: [{ slug: 'ops-ci', since: 32, baseline: 32 }],
+         today,
+         now: NOW,
+      });
+      expect(rows).toEqual([
+         { slug: 'ops-ci', item: null, reasons: [{ kind: 'untracked_grew', since: 32, baseline: 32 }] },
+      ]);
+   });
+
+   it('asks whether an initiative reached its goal once every project settled two weeks ago', () => {
+      const done = item(1, { project: 'a', status: 'done', status_at: ago(20), updated_at: ago(20) });
+      const parked = item(2, { project: 'b', status: 'parked', status_at: ago(15), updated_at: ago(15) });
+      const ask = (over: Parameters<typeof decideQueue>[0]) => kinds(decideQueue(over));
+      const base = {
+         items: [done, parked],
+         // c has no plan and nothing in flight
+         initiatives: [initiative(7, ['a', 'b', 'c'])],
+         today,
+         now: NOW,
+      };
+      expect(ask({ ...base, live: [] })).toEqual([['#undefined', 'goal_reached']]);
+      const [row] = decideQueue({ ...base, live: [] });
+      expect(row.reasons[0]).toEqual({ kind: 'goal_reached', initiative: 7 });
+      // a project with no plan still in flight, or a plan settled lately, keeps it open
+      expect(ask({ ...base, live: [project('c', { prs: 1 })] })).toEqual([]);
+      expect(
+         ask({ ...base, live: [], items: [done, { ...parked, status_at: ago(3), updated_at: ago(3) }] })
+      ).toEqual([]);
+      // Keep open quiets it until something in it changes after, and that
+      // change has settled for two weeks too
+      const kept = [initiative(7, ['a', 'b', 'c'], { status_at: ago(15) })];
+      expect(ask({ ...base, live: [], initiatives: kept })).toEqual([]);
+      const refiled = (at: number) => [
+         {
+            ...kept[0],
+            projects: [...kept[0].projects, { project: 'd', set_by: null, set_at: at, baseline_prs: 0 }],
+         },
+      ];
+      expect(ask({ ...base, live: [], initiatives: refiled(ago(1)) })).toEqual([]);
+      expect(ask({ ...base, live: [], initiatives: refiled(ago(14.5)) })).toEqual([
+         ['#undefined', 'goal_reached'],
+      ]);
+      // never Keep the lights on, Not tracked, or an empty initiative
+      expect(ask({ ...base, live: [], initiatives: [initiative(8, ['a'], { kind: 'upkeep' })] })).toEqual([]);
+      expect(ask({ ...base, live: [], initiatives: [initiative(9, [])] })).toEqual([]);
+   });
+
+   it('waits two weeks after a long-finished project is filed before asking about the goal', () => {
+      // the load files a project whose plan was done 40 days ago
+      const ask = (filedAt: number) =>
+         kinds(
+            decideQueue({
+               items: [item(1, { project: 'a', status: 'done', status_at: ago(40), updated_at: ago(40) })],
+               live: [],
+               initiatives: [
+                  {
+                     ...initiative(7, []),
+                     projects: [{ project: 'a', set_by: null, set_at: filedAt, baseline_prs: 0 }],
+                  },
+               ],
+               today,
+               now: NOW,
+            })
+         );
+      expect(ask(NOW - 60_000)).toEqual([]);
+      expect(ask(ago(15))).toEqual([['#undefined', 'goal_reached']]);
+   });
+
+   it('asks about a closed initiative’s project that is worked on again, worst first', () => {
+      const rows = decideQueue({
+         live: [project('back', { open: 2, prs: 2 }), project('fresh', { prs: 4 })],
+         items: [item(1, { project: 'plan', end_kind: 'soft' })],
+         initiatives: [
+            initiative(7, ['back', 'plan', 'gone'], { status: 'done', status_at: ago(30) }),
+            initiative(8, ['fresh']),
+         ],
+         today,
+         now: NOW,
+      });
+      expect(kinds(rows).sort()).toEqual([
+         ['back', 'reopened_in_closed'],
+         ['fresh', 'new'],
+         ['plan', 'reopened_in_closed'],
+      ]);
+      expect(kinds(rows).at(-1)).toEqual(['fresh', 'new']);
+      expect(rows.find(r => r.slug === 'back')?.reasons).toEqual([
+         { kind: 'reopened_in_closed', initiative: 7, as: 'done' },
+      ]);
+   });
+
+   it('never asks to close an initiative the server would refuse: a finished plan with PRs open is still going', () => {
+      // a's plan was done 20 days ago, but 3 PRs are open and moved yesterday
+      const base = {
+         items: [item(1, { project: 'a', status: 'done', status_at: ago(20), updated_at: ago(20) })],
+         live: [project('a', { open: 3, prs: 3, lastActivity: ago(1) })],
+         today,
+         now: NOW,
+      };
+      const open = decideQueue({ ...base, initiatives: [initiative(7, ['a'])] });
+      expect(open.some(r => r.reasons.some(x => x.kind === 'goal_reached'))).toBe(false);
+      // and the same rule says it's going once the initiative is closed
+      const closed = decideQueue({
+         ...base,
+         initiatives: [initiative(7, ['a'], { status: 'done', status_at: ago(10) })],
+      });
+      expect(closed.find(r => r.slug === 'a')?.reasons.map(x => x.kind)).toContain(
+         'reopened_in_closed'
+      );
+   });
+
+   it('keeps an initiative kept open quiet while its finished projects merge more', () => {
+      const ask = (live: Parameters<typeof decideQueue>[0]['live']) =>
+         kinds(
+            decideQueue({
+               items: [item(1, { project: 'a', status: 'done', status_at: ago(20), updated_at: ago(20) })],
+               live,
+               initiatives: [initiative(7, ['a'], { status_at: ago(5) })],
+               today,
+               now: NOW,
+            })
+         ).filter(([, kind]) => kind === 'goal_reached');
+      expect(ask([])).toEqual([]);
+      // a merge yesterday, nothing open: no plan or filing changed
+      expect(ask([project('a', { open: 0, prs: 1, lastActivity: ago(1) })])).toEqual([]);
+   });
+
+   it('asks about a closed initiative on the row the project already has, once', () => {
+      // done 20 days ago, PRs still open: `reopened`, in a closed initiative
+      const rows = decideQueue({
+         items: [item(1, { project: 'a', status: 'done', status_at: ago(20), updated_at: ago(20) })],
+         live: [project('a', { open: 3, prs: 3, firstOpened: '2026-09-01', lastActivity: ago(1) })],
+         initiatives: [initiative(7, ['a'], { status: 'done', status_at: ago(10) })],
+         today,
+         now: NOW,
+      });
+      const mine = rows.filter(r => r.slug === 'a');
+      expect(mine).toHaveLength(1);
+      expect(mine[0].item?.id).toBe(1);
+      expect(mine[0].reasons.map(r => r.kind).sort()).toEqual(['reopened', 'reopened_in_closed']);
+   });
+
+   it('asks about a project’s home on its worst row, whichever plan came first', () => {
+      // two plans of a, asked about for different reasons, in both orders
+      const plans = [
+         item(1, { project: 'a', status: 'active', start: '2026-08-24', weeks: 2, end_kind: 'hard' }),
+         item(2, { project: 'a', status: 'active', start: '2026-06-01', weeks: 4, end_kind: 'hard' }),
+      ];
+      for (const items of [plans, [...plans].reverse()]) {
+         const rows = decideQueue({
+            items,
+            live: [project('a', { open: 3, prs: 3, firstOpened: '2026-05-01', lastActivity: ago(1) })],
+            initiatives: [initiative(7, ['a'], { status: 'done', status_at: ago(10) })],
+            today,
+            now: NOW,
+         });
+         const mine = rows.filter(r => r.slug === 'a');
+         expect(mine).toHaveLength(2);
+         const without = (r: DecideRow) => ({
+            ...r,
+            reasons: r.reasons.filter(x => x.kind !== 'reopened_in_closed'),
+         });
+         const worst = mine.map(without).sort(compareRows)[0];
+         const asked = mine.find(r => r.reasons.some(x => x.kind === 'reopened_in_closed'));
+         expect(asked?.item?.id).toBe(worst.item?.id);
+      }
+   });
+
+   it('asks which project an active plan with no project is, once initiatives exist', () => {
+      const items = [
+         item(1, { project: null, status: 'active', end_kind: 'soft' }),
+         item(2, { project: null, status: 'planned', start: '2026-11-02', end_kind: 'soft' }),
+      ];
+      expect(kinds(decideQueue({ live: [], items, today, now: NOW }))).toEqual([]);
+      const rows = decideQueue({ live: [], items, initiatives: [initiative(7, [])], today, now: NOW });
+      expect(rows.map(r => [r.item?.id, r.reasons.map(x => x.kind)])).toEqual([[1, ['no_project']]]);
+   });
+});

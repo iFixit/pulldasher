@@ -13,7 +13,7 @@ import { FactLink } from '../../components/bits';
 import { Icon } from '../../components/Icon';
 import { Avatar } from '../../components/identity';
 import { eyebrowText, SubDoor } from '../../components/Lane';
-import { DEFAULT_SORT } from '../../lens';
+import { DEFAULT_GROUP, DEFAULT_SORT } from '../../lens';
 import { dayWords } from '../../model/projectData';
 import { LAST_14_DAYS, NOT_SAID, targetOn } from '../../model/words';
 
@@ -22,6 +22,11 @@ export interface ProjectsNav {
    view: 'overview' | 'decide' | 'roadmap' | 'people' | 'retro';
    /** a project's slug when its page is open */
    project: string | null;
+   /** an initiative's slug when its page is open */
+   initiative: string | null;
+   /** Decide's initiative: only the rows about its projects show; null for
+    * every initiative */
+   within: string | null;
    /** the date range's preset or custom key (model/projectData.ts) */
    range: string;
    /** which projects the list and timeline show (model/portfolio.ts STATUS_FILTERS) */
@@ -45,6 +50,9 @@ export interface ProjectsNav {
    /** the quarter or month the timeline is zoomed into, "2026-Q4" or
     * "2026-10" (model/roadmapTime.ts); null for the whole view */
    zoom: string | null;
+   /** the timeline's window, a preset's key or its months, "2025-10..2026-09"
+    * (model/roadmapTime.ts); null for the default */
+   window: string | null;
    /** Decide's team: only its rows show; null for every team */
    team: string | null;
    /** where the work came from, picked on the load chart: the timeline
@@ -52,7 +60,7 @@ export interface ProjectsNav {
    origin: RoadmapOrigin | 'unsaid' | null;
    /** how Look back's last list splits the days, beside its people and
     * project tables */
-   by: 'team' | 'origin' | 'author' | 'repo';
+   by: 'team' | 'initiative' | 'origin' | 'author' | 'repo';
    /** which of Look back's days count: all, only writing, or only reviewing */
    kind: 'all' | 'writing' | 'reviewing';
    /** a person picked: People opens their row; Look back counts only their days */
@@ -95,6 +103,8 @@ export function switchView(view: ProjectsNav['view']): Partial<ProjectsNav> {
    return {
       view,
       project: null,
+      initiative: null,
+      within: null,
       item: null,
       // the list's own "nothing picked", so no empty sort= lands in the URL
       sort: DEFAULT_SORT,
@@ -108,7 +118,7 @@ export function switchView(view: ProjectsNav['view']): Partial<ProjectsNav> {
       kind: 'all',
       // the list's Group by and the roadmap's lanes share this key, and the
       // roadmap's Show narrows its rows: neither carries into another view
-      group: 'none',
+      group: DEFAULT_GROUP,
       show: 'all',
    };
 }
@@ -158,6 +168,7 @@ export const ORIGIN_OPTIONS: [RoadmapOrigin | 'unsaid', string][] = [
 export function openPlan(nav: ProjectsNav, id: number): Partial<ProjectsNav> {
    return {
       project: null,
+      initiative: null,
       view: 'roadmap',
       item: id,
       scale: nav.scale === 'now' ? 'quarter' : nav.scale,
@@ -340,7 +351,8 @@ export function ProjectFacts({
                        {
                           ...switchView('overview'),
                           status: 'all',
-                          group: 'parent',
+                          // the find narrows the list to its parts already
+                          group: 'none',
                           find: `parent:${parent}`,
                        },
                        { push: true }

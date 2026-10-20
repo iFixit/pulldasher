@@ -76,8 +76,11 @@ export interface ProjectGroup {
    slug: string;
    /** the project's issue; null when a label names a project that has no issue yet */
    project: Project | null;
-   /** open PRs, oldest first */
+   /** open PRs, oldest first, drafts left out: a draft isn't work yet */
    open: DerivedPull[];
+   /** its open drafts, oldest first: never counted (not in people, idle
+    * days, flags or live), only listed where someone would look */
+   drafts: DerivedPull[];
    /** merged in the last LIVE_DAYS, newest first */
    merged: PullData[];
    /** closed without merging in the last LIVE_DAYS, which the board keeps
@@ -104,7 +107,15 @@ export interface Today {
    /** open PRs in two projects: two project labels, or no label and issues of
     * two projects linked. Each counts under the first (projectOf). */
    doubleLabeled: DerivedPull[];
+   /** open drafts no live or quiet project lists: one-offs, ones in no
+    * project, and ones whose project is closed or has no issue and nothing
+    * else open. Never counted, oldest first. */
+   drafts: DerivedPull[];
 }
+
+/** A draft isn't work yet: the Projects tab never counts one, and lists
+ * it in a closed fold where someone would look for it. */
+export const isDraft = (p: Pick<DerivedPull, 'data'>): boolean => !!p.data.draft;
 
 /** The projects each PR links, by issueKey of the PR: every project that has
  * an issue it links (by its label, by hand or by a link) or whose own issue
@@ -148,6 +159,7 @@ export function buildToday(
             slug,
             project: bySlug.get(slug) ?? null,
             open: [],
+            drafts: [],
             merged: [],
             closed: [],
             people: [],
@@ -160,8 +172,20 @@ export function buildToday(
       return g;
    };
 
-   const today: Today = { live: [], quiet: [], misc: [], unsorted: [], doubleLabeled: [] };
+   const today: Today = {
+      live: [],
+      quiet: [],
+      misc: [],
+      unsorted: [],
+      doubleLabeled: [],
+      drafts: [],
+   };
+   const drafts: [string | null, DerivedPull][] = [];
    for (const p of open) {
+      if (isDraft(p)) {
+         drafts.push([projectOf(p.data.labels, prefix, linked[issueKey(p.data)] ?? []), p]);
+         continue;
+      }
       const slugs = projectSlugs(p.data.labels, prefix);
       const links = linked[issueKey(p.data)] ?? [];
       // a label settles it; with none, links to two projects' issues don't
@@ -175,7 +199,8 @@ export function buildToday(
    }
    for (const p of closed) {
       const at = p.merged_at ?? p.closed_at;
-      if (!at || now - epoch(at) > LIVE_DAYS * DAY) continue;
+      // a draft closed without merging was never counted open, so it never leaves
+      if (p.draft || !at || now - epoch(at) > LIVE_DAYS * DAY) continue;
       const slug = projectOf(p.labels, prefix, linked[issueKey(p)]);
       if (slug == null || slug === MISC_SLUG) continue;
       group(slug)[p.merged_at ? 'merged' : 'closed'].push(p);
@@ -208,6 +233,14 @@ export function buildToday(
       g.open.length > 0 || (g.merged.length > 0 && g.project?.state !== 'closed');
    today.live = [...groups.values()].filter(isLive);
    today.quiet = [...groups.values()].filter(g => !isLive(g) && g.project?.state === 'open');
+   // a draft lists under its project when the project shows, else outside
+   const shown = new Set([...today.live, ...today.quiet].map(g => g.slug));
+   const oldest = (a: DerivedPull, b: DerivedPull) =>
+      epoch(a.data.created_at) - epoch(b.data.created_at);
+   for (const [slug, p] of drafts.sort(([, a], [, b]) => oldest(a, b))) {
+      if (slug != null && shown.has(slug)) groups.get(slug)?.drafts.push(p);
+      else today.drafts.push(p);
+   }
 
    for (const g of today.live) {
       if (g.people.length === 1 && g.open.length + g.merged.length >= ONE_PERSON_MIN_PRS)

@@ -8,7 +8,7 @@ import {
    type ReactNode,
 } from 'react';
 import { ChevronRight } from 'lucide-react';
-import { issueUrl, pullKey, shortRepo } from '../../../../shared/format';
+import { issueUrl, n, pullKey, shortRepo } from '../../../../shared/format';
 import { STALL_DAYS, type DecideRow } from '../../../../shared/model/decide';
 import { utcDay } from '../../../../shared/model/projects';
 import { FactLink, QuietButton, Segmented, textInputClass } from '../../components/bits';
@@ -45,10 +45,19 @@ import {
    days,
    daysShort,
    devDays,
+   DRAFTS_NOT_COUNTED,
    LAST_14_DAYS,
    NO_PLAN,
+   GOAL,
+   NOT_TRACKED_GLOSS,
 } from '../../model/words';
-import { DecideCall, planRow, reasonWords } from './Decide';
+import { DecideCall, planRow } from './Decide';
+import { askedInitiative, askOf, reasonWords } from '../../model/decideCalls';
+import {
+   bandGloss as initiativeGloss,
+   closedWords,
+   endParts,
+} from '../../model/initiativeBoard';
 import {
    BY_PRS_WHY,
    BY_PRS_WHY_NO_REPO,
@@ -65,6 +74,7 @@ import {
    type ProjectsNav,
 } from './parts';
 import { PlanFacts, planWords } from './roadmapHealth';
+import { homesOf, initiativeSpan, type Initiative } from '../../../../shared/model/initiatives';
 
 /** the long-list rule: this many rows, then "+ N more" */
 const LIST_CAP = 40;
@@ -297,10 +307,17 @@ const COLUMNS: Column[] = [
    {
       key: 'open',
       label: 'Open',
-      title: 'Its open PRs now, drafts included',
+      title: 'Its open PRs now, drafts left out: a draft isn’t work yet',
       width: 'w-12',
       hide: 'hidden sm:block',
-      cell: i => i.open || '',
+      cell: i =>
+         i.open && i.group?.drafts.length ? (
+            <span title={`${n(i.open, 'open PR')}, and ${n(i.group.drafts.length, 'draft')}, not counted`}>
+               {i.open}
+            </span>
+         ) : (
+            i.open || ''
+         ),
    },
    {
       key: 'waiting',
@@ -424,7 +441,8 @@ function RowDetail({
    links: FactLinks;
    workers: Workers;
 }) {
-   const { items: plans } = useRoadmap();
+   // one slug: the full set, so a Not tracked row's plan shows
+   const { items: plans } = useRoadmap({ all: true });
    const whyId = useId();
    const stalest = item.stalest;
    const line = 'm-0 border-t border-secondary px-3.5 py-2 text-xs';
@@ -525,7 +543,10 @@ function RowDetail({
                </span>
             </p>
          )}
-         {item.group && (item.group.open.length > 0 || item.group.merged.length > 0) && (
+         {item.group &&
+            (item.group.open.length > 0 ||
+               item.group.merged.length > 0 ||
+               item.group.drafts.length > 0) && (
             <div className="border-t border-secondary bg-surface">
                <Fold
                   count={item.group.open.length}
@@ -552,6 +573,19 @@ function RowDetail({
                         <ClosedRow key={pullKey(p)} pull={p} lastSeen={opts.lastSeen} />
                      ))}
                   </Truncated>
+               </Fold>
+               <Fold
+                  count={item.group.drafts.length}
+                  label={DRAFTS_NOT_COUNTED}
+                  gloss="Its open drafts. A draft isn’t work yet, so no count takes one until it’s marked ready."
+                  id={`portfolio-drafts:${item.slug}`}
+               >
+                  <FoldRows
+                     list={item.group.drafts}
+                     opts={opts}
+                     id={`portfolio-drafts:${item.slug}`}
+                     cap={laneShown(8, opts)}
+                  />
                </Fold>
             </div>
          )}
@@ -787,8 +821,40 @@ function download(items: readonly PortfolioItem[]) {
    URL.revokeObjectURL(url);
 }
 
-/** A band's gloss when the list is grouped: what put its projects there. */
-function bandGloss(by: string, title: string): string {
+/** Decide's question about an initiative itself, inside its band: the
+ * question in amber and its answers, as the Roadmap's lane shows it. */
+function InitiativeAsk({ row, goal }: { row: DecideRow; goal: string }) {
+   return (
+      <div className="border-t border-secondary px-3.5 py-2 text-[13px]">
+         {row.reasons.length > 0 && (
+            <p className="m-0 max-w-[70ch] text-ink-2">
+               {goal && (
+                  <span className="block">
+                     <span className="text-ink-3">{GOAL}:</span> {goal}
+                  </span>
+               )}
+               <span className="text-warn">{askOf(row.reasons[0]).question}</span>
+            </p>
+         )}
+         <DecideCall row={row} />
+      </div>
+   );
+}
+
+/** A band's gloss when the list is grouped: what put its projects there.
+ * An initiative's is the Roadmap band's (initiativeBoard.ts bandGloss). */
+function bandGloss(
+   by: string,
+   title: string,
+   initiative?: Initiative,
+   items: readonly PortfolioItem[] = []
+): string {
+   if (by === 'initiative') {
+      if (!initiative) return 'Projects filed nowhere yet. Decide asks where each one goes.';
+      const slugs = new Set(initiative.projects.map(f => f.project));
+      const working = items.filter(i => slugs.has(i.slug) && i.status === 'live').length;
+      return initiativeGloss(initiative, slugs.size, working);
+   }
    if (title.startsWith('No ')) return `Projects with ${title.toLowerCase()}`;
    if (by === 'parent') return `${title}, and the projects that are part of it`;
    if (by === 'lead') return `Projects ${title} leads`;
@@ -1051,9 +1117,28 @@ export function Portfolio(
       teams: readonly string[];
       /** the projects Yours lists above, drawn in ink here */
       above?: ReadonlySet<string>;
+      /** the initiatives, for Group by Initiative and the find's "initiative:" */
+      initiatives?: readonly Initiative[];
+      /** the Not tracked projects, from the full set: their own group, closed,
+       * last, counted in no tab */
+      untrackedItems?: readonly PortfolioItem[];
    }
 ) {
-   const { items, placeOf = item => item, nameOf, teams, above, nav, navigate } = props;
+   const {
+      items,
+      calls,
+      placeOf = item => item,
+      nameOf,
+      teams,
+      above,
+      nav,
+      navigate,
+      initiatives = [],
+      untrackedItems = [],
+   } = props;
+   const { items: plans } = useRoadmap();
+   const homes = homesOf(initiatives);
+   const initiativeOf = (slug: string | null) => (slug ? homes.get(slug)?.initiative : undefined);
    const [copied, setCopied] = useState(false);
    const barRef = useRef<HTMLDivElement>(null);
    const { columns, sort, onSort, row, head, hintLine } = useRows(props);
@@ -1082,12 +1167,52 @@ export function Portfolio(
    const now = new Map(items.map(i => [i.slug, i]));
    const narrowed = items
       .map(placeOf)
-      .filter(i => matchesFind(i, nav.find) && matchesOnly(i, nav.only));
+      .filter(i => matchesFind(i, nav.find, initiativeOf) && matchesOnly(i, nav.only));
    const shown = sortItems(
       narrowed.filter(i => matchesStatus(i, nav.status)),
       nav.sort
    ).map(i => now.get(i.slug) ?? i);
-   const groups = groupItems(shown, nav.group, nameOf, teams);
+   // with no initiatives yet (a server before they're loaded), the default
+   // grouping is no grouping, not one band called Unsorted
+   const by = nav.group === 'initiative' && !initiatives.length ? 'none' : nav.group;
+   // an initiative Decide asks about keeps its band, its question inside
+   const initiativeAsks = new Map(
+      calls.flatMap(r => {
+         const id = askedInitiative(r);
+         return id != null && !r.slug ? [[id, r] as const] : [];
+      })
+   );
+   const groups = groupItems(
+      shown,
+      by,
+      nameOf,
+      teams,
+      initiatives,
+      new Set(initiativeAsks.keys())
+   );
+   // the Not tracked ones by the same tab and find, in a ledger of their own
+   const notTracked = sortItems(
+      untrackedItems.filter(
+         i => matchesFind(i, nav.find) && matchesOnly(i, nav.only) && matchesStatus(i, nav.status)
+      ),
+      nav.sort
+   );
+   // an initiative's band, in ink: its owner and its plans' ends
+   const bandDetail = (initiative: Initiative | undefined) => {
+      if (!initiative) return null;
+      const span = initiativeSpan(
+         initiative.projects.map(f => f.project),
+         plans ?? []
+      );
+      const words = [
+         initiative.owner ? `owned by ${initiative.owner}` : '',
+         ...endParts(span),
+         initiative.status === 'open' ? '' : closedWords(initiative),
+      ].filter(Boolean);
+      return words.length ? (
+         <span className="text-[11px] text-ink-3">{words.join(' · ')}</span>
+      ) : null;
+   };
    // each tab counts what it would show with the find and a tile's pick, so
    // the tab that's on always says how many rows are below it
    const statusOptions: [string, string][] = STATUS_FILTERS.map(([key, label]) => {
@@ -1125,8 +1250,10 @@ export function Portfolio(
             <span aria-hidden>Group by</span>
             <Segmented
                ariaLabel="Group by"
-               value={nav.group}
-               options={GROUPINGS.map(([k, l]) => [k, k === 'none' ? 'None' : l])}
+               value={by}
+               options={GROUPINGS.filter(([k]) => k !== 'initiative' || initiatives.length).map(
+                  ([k, l]) => [k, k === 'none' ? 'None' : l]
+               )}
                onChange={group => navigate({ group })}
             />
          </span>
@@ -1240,21 +1367,33 @@ export function Portfolio(
                   </div>
                   {groups.map(g => (
                      <Fold
-                        key={g.title}
+                        key={g.key}
                         count={g.items.length}
                         label={g.title}
-                        gloss={bandGloss(nav.group, g.title)}
+                        gloss={bandGloss(by, g.title, g.initiative, items)}
+                        detail={bandDetail(g.initiative)}
                         // logins keep their case
-                        caps={nav.group !== 'lead'}
-                        id={`portfolio:${nav.group}:${g.title.replace(/\s+/g, '-')}`}
+                        caps={by !== 'lead'}
+                        keepEmpty={!!g.initiative && initiativeAsks.has(g.initiative.id)}
+                        // an initiative's name runs long: the Roadmap band's layout
+                        long={!!g.initiative}
+                        id={`portfolio:${by}:${
+                           g.initiative?.slug ?? g.title.replace(/\s+/g, '-')
+                        }`}
                         defaultOpen
                      >
+                        {g.initiative && initiativeAsks.has(g.initiative.id) && (
+                           <InitiativeAsk
+                              row={initiativeAsks.get(g.initiative.id) as DecideRow}
+                              goal={g.initiative.goal}
+                           />
+                        )}
                         <ProjectTable
-                           key={`${nav.status}:${g.title}`}
+                           key={`${nav.status}:${g.key}`}
                            label={`Projects: ${g.title}`}
                            head={head(false)}
                            items={g.items}
-                           id={`portfolio:${nav.status}:${g.title}`}
+                           id={`portfolio:${nav.status}:${g.key}`}
                            row={item => row(item, g.repeats.has(item.slug) || repeated(item.slug))}
                         />
                      </Fold>
@@ -1270,7 +1409,24 @@ export function Portfolio(
                   row={item => row(item, repeated(item.slug))}
                />
             )}
-            {!shown.length && (
+            {/* the Not tracked projects close the list, a ledger at rest:
+                counted in no tab, since nobody reports on them */}
+            <Fold
+               count={notTracked.length}
+               label="Not tracked"
+               gloss={NOT_TRACKED_GLOSS}
+               id="portfolio:not-tracked"
+            >
+               <ProjectTable
+                  key={`${nav.status}:not-tracked`}
+                  label="Projects: Not tracked"
+                  head={head(false)}
+                  items={notTracked}
+                  id={`portfolio:${nav.status}:not-tracked`}
+                  row={item => row(item, repeated(item.slug))}
+               />
+            </Fold>
+            {!shown.length && !notTracked.length && (
                <div className="px-3.5 py-4 text-[13px] text-ink-3">
                   {nav.find || nav.only ? (
                      <>

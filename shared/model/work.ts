@@ -123,14 +123,19 @@ export interface WorkPull {
    number: number;
    title: string;
    author: string;
-   /** epoch secs */
+   /** epoch secs it opened */
    createdAt: number;
+   /** epoch secs a former draft was marked ready, when the server knows:
+    * as work it starts then (planWork), not when it opened */
+   readyAt?: number | null;
    mergedAt: number | null;
    /** epoch secs it closed, merged or not; null while open */
    closedAt: number | null;
    state: 'open' | 'closed';
    /** the issues its body links on purpose (bodyLinks) */
    links: IssueRef[];
+   /** a draft: it isn't work yet, so no count takes it (projects.ts isDraft) */
+   draft?: boolean;
 }
 
 /** A PR that links an issue, as the issue's row shows it: its title and
@@ -140,8 +145,14 @@ export interface IssuePull {
    number: number;
    title: string | null;
    author: string | null;
+   /** epoch secs it opened */
    createdAt: number | null;
+   /** epoch secs a former draft was marked ready (WorkPull's) */
+   readyAt?: number | null;
    state: 'open' | 'merged' | 'closed' | null;
+   /** an open draft: listed, never counted (projects.ts isDraft). The board
+    * reads it off its live row when it has one, which is newer. */
+   draft?: true;
    /** on a PR that does none of the project's issues: the issues it does
     * that other projects have (their slugs), so the page can say where the
     * work may belong. Absent when there are none. */
@@ -318,13 +329,17 @@ export function planWork(inputs: WorkInputs): PlanWork[] {
       const mine = byProject.get(slug) ?? [];
       if (!mine.length) continue;
       for (const pr of prs) {
-         const plan = planOfWork(mine, pr.createdAt);
+         // a draft isn't work yet: not open, not late, not a comeback
+         if (pr.draft) continue;
+         // a former draft starts as work the day it was marked ready
+         const at = pr.readyAt ?? pr.createdAt;
+         const plan = planOfWork(mine, at);
          if (!plan) continue;
          if (pr.state === 'open') openPulls.set(plan.id, (openPulls.get(plan.id) ?? 0) + 1);
-         if (pr.createdAt >= afterEndOf(plan)) push(afterEnd, plan.id, pr);
+         if (at >= afterEndOf(plan)) push(afterEnd, plan.id, pr);
          const stopped = plan.status === 'done' || plan.status === 'dropped';
          const since = statusAt(plan);
-         if (stopped && since != null && pr.createdAt > since + TAIL_DAYS * DAY) {
+         if (stopped && since != null && at > since + TAIL_DAYS * DAY) {
             push(afterDone, plan.id, pr);
          }
       }
@@ -345,13 +360,16 @@ export function projectCounts(inputs: Pick<WorkInputs, 'attached'>): Map<string,
 
 /** A PR as an issue's row shows it. */
 function issuePull(pr: WorkPull): IssuePull {
+   const state = pr.mergedAt != null ? 'merged' : pr.state;
    return {
       repo: pr.repo,
       number: pr.number,
       title: pr.title,
       author: pr.author,
       createdAt: pr.createdAt,
-      state: pr.mergedAt != null ? 'merged' : pr.state,
+      ...(pr.readyAt != null ? { readyAt: pr.readyAt } : {}),
+      state,
+      ...(pr.draft && state === 'open' ? { draft: true as const } : {}),
    };
 }
 

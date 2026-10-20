@@ -211,6 +211,18 @@ describe('issueCounts', () => {
 });
 
 describe('planWork', () => {
+   it('places a former draft by the day it was marked ready', () => {
+      // opened Aug 10 as a draft, in the launch; marked ready after its end
+      const launch = plan(1, { start: '2026-05-18', weeks: 15 });
+      const [w] = planWork({
+         plans: [launch],
+         attached: new Map(),
+         pulls: new Map([['workbench', [pull(30, '2026-08-10', { readyAt: at('2026-09-15') })]]]),
+         links: new Map(),
+      });
+      expect(w.afterEnd.map(p => p.number)).toEqual([30]);
+   });
+
    // the launch ran to 2026-08-30; its feedback round began 2026-09-21
    const launch = plan(1, { start: '2026-05-18', weeks: 15 });
    const feedback = plan(2, { start: '2026-09-21', weeks: 12 });
@@ -284,6 +296,44 @@ describe('planWork', () => {
          links: new Map(),
       });
       expect([first.openPulls, second.openPulls]).toEqual([1, 0]);
+   });
+
+   it('never counts a draft: not open, not after the end, not after done', () => {
+      const [late] = planWork({
+         plans: [tool],
+         attached: new Map(),
+         pulls: new Map([['tool', [pull(11, '2026-09-10', { draft: true }), pull(12, '2026-09-10')]]]),
+         links: new Map(),
+      });
+      expect([late.openPulls, ids(late.afterEnd), ids(late.afterDone)]).toEqual([1, [12], [12]]);
+   });
+
+   it('says which of a page’s PRs are open drafts', () => {
+      const page = projectWork(
+         {
+            plans: [],
+            attached: new Map(),
+            pulls: new Map([
+               [
+                  'tool',
+                  [
+                     pull(20, '2026-09-10', { draft: true }),
+                     pull(21, '2026-09-10'),
+                     // GitHub can't merge a draft; one closed as a draft is just closed
+                     pull(22, '2026-09-10', { draft: true, state: 'closed', closedAt: at('2026-09-11') }),
+                  ],
+               ],
+            ]),
+            links: new Map(),
+         },
+         'tool',
+         at('2026-09-12')
+      );
+      expect(Object.fromEntries(page.unlinked.map(p => [p.number, p.draft]))).toEqual({
+         20: true,
+         21: undefined,
+         22: undefined,
+      });
    });
 
    it('counts from when it was marked done, not from a later edit', () => {

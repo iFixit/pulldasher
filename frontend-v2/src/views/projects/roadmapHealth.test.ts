@@ -161,8 +161,8 @@ describe('amber means someone owes something', () => {
       expect(after?.text).toBe('after Shopify sync');
       expect(after?.pieces.some(p => p.owed)).toBe(false);
       const clash = waitsWords(item(1, { start: '2026-09-28', waits_on: [2] }), all);
-      // by its rank, the number its row shows; its name on hover
-      expect(clash?.text).toBe('Starts before #1 is done');
+      // by name: a row number reads differently in every grouping
+      expect(clash?.text).toBe('Starts before Shopify sync is done');
       expect(clash?.title).toMatch(/^Waits on Shopify sync/);
       expect(clash?.pieces[0].owed).toBe('clash');
       expect(waitsWords(item(1, { waits_on: [3] }), all)?.text).toBe(
@@ -200,6 +200,16 @@ describe('one owed call, one amber mark', () => {
       expect(w.over?.text).toBe('3 weeks overdue');
       expect(w.over?.mark).toBe('3 wk overdue');
       expect(w.target?.text).toBe('Missed its Sep 25 target date');
+   });
+
+   it('nothing owed on a not-tracked plan: no amber, no update due', () => {
+      const quiet = { ...sso, untracked: true };
+      expect(healthStanding({ ...quiet, update: null, start: '2026-01-05' }, NOW)).toEqual({
+         kind: 'quiet',
+      });
+      const w = planWarnings(quiet, [quiet], TODAY, project, NOW);
+      expect(amber(w)).toEqual([]);
+      expect([w.status, w.health, w.over, w.target]).toEqual([null, null, null, null]);
    });
 
    it('past its end when nothing worse is owed', () => {
@@ -347,7 +357,7 @@ describe('a row at rest says one thing', () => {
       const first = item(2, { name: 'Shopify sync', start: '2026-09-07', weeks: 4 });
       const clashing = item(1, { start: '2026-09-28', waits_on: [2] });
       const rest = restWords(planWarnings(clashing, [first, clashing], TODAY, null, NOW));
-      expect(rest?.text).toBe('Starts before #1 is done');
+      expect(rest?.text).toBe('Starts before Shopify sync is done');
       expect(rest?.pieces.some(p => p.amber)).toBe(false);
       // an update owed, a late start, an overrun, a health word: not on the row
       const due = planWarnings(item(1, { update: update(20, 'on_track') }), [], TODAY, null, NOW);
