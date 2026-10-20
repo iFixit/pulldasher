@@ -9,6 +9,7 @@ import Issue from '../models/issue.js';
 import pullManager from '../lib/pull-manager.js';
 import {
    issueRepos,
+   loadTimeSpent,
    parseWindow,
    projectSettings,
    projectsFromRows,
@@ -21,6 +22,7 @@ import {
 import projectsController from '../controllers/projects.js';
 import { forgetProjectCaches } from '../controllers/roadmap.js';
 import { fieldsFromNodes } from '../lib/git-manager.js';
+import { windowStats } from '../shared/dist/index.js';
 
 const DAY = 86400;
 // 2026-09-29 12:00 UTC
@@ -915,4 +917,59 @@ test('/api/v1/load leaves not-tracked projects out, past and ahead', async () =>
          roadmapRows = [];
       }
    );
+});
+
+test('a draft marked ready counts from the day it was marked ready', () => {
+   const t0 = Date.UTC(2026, 8, 1) / 1000; // opened as a draft on 9/1
+   const ready = Date.UTC(2026, 8, 28) / 1000; // marked ready on 9/28
+   const row = {
+      repo: 'o/r',
+      number: 1,
+      owner: 'dana',
+      date: t0,
+      date_closed: null,
+      date_merged: null,
+   };
+   const labels = [{ repo: 'o/r', number: 1, title: 'project:site-speed' }];
+   const [span] = spansFromRows([{ ...row, draft: 0, ready_at: ready }], labels, 'project:');
+   assert.equal(span.opened, ready);
+   // a window that ended while it was still a draft never counts it
+   const stats = windowStats([span], '2026-09-01', '2026-09-20', {
+      teamOf: () => null,
+      reviews: [],
+   });
+   assert.equal(stats.totals.opened, 0);
+   // one never a draft counts from its open day
+   assert.equal(
+      spansFromRows([{ ...row, draft: 0, ready_at: null }], labels, 'project:')[0].opened,
+      t0
+   );
+});
+
+test('time spent leaves out a ready PR’s days from before it was marked ready', async t => {
+   const DAY = 86400;
+   const ready = Date.UTC(2026, 8, 10) / 1000;
+   const pr = {
+      repo: 'test/repo-a',
+      number: 1,
+      owner: 'dana',
+      title: 'PR',
+      state: 'open',
+      draft: 0,
+      ready_at: ready,
+   };
+   t.mock.method(db, 'query', async sql => {
+      if (sql.includes('FROM comments t')) {
+         return [
+            // on the draft, then once it was ready
+            { ...pr, login: 'erin', at: ready - 5 * DAY },
+            { ...pr, login: 'erin', at: ready + DAY },
+         ];
+      }
+      return [];
+   });
+   const settings = { prefix: 'project:', teams: {}, teamOf: () => null };
+   const spent = await loadTimeSpent(settings, '2026-09-01', '2026-09-20');
+   assert.equal(spent.rows.length, 1);
+   assert.equal(spent.weeks.length, 1);
 });

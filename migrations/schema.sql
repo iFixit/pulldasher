@@ -154,6 +154,7 @@ CREATE TABLE IF NOT EXISTS `pulls` (
   `date` int unsigned DEFAULT NULL,
   `date_updated` int unsigned DEFAULT NULL,
   `date_pushed` int unsigned DEFAULT NULL,
+  `ready_at` int unsigned DEFAULT NULL,
   `date_closed` int unsigned DEFAULT NULL,
   `date_merged` int unsigned DEFAULT NULL,
   `mergeable` tinyint(1) DEFAULT NULL,
