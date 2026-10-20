@@ -226,3 +226,22 @@ describe('two writes in flight', () => {
       void owning;
    });
 });
+
+describe('a filing that saves', () => {
+   it('reads the roadmap again, so a plan’s Not tracked flag from the server is fresh', async () => {
+      const { answer } = scriptedFetch();
+      const data = await load();
+      const first = data.loadInitiatives();
+      answer({ initiatives: [initiative(1, 'a', [])] });
+      await first;
+      const filing = data.fileProject('p', null);
+      answer({
+         project: 'p',
+         before: { initiative: null, set_at: null, baseline_prs: 0 },
+         home: null,
+      });
+      await filing;
+      const asked = vi.mocked(fetch).mock.calls.map(([path]) => String(path));
+      expect(asked).toContain('/roadmap');
+   });
+});

@@ -23,6 +23,8 @@ import {
    zoomAround,
    zoomKey,
    type Zoom,
+   dayAcross,
+   historyRange,
 } from './roadmapTime';
 
 const z = (key: string) => parseZoom(key) as Zoom;
@@ -356,5 +358,31 @@ describe('columnNames', () => {
       const names = columnNames(long, each(long, 5));
       expect(names).toHaveLength(60);
       expect(names.filter(Boolean)).toEqual(['2026', '2027', '2028', '2029', '2030']);
+   });
+});
+
+describe('historyRange', () => {
+   it('ends a past window’s history on its last day, not the day after', () => {
+      expect(historyRange('2026-07-01', '2026-10-01', '2026-10-13', 400)).toEqual({
+         start: '2026-07-01',
+         end: '2026-09-30',
+      });
+   });
+
+   it('ends at today in a window that holds it, and keeps the server’s last 400 days', () => {
+      expect(historyRange('2022-01-01', '2027-01-01', '2026-10-13', 400)).toEqual({
+         start: '2025-09-09',
+         end: '2026-10-13',
+      });
+      expect(historyRange('2027-01-01', '2027-04-01', '2026-10-13', 400)).toBeNull();
+   });
+});
+
+describe('dayAcross', () => {
+   it('puts the window’s last day at the track’s right edge, never the day after', () => {
+      const from = Date.UTC(2027, 0, 1) / 1000;
+      const to = Date.UTC(2027, 2, 1) / 1000; // Mar 1, 2027, a Monday
+      expect(dayAcross(from, to, 1)).toBe('2027-02-28');
+      expect(dayAcross(from, to, 0)).toBe('2027-01-01');
    });
 });

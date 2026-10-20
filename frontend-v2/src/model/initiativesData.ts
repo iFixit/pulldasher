@@ -3,6 +3,7 @@ import { isDummy } from '../backend/dummy';
 import { DUMMY_GROWN, DUMMY_INITIATIVES, DUMMY_ROADMAP } from '../backend/dummyProjects';
 import { createMemoryStore } from '../storage';
 import { UNSORTED_WORD } from './words';
+import { loadRoadmap } from './roadmapData';
 import {
    goingProjects,
    homesOf,
@@ -333,6 +334,9 @@ export async function fileProject(
       return { error: problemOf(reply, 'file the project') };
    }
    void loadInitiatives();
+   // the plans too: a plan Not tracked by the server's flag alone (a repo
+   // default) reads that flag until the roadmap is read again
+   void loadRoadmap();
    return { before: reply.json.before as Home };
 }
 

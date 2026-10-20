@@ -1,6 +1,7 @@
 import { endOf, type RoadmapItem } from '../../../shared/model/roadmap';
 import { MAX_WINDOW_MONTHS, windowParam, ZOOM_KEY } from '../lens';
 import { dateOf, dayOf } from './days';
+import { dayStart, utcDay } from '../../../shared/model/projects';
 
 /**
  * The roadmap timeline's columns: four quarters or seven months across, or,
@@ -431,4 +432,32 @@ export function commitEnds(today: string, target?: string | null): CommitEnd[] {
       },
       ...sorted.filter(c => c.end !== target),
    ];
+}
+
+const DAY_SECS = 86400;
+
+/**
+ * The PR history a window from `start` to `end` (the day after its last)
+ * asks for, both days counted: to today or the window's last day, whichever
+ * is first, never the day after the window; capped at the server's
+ * `maxDays`, the most recent ones. Null for a window wholly ahead.
+ */
+export function historyRange(
+   start: string,
+   end: string,
+   today: string,
+   maxDays: number
+): { start: string; end: string } | null {
+   if (start > today) return null;
+   const lastDay = utcDay((dayStart(end) as number) - DAY_SECS);
+   const last = today < lastDay ? today : lastDay;
+   const earliest = utcDay((dayStart(last) as number) - (maxDays - 1) * DAY_SECS);
+   return { start: start < earliest ? earliest : start, end: last };
+}
+
+/** The day at a fraction (0 to 1) across a track from `from` to `to`
+ * (epoch secs, `to` the day after the last), the last day at its right
+ * edge, never the day after the window. */
+export function dayAcross(from: number, to: number, at: number): string {
+   return utcDay(from + Math.min(1, Math.max(0, at)) * (to - from - DAY_SECS));
 }

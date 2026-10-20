@@ -169,6 +169,7 @@ export function LoadChart({
    onOrigin,
    onPeople,
    firstPlan,
+   historyFrom = null,
 }: {
    weeks: LoadWeek[];
    /** this week's load, whatever weeks the chart shows */
@@ -199,7 +200,12 @@ export function LoadChart({
     * to plan the first of them (null when none is asked); null once a plan
     * exists */
    firstPlan?: { asked: number; onStart: (() => void) | null } | null;
+   /** the first day of PR history the window has, when the server's cap
+    * leaves its earlier weeks with plans alone; null when it has them all */
+   historyFrom?: string | null;
 }) {
+   // weeks wholly before the history counted plans alone
+   const plansOnly = (week: string) => !!historyFrom && addWeeks(week, 1) <= historyFrom;
    // only the weeks that happened: a projection from the plans can only fall
    const weeks = all.filter(w => !w.projected);
    // a picked week's numbers stand in for this week's
@@ -309,6 +315,11 @@ export function LoadChart({
                   weekName={weekName}
                />
             </div>
+            {historyFrom && (
+               <span className="text-[11px] text-ink-3">
+                  PR history from {dayWords(historyFrom)}; the weeks before count plans only
+               </span>
+            )}
          </div>
          <div className="min-w-0">
             {/* today, in brand words over its line: the line marks it, so
@@ -339,6 +350,18 @@ export function LoadChart({
                   } else if (e.key === 'Escape') onPick(null);
                }}
             >
+               {/* the weeks with no PR history, hatched: their bars are plans only */}
+               {historyFrom && at(historyFrom) > 0 && (
+                  <span
+                     aria-hidden
+                     className="pointer-events-none absolute inset-y-0 left-0"
+                     style={{
+                        width: `${at(historyFrom)}%`,
+                        background:
+                           'repeating-linear-gradient(135deg, color-mix(in oklab, var(--ink) 7%, transparent) 0 3px, transparent 3px 7px)',
+                     }}
+                  />
+               )}
                {weeks.map(w => {
                   const left = at(w.week);
                   const isPicked = w.week === picked;
@@ -359,10 +382,11 @@ export function LoadChart({
                               ? 'color-mix(in oklab, var(--ink) 12%, transparent)'
                               : 'transparent',
                         }}
-                        title={`${weekWords(
-                           w,
-                           developers
-                        )}. Click to show only that week’s plans and projects.`}
+                        title={`${weekWords(w, developers)}${
+                           plansOnly(w.week)
+                              ? '. No PR history this far back, so only plans count'
+                              : ''
+                        }. Click to show only that week’s plans and projects.`}
                      >
                         <span style={{ height: pct(w.onPlan), background: ON_PLAN }} />
                         <span

@@ -108,9 +108,11 @@ import {
 import {
    columnsFor,
    commitEnds,
+   dayAcross,
    defaultWindow,
    doneBefore,
    drawnWindow,
+   historyRange,
    inUnit,
    isPreset,
    parseZoom,
@@ -1810,8 +1812,7 @@ function InFlightRow({
    // the Monday under the pointer
    const weekAt = (x: number): string => {
       const box = (trackRef.current as HTMLSpanElement).getBoundingClientRect();
-      const at = Math.min(1, Math.max(0, (x - box.left) / box.width));
-      return mondayOf(utcDay(horizon.from + at * (horizon.to - horizon.from)));
+      return mondayOf(dayAcross(horizon.from, horizon.to, (x - box.left) / box.width));
    };
    const spanOf = (a: string, b: string): Span => {
       const [first, last] = a <= b ? [a, b] : [b, a];
@@ -2411,6 +2412,11 @@ export function Roadmap({
    };
    const place = (day: string) => at(day, horizon);
    const weeks = mondaysBetween(horizon.start, horizon.end);
+   // a week picked on the load chart counts only while the chart draws it as
+   // a week that happened: one the window stepped away from, or one ahead,
+   // is no pick, so the headline, the chip and the rows never disagree
+   const picked =
+      nav.week && weeks.includes(nav.week) && nav.week <= mondayOf(today) ? nav.week : null;
    // the first of every month in the horizon, and every day, for the lines
    const months =
       level === 'quarters'
@@ -2443,10 +2449,10 @@ export function Roadmap({
                  ...columns.map(c => ({ left: place(c.start), strong: true })),
               ],
       todayAt: today >= horizon.start && today < horizon.end ? place(today) : null,
-      picked: nav.week
+      picked: picked
          ? {
-              left: place(nav.week),
-              width: place(addWeeks(nav.week, 1)) - place(nav.week),
+              left: place(picked),
+              width: place(addWeeks(picked, 1)) - place(picked),
            }
          : null,
    };
@@ -2468,15 +2474,9 @@ export function Roadmap({
    // the horizon's own history, so a project's real span starts where its
    // first PR did, not where the date range picker begins
    // capped at the server's 400 days, the most recent ones, for a long window
-   const pastEnd = today < horizon.end ? today : horizon.end;
-   const earliest = utcDay((dayStart(pastEnd) as number) - (MAX_RANGE_DAYS - 1) * DAY);
-   const pastRange: Range = {
-      start: horizon.start < earliest ? earliest : horizon.start,
-      end: pastEnd,
-   };
    // a window wholly ahead has no history to ask for
-   const history =
-      useProjectsData(horizon.start <= today ? pastRange : null)?.window.projects ?? {};
+   const pastRange: Range | null = historyRange(horizon.start, horizon.end, today, MAX_RANGE_DAYS);
+   const history = useProjectsData(pastRange)?.window.projects ?? {};
    // one slug each: the full set, so a Not tracked plan's row has its project
    const bySlug = new Map(allItems.map(i => [i.slug, i]));
    // the calls Decide asks, by the plan they're about, and by project for
@@ -2597,7 +2597,6 @@ export function Roadmap({
       });
    // a week picked on the load chart narrows them to exactly what that week
    // counts, by the chart's own rule, so its numbers and its rows agree
-   const picked = nav.week;
    const members = picked ? weekMembers({ today, plans: ordered, spans, ahead })(picked) : null;
    // an origin picked on the load chart keeps only the plans from there;
    // work with no plan has no origin to match
@@ -2607,7 +2606,9 @@ export function Roadmap({
    // one Decide asks about always shows, as the initiative lanes keep it
    const before = new Set(
       doneBefore(listed, horizon.start).flatMap(i =>
-         i === gone || i.id === nav.item || planCalls.has(i.id) ? [] : [i.id]
+         i === gone || i.id === nav.item || receipt?.key === `plan:${i.id}` || planCalls.has(i.id)
+            ? []
+            : [i.id]
       )
    );
    // a week picked on the load chart narrows the fold by the chart's rule
@@ -3302,6 +3303,7 @@ export function Roadmap({
       homeOf,
       inFlightRows,
       initiatives,
+      item: nav.item,
       laneId,
       laneKey,
       narrowed,
@@ -3446,9 +3448,10 @@ export function Roadmap({
                id={id}
                label={name}
                count={counted(shownPlanned) + shownLoose.length}
+               // the done plans folded under the rows aren't in the lane
                gloss={`${name}: ${of(
                   counted(shownPlanned),
-                  planned.length,
+                  planned.filter(i => !before.has(i.id)).length,
                   'plan'
                )} in priority order${looseWords}.`}
                load={developers ? capacityWords(load.length, developers) : null}
@@ -3488,9 +3491,10 @@ export function Roadmap({
                label={`On the roadmap · ${n(counted(shownPlans), 'plan')}`}
                count={counted(shownPlans)}
                showCount={false}
+               // the done plans folded under the rows aren't in the lane
                gloss={`${of(
                   counted(shownPlans),
-                  ordered.length,
+                  ordered.filter(i => !before.has(i.id)).length,
                   'plan'
                )} in priority order: what matters most is on top.`}
                load={null}
@@ -3894,6 +3898,9 @@ export function Roadmap({
                   origin={nav.origin}
                   onOrigin={origin => navigate({ origin })}
                   onPeople={() => navigate(switchView('people'))}
+                  historyFrom={
+                     pastRange && pastRange.start > horizon.start ? pastRange.start : null
+                  }
                   firstPlan={
                      plan && !plan.length
                         ? {

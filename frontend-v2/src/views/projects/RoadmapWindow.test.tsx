@@ -47,6 +47,10 @@ const PLANS = [
    plan(3, { name: 'Akeneo 4', project: 'akeneo', status: 'done', start: '2025-11-03', weeks: 6 }),
    // planned for last November and never started: a row with an edge chip
    plan(4, { name: 'Stale plan', status: 'planned', start: '2025-11-03', weeks: 3 }),
+   // done, its one week the window's first: Jun 29 to Jul 5
+   plan(5, { name: 'Edge done', status: 'done', start: '2026-06-29', weeks: 1 }),
+   // under way, with no project: the No project yet lane
+   plan(6, { name: 'Loose work', status: 'active', start: '2026-10-05', weeks: 2 }),
 ];
 const REOPEN: DecideRow = {
    slug: 'akeneo',
@@ -87,8 +91,19 @@ beforeAll(() => {
    Element.prototype.scrollIntoView = () => undefined;
    vi.stubGlobal(
       'fetch',
-      vi.fn(async (path: string) => {
+      vi.fn(async (path: string, init?: RequestInit) => {
          asked.push(path);
+         const patch = /^\/roadmap\/(\d+)$/.exec(path);
+         if (patch && init?.method === 'PATCH') {
+            const at = PLANS.findIndex(i => i.id === Number(patch[1]));
+            PLANS[at] = { ...PLANS[at], ...JSON.parse(String(init.body)), updated_at: 2 };
+            return {
+               status: 200,
+               ok: true,
+               redirected: false,
+               json: async () => ({ item: PLANS[at] }),
+            } as Response;
+         }
          const reply = (json: unknown, status = 200) =>
             ({ status, ok: status < 400, redirected: false, json: async () => json } as Response);
          if (path === '/roadmap') return reply({ items: PLANS });
@@ -281,5 +296,64 @@ describe('the edge chip', () => {
       const el = await mount();
       await press(buttons(el).find(b => b.title.startsWith('Planned Nov 3, 2025 to')));
       expect(last()).toMatchObject({ window: '2025-Q4..2026-Q3' });
+   });
+});
+
+const visible = (el: Element | null | undefined) => !!el && !el.closest('details:not([open])');
+
+describe('a plan just saved', () => {
+   it('moved out of the window keeps its receipt and Undo in view', async () => {
+      const el = await mount();
+      const bar = el.querySelector<HTMLElement>('#roadmap-bar-5');
+      expect(visible(bar)).toBe(true);
+      act(() => {
+         bar?.focus();
+         bar?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+      });
+      await settle();
+      await settle();
+      expect(text(el)).toContain('Moved Edge done 1 week earlier');
+      expect(visible(buttons(el).find(b => b.textContent === 'Undo'))).toBe(true);
+   });
+
+   it('marked done from its open details on the initiative lanes keeps its row and receipt', async () => {
+      const el = await mount({ group: 'initiative', item: 6 });
+      expect(el.querySelector('#roadmap-item-6')).toBeTruthy();
+      await press(button(el, 'Edit details'));
+      const done = [
+         ...el.querySelectorAll<HTMLElement>(
+            '#roadmap-item-6 [role="radio"], #roadmap-item-6 button'
+         ),
+      ].find(b => b.textContent === 'Done');
+      await press(done);
+      await press(button(el, /^Save/));
+      await settle();
+      expect(text(el)).toContain('Marked Loose work done');
+      expect(el.querySelector('#roadmap-item-6')).toBeTruthy();
+   });
+});
+
+describe('the load chart', () => {
+   it('counts a picked week only while it draws it, so the headline and the chip agree', async () => {
+      const el = await mount({ week: '2026-09-14', window: '2027-Q3..2028-Q2' });
+      // a window stepped away from the pick: no pick at all
+      expect(text(el)).not.toContain('Week of Sep 14');
+      expect(buttons(el).some(b => b.getAttribute('aria-pressed') === 'true')).toBe(false);
+   });
+
+   it('says where PR history starts on a window longer than the server keeps', async () => {
+      const el = await mount({ window: '2022-Q1..2026-Q4' });
+      const ask = asked.find(a => a.startsWith('/projects-data'));
+      expect(ask).toContain('start=2025-');
+      expect(text(el)).toContain('PR history from');
+   });
+});
+
+describe('the lane glosses', () => {
+   it('count the rows they head, not the done plans folded under them', async () => {
+      const el = await mount();
+      const label = text(el).match(/On the roadmap · (\d+) plans?/)?.[1];
+      const gloss = text(el).match(/(\d+) plans? in priority order: what matters most/)?.[1];
+      expect(gloss).toBe(label);
    });
 });

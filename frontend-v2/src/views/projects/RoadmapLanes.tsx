@@ -234,6 +234,8 @@ export interface LaneContext {
    homeOf: (slug: string | null) => Initiative | undefined;
    inFlightRows: (list: PortfolioItem[]) => ReactNode;
    initiatives: readonly Initiative[] | null;
+   /** the plan whose details are open (nav.item) */
+   item: number | null;
    laneId: (key: string) => string;
    laneKey: (slug: string | null) => string;
    narrowed: boolean;
@@ -287,6 +289,7 @@ export function initiativeLanes(c: LaneContext) {
       homeOf,
       inFlightRows,
       initiatives,
+      item: openItem,
       laneId,
       laneKey,
       narrowed,
@@ -447,7 +450,14 @@ export function initiativeLanes(c: LaneContext) {
    const laneInitiatives = allRanked.filter(i => i.kind !== 'untracked');
    const rankOf = (i: Initiative) =>
       laneInitiatives.filter(x => x.status === 'open').findIndex(x => x.id === i.id) + 1;
-   const heldPlan = (i: RoadmapItem) => i === gone || isUnderWay(i.status) || planCalls.has(i.id);
+   // and the plan whose details are open or whose receipt is showing, so a
+   // plan saved Done, Parked or Dropped keeps its row, details and Undo
+   const heldPlan = (i: RoadmapItem) =>
+      i === gone ||
+      i.id === openItem ||
+      receipt?.key === `plan:${i.id}` ||
+      isUnderWay(i.status) ||
+      planCalls.has(i.id);
    // the call Decide asks about an initiative itself, with its strip
    const initiativeRowOf = (id: number) =>
       callsHere.all.find(r => !r.slug && askedInitiative(r) === id);
