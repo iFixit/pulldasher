@@ -1,6 +1,6 @@
-import { test } from 'node:test';
+import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { retryIfIdleClosed } from '../lib/db.js';
+import db, { QUERY_TIMEOUT_MS, retryIfIdleClosed } from '../lib/db.js';
 
 const idleClosed = Object.assign(new Error('disconnected by the server'), { errno: 4031 });
 
@@ -38,4 +38,12 @@ test('it retries only once', async () => {
       idleClosed
    );
    assert.equal(calls, 2);
+});
+
+test('every query is sent with a timeout, so a hung one fails', async () => {
+   mock.method(db.pool, 'query', async (options, params) => [{ options, params }]);
+   const sent = await db.query('SELECT ?', [1]);
+   mock.restoreAll();
+   assert.deepEqual(sent, { options: { sql: 'SELECT ?', timeout: QUERY_TIMEOUT_MS }, params: [1] });
+   assert.ok(QUERY_TIMEOUT_MS > 0);
 });

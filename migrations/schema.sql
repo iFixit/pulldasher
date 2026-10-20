@@ -171,7 +171,8 @@ CREATE TABLE IF NOT EXISTS `pulls` (
   KEY `pulls_state` (`state`),
   KEY `pulls_repo` (`repo`),
   KEY `pulls_date` (`date`),
-  KEY `pulls_date_merged` (`date_merged`)
+  KEY `pulls_date_merged` (`date_merged`),
+  KEY `pulls_ready_at` (`ready_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 

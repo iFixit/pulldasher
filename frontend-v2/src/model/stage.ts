@@ -199,7 +199,10 @@ function reviewWaits(p: DerivedPull, own: (words: string) => string, onRow: bool
 export function lateWords(
    createdAt: number | null,
    plans: readonly RoadmapItem[],
-   closed: ClosedIssue | null = null
+   closed: ClosedIssue | null = null,
+   /** what happened at `createdAt`: a former draft's is the day it was
+    * marked ready, which is when it started as work */
+   did: 'opened' | 'marked ready' = 'opened'
 ): string | null {
    if (createdAt == null) return null;
    const plan = planOfWork(plans, createdAt);
@@ -209,9 +212,9 @@ export function lateWords(
          ? { as: plan.status, at: plan.status_at ?? plan.updated_at }
          : closed;
    if (mark?.at && createdAt > mark.at) {
-      return mark.as === 'done' ? 'opened after it was marked done' : 'opened after it was dropped';
+      return mark.as === 'done' ? `${did} after it was marked done` : `${did} after it was dropped`;
    }
-   return plan && createdAt >= afterEndOf(plan) ? 'opened after the end date' : null;
+   return plan && createdAt >= afterEndOf(plan) ? `${did} after the end date` : null;
 }
 
 /** When a plan took effect: its first day, or when it was put on the

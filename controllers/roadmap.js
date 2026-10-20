@@ -15,7 +15,7 @@ import {
    restoreItem,
    updateItem,
 } from '../lib/roadmap.js';
-import { tracking, trackedOnly } from '../lib/initiatives.js';
+import { serially, tracking, trackedOnly } from '../lib/initiatives.js';
 import { sharedValue } from '../lib/ttl-cache.js';
 import { loadPullLinks, loadWork } from '../lib/work.js';
 import {
@@ -298,7 +298,8 @@ export default {
       waitsOnError(null, checked.fields)
          .then(async error => {
             if (error) return res.status(400).json({ error });
-            const item = await createItem(checked.fields, req.roadmapLogin);
+            // a new plan can be under way: one at a time with initiative closes
+            const item = await serially(() => createItem(checked.fields, req.roadmapLogin));
             res.status(201).json({ item: await sentOne(item) });
          })
          .catch(err => {
@@ -360,7 +361,7 @@ export default {
       const id = idOf(req);
       if (!id) return res.status(400).json({ error: 'the id must be a positive whole number' });
       if (req.body?.restore === true) {
-         return restoreItem(id)
+         return serially(() => restoreItem(id))
             .then(sentOne)
             .then(item =>
                item
@@ -377,10 +378,14 @@ export default {
       waitsOnError(id, checked.fields)
          .then(async error => {
             if (error) return res.status(400).json({ error });
-            const item = await updateItem(id, checked.fields, req.roadmapLogin, {
-               restate: req.body?.restate === true,
-               undo: undoTimes(req.body?.undo),
-            });
+            const save = () =>
+               updateItem(id, checked.fields, req.roadmapLogin, {
+                  restate: req.body?.restate === true,
+                  undo: undoTimes(req.body?.undo),
+               });
+            // a status decides whether its project is going in an initiative:
+            // one at a time with initiative closes
+            const item = await (checked.fields.status ? serially(save) : save());
             if (item) res.json({ item: await sentOne(item) });
             else res.status(404).json({ error: 'no such roadmap item' });
          })

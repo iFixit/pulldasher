@@ -410,6 +410,7 @@ before(() => {
          return [{ repo: 'test/repo-a', number: 11, login: 'alice', at: now - 2 * DAY, owner: 'alice' }];
       }
       if (sql.startsWith('SELECT p.repo, p.number, p.owner AS login, p.date_merged AS at')) return [];
+      if (sql.startsWith('SELECT p.repo, p.number, p.owner AS login, p.ready_at AS at')) return [];
       if (sql.includes('FROM comments t')) {
          return [
             { repo: 'test/repo-a', number: 11, login: 'carol', at: now - 2 * DAY, owner: 'alice' },
@@ -972,4 +973,26 @@ test('time spent leaves out a ready PR’s days from before it was marked ready'
    const spent = await loadTimeSpent(settings, '2026-09-01', '2026-09-20');
    assert.equal(spent.rows.length, 1);
    assert.equal(spent.weeks.length, 1);
+});
+
+test('time spent gives a former draft its ready day as the day it opened', async t => {
+   const ready = Date.UTC(2026, 8, 10) / 1000;
+   const pr = {
+      repo: 'test/repo-a',
+      number: 1,
+      owner: 'dana',
+      title: 'PR',
+      state: 'open',
+      draft: 0,
+      ready_at: ready,
+   };
+   t.mock.method(db, 'query', async sql => {
+      // opened as a draft before the window, marked ready in it, nothing else
+      if (sql.includes('p.ready_at AS at')) return [{ ...pr, login: 'dana', at: ready }];
+      return [];
+   });
+   const settings = { prefix: 'project:', teams: {}, teamOf: () => null };
+   const spent = await loadTimeSpent(settings, '2026-09-07', '2026-09-20');
+   assert.deepEqual(spent.people, ['dana']);
+   assert.equal(spent.rows.length, 1);
 });

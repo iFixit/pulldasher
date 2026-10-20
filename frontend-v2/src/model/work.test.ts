@@ -211,6 +211,18 @@ describe('issueCounts', () => {
 });
 
 describe('planWork', () => {
+   it('places a former draft by the day it was marked ready', () => {
+      // opened Aug 10 as a draft, in the launch; marked ready after its end
+      const launch = plan(1, { start: '2026-05-18', weeks: 15 });
+      const [w] = planWork({
+         plans: [launch],
+         attached: new Map(),
+         pulls: new Map([['workbench', [pull(30, '2026-08-10', { readyAt: at('2026-09-15') })]]]),
+         links: new Map(),
+      });
+      expect(w.afterEnd.map(p => p.number)).toEqual([30]);
+   });
+
    // the launch ran to 2026-08-30; its feedback round began 2026-09-21
    const launch = plan(1, { start: '2026-05-18', weeks: 15 });
    const feedback = plan(2, { start: '2026-09-21', weeks: 12 });

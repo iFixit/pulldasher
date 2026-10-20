@@ -268,6 +268,12 @@ const plan = (o: Partial<RoadmapItem>): RoadmapItem =>
 const at = (day: string) => Date.parse(`${day}T12:00:00Z`) / 1000;
 
 describe('lateWords', () => {
+   it('says a former draft was marked ready late, not opened late', () => {
+      expect(lateWords(at('2026-09-02'), [plan({})], null, 'marked ready')).toBe(
+         'marked ready after the end date'
+      );
+   });
+
    it('says a PR opened after its plan ended', () => {
       const plans = [plan({})];
       // the plan's last day is Aug 30

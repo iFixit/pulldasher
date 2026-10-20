@@ -10,6 +10,7 @@ import {
    getInitiative,
    listInitiatives,
    moveInitiative,
+   serially,
    updateInitiative,
 } from '../lib/initiatives.js';
 import { undoTimes } from './roadmap.js';
@@ -60,17 +61,6 @@ async function liveProjects(initiative) {
    );
 }
 
-// Writes that check and then change initiatives run one at a time, so a
-// close can't pass its check while a filing lands, nor a delete while one
-// files into it. ponytail: one process serves the board and the API; a
-// lock in MySQL if Pulldasher ever runs more than one
-let writing = Promise.resolve();
-function serially(run) {
-   const done = writing.then(run, run);
-   writing = done.catch(() => {});
-   return done;
-}
-
 /** A failed write's 500, logged. */
 function failed(res, what) {
    return err => {
@@ -103,13 +93,12 @@ export default {
       const checked = checkInitiativeFields(req.body, { partial: false });
       if (checked.error) return res.status(400).json({ error: checked.error });
       const kind = checked.fields.kind ?? 'initiative';
-      // ponytail: two creates racing can both pass; a unique key on a
-      // generated column if anyone ever scripts them
-      (kind === 'initiative' ? Promise.resolve([]) : listInitiatives())
-         .then(all => {
-            if (all.some(i => i.kind === kind)) return { special: true };
-            return createInitiative(checked.fields, req.roadmapLogin);
-         })
+      // one at a time, so two creates can't both pass the one-of-each check
+      serially(async () => {
+         const all = kind === 'initiative' ? [] : await listInitiatives();
+         if (all.some(i => i.kind === kind)) return { special: true };
+         return createInitiative(checked.fields, req.roadmapLogin);
+      })
          .then(async made => {
             if (made.special) {
                return res
@@ -136,6 +125,8 @@ export default {
       const id = idOf(req);
       if (!id) return res.status(400).json({ error: 'the id must be a positive whole number' });
       const { restate, undo, ...body } = req.body ?? {};
+      // only a well-formed undo, with the times it puts back, counts as one
+      const times = undoTimes(undo);
       const checked = checkInitiativeFields(body, { partial: true });
       if (checked.error) return res.status(400).json({ error: checked.error });
       serially(async () => {
@@ -149,7 +140,7 @@ export default {
          }
          // an undo puts back the status a Reopen replaced: the project that
          // made Decide ask is still going in it, so the check would refuse it
-         if (closing && was.status === 'open' && !undo) {
+         if (closing && was.status === 'open' && !times) {
             const live = await liveProjects(was);
             if (live.length) {
                return res
@@ -159,7 +150,7 @@ export default {
          }
          const changed = await updateInitiative(id, checked.fields, req.roadmapLogin, {
             restate: restate === true,
-            undo: undoTimes(undo),
+            undo: times,
          });
          if (!changed) return res.status(404).json({ error: 'no such initiative' });
          res.json({ initiative: (await sent([changed]))[0] });

@@ -9,7 +9,7 @@ import Label from '../models/label.js';
 import pullManager from '../lib/pull-manager.js';
 import { fileProject, grownSlugs, prCount, trackedOnly } from '../lib/initiatives.js';
 import initiativesController from '../controllers/initiatives.js';
-import { canWrite } from '../controllers/roadmap.js';
+import roadmapController, { canWrite } from '../controllers/roadmap.js';
 import { API_ROUTES, PROJECT_WRITES } from '../controllers/api-routes.js';
 
 // In-memory initiatives and initiative_projects tables behind a stubbed
@@ -30,6 +30,11 @@ const byRank = () => [...initiatives].sort((a, b) => a.priority - b.priority || 
 
 function fakeQuery(sql, params = []) {
    if (sql.includes('`roadmap_updates`')) return [];
+   if (sql.startsWith('UPDATE `roadmap_items` SET ?')) {
+      const plan = plans.find(p => p.id === params[1]);
+      if (plan) Object.assign(plan, params[0]);
+      return { affectedRows: plan ? 1 : 0 };
+   }
    if (sql.includes('FROM `roadmap_items`')) return plans;
    if (sql.startsWith('SELECT `id`, `slug`')) return byRank();
    if (sql.startsWith('SELECT `project`, `initiative_id`')) {
@@ -129,12 +134,15 @@ function makeApp() {
    app.patch('/initiatives/:id', canWrite, initiativesController.update);
    app.delete('/initiatives/:id', canWrite, initiativesController.remove);
    app.post('/initiatives/:id/move', canWrite, initiativesController.move);
+   app.patch('/roadmap/:id', canWrite, roadmapController.update);
    return app;
 }
 
 // holds one statement (`at`) until another (`release`) is sent or 200 ms
 // pass, to make two writes interleave
 let hold = null;
+// every statement, in the order it ran (a held one when it's let go)
+const ranInOrder = [];
 function holdUntil(at, release) {
    let open;
    let reached;
@@ -148,11 +156,14 @@ let server;
 let base;
 before(async () => {
    mock.method(db, 'query', async (sql, params) => {
-      if (hold && sql.startsWith(hold.release)) hold.open();
+      // a release counts once the held statement is waiting
+      if (hold?.waiting && sql.startsWith(hold.release)) hold.open();
       if (hold && sql.startsWith(hold.at)) {
+         hold.waiting = true;
          hold.reached();
          await Promise.race([hold.until, new Promise(r => setTimeout(r, 200))]);
       }
+      ranInOrder.push(sql);
       return fakeQuery(sql, params);
    });
    await new Promise(resolve => {
@@ -173,6 +184,7 @@ beforeEach(() => {
    prs = [];
    nextId = 1;
    hold = null;
+   ranInOrder.length = 0;
 });
 
 async function call(method, path, body) {
@@ -637,4 +649,35 @@ test('an Undo of a Reopen closes it again, though a project in it is still going
    // without undo, the same close is refused
    row.status = 'open';
    assert.equal((await call('PATCH', `/initiatives/${id}`, { status: 'done' })).status, 409);
+   // nor does an undo with no times to put back skip it
+   for (const undo of [{}, true, 1]) {
+      assert.equal(
+         (await call('PATCH', `/initiatives/${id}`, { status: 'done', undo })).status,
+         409
+      );
+   }
+   assert.equal(row.status, 'open');
+});
+
+test('a plan’s status saved during a close lands after it, not between its check and its write', async () => {
+   const id = (await make('a')).body.initiative.id;
+   await call('PUT', '/initiatives/file', { project: 'p', initiative: 'a' });
+   plans = [plan(1, 'p', { status: 'parked' })];
+   const reached = holdUntil('UPDATE `initiatives` SET ?', 'UPDATE `roadmap_items`');
+   const closing = call('PATCH', `/initiatives/${id}`, { status: 'done' });
+   await reached;
+   const starting = call('PATCH', '/roadmap/1', { status: 'active' });
+   await Promise.all([closing, starting]);
+   const at = start => ranInOrder.findIndex(sql => sql.startsWith(start));
+   assert.ok(at('UPDATE `initiatives` SET ?') >= 0);
+   assert.ok(at('UPDATE `initiatives` SET ?') < at('UPDATE `roadmap_items`'));
+});
+
+test('two creates of Not tracked at once make one', async () => {
+   const reached = holdUntil('INSERT INTO `initiatives`', 'SELECT `id`, `slug`');
+   const first = make('nt-a', { kind: 'untracked' });
+   await reached;
+   const [a, b] = await Promise.all([first, make('nt-b', { kind: 'untracked' })]);
+   assert.deepEqual([a.status, b.status].sort(), [201, 409]);
+   assert.equal(initiatives.filter(i => i.kind === 'untracked').length, 1);
 });

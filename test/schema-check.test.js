@@ -140,3 +140,9 @@ test('names the ready_at migration until pulls has the column', async () => {
    assert.deepEqual(await missingMigrations(), ['0040-pulls--add-ready-at.sql']);
    mock.restoreAll();
 });
+
+test('names the ready_at index until pulls has it', async () => {
+   mock.method(db, 'query', async () => all.filter(r => r.c !== 'key:pulls_ready_at'));
+   assert.deepEqual(await missingMigrations(), ['0041-pulls--add-ready-at-index.sql']);
+   mock.restoreAll();
+});

@@ -815,7 +815,11 @@ export function ProjectWorkSections({
       });
    });
    const mine = (plans ?? []).filter(p => p.project === slug);
-   const lateOf = (pr: IssuePull) => lateWords(pr.createdAt, mine, closed);
+   // a former draft is late by the day it was marked ready, as Decide reads it
+   const lateOf = (pr: IssuePull) =>
+      pr.readyAt != null
+         ? lateWords(pr.readyAt, mine, closed, 'marked ready')
+         : lateWords(pr.createdAt, mine, closed);
    /** Save `add` for a change's issue: the click's own change, or, when it
     * goes the other way, its Undo. An add's Undo forgets the row the add
     * put in, so a suggestion goes back to being one, where a Remove keeps
