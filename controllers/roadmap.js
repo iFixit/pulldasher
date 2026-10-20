@@ -221,6 +221,13 @@ export function undoTimes(undo, now = Math.floor(Date.now() / 1000)) {
    return { updated_at: undo.updated_at, status_at: undo.status_at ?? null };
 }
 
+/** Whether a plan edit can change if its project is going in an initiative:
+ * its status, or which project it tracks. Those run one at a time with
+ * initiative closes, so a close can't pass its check while one lands. */
+export function decidesGoing(fields) {
+   return 'status' in fields || 'project' in fields;
+}
+
 export default {
    /**
     * GET /roadmap (session) and GET /api/v1/roadmap (Bearer) -- every
@@ -383,9 +390,9 @@ export default {
                   restate: req.body?.restate === true,
                   undo: undoTimes(req.body?.undo),
                });
-            // a status decides whether its project is going in an initiative:
-            // one at a time with initiative closes
-            const item = await (checked.fields.status ? serially(save) : save());
+            // a status or a project decides whether a plan is going in an
+            // initiative: one at a time with initiative closes
+            const item = await (decidesGoing(checked.fields) ? serially(save) : save());
             if (item) res.json({ item: await sentOne(item) });
             else res.status(404).json({ error: 'no such roadmap item' });
          })
