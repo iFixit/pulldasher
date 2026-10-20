@@ -119,7 +119,7 @@ export function Projects({
    // (a person's own list, one project, history) see it; every list, count
    // and question reads the tracked set below
    const fullData = useProjectsData(prefix ? range : null, null, { all: true });
-   const { initiatives } = useInitiatives();
+   const { initiatives, loadFailed: initiativesFailed } = useInitiatives();
    const untracked = useMemo(() => notTrackedSlugs(fullData, initiatives), [fullData, initiatives]);
    const data = useMemo(() => trackedData(fullData, initiatives), [fullData, initiatives]);
    // the same days just before the range, for every "compared with" line
@@ -142,9 +142,12 @@ export function Projects({
             : NO_TODAY,
       [fullData, allPulls, allClosed, prefix]
    );
-   const today = useMemo(() => trackedToday(fullToday, untracked), [fullToday, untracked]);
+   const today = useMemo(
+      () => trackedToday(fullToday, untracked, { prefix, links: fullData?.pull_links }),
+      [fullToday, untracked, prefix, fullData]
+   );
    const teamOf = useMemo(() => teamLookup(fullData?.teams ?? {}), [fullData]);
-   const { items: allPlans } = useRoadmap({ all: true });
+   const { items: allPlans, loadFailed: plansFailed } = useRoadmap({ all: true });
    const plans = useMemo(
       () => allPlans && trackedPlans(allPlans, initiatives),
       [allPlans, initiatives]
@@ -264,6 +267,8 @@ export function Projects({
                items={allItems}
                plans={allPlans}
                calls={kept.all}
+               owed={kept.owed}
+               loadFailed={initiativesFailed || plansFailed}
                nav={nav}
                navigate={navigate}
                onPerson={onPersonHere}

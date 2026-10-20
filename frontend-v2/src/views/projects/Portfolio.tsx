@@ -1367,7 +1367,7 @@ export function Portfolio(
                   </div>
                   {groups.map(g => (
                      <Fold
-                        key={g.title}
+                        key={g.key}
                         count={g.items.length}
                         label={g.title}
                         gloss={bandGloss(by, g.title, g.initiative, items)}
@@ -1389,11 +1389,11 @@ export function Portfolio(
                            />
                         )}
                         <ProjectTable
-                           key={`${nav.status}:${g.title}`}
+                           key={`${nav.status}:${g.key}`}
                            label={`Projects: ${g.title}`}
                            head={head(false)}
                            items={g.items}
-                           id={`portfolio:${nav.status}:${g.title}`}
+                           id={`portfolio:${nav.status}:${g.key}`}
                            row={item => row(item, g.repeats.has(item.slug) || repeated(item.slug))}
                         />
                      </Fold>

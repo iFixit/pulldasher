@@ -1,7 +1,9 @@
 import { n } from '../../../shared/format';
 import type { GrownProject } from '../../../shared/model/decide';
 import { homesOf, initiativeSpan, type Initiative } from '../../../shared/model/initiatives';
-import { MISC_SLUG, type Today } from '../../../shared/model/projects';
+import { MISC_SLUG, type PullLinks, type Today } from '../../../shared/model/projects';
+import { projectOf } from '../../../shared/model/projectLabel';
+import { issueKey } from '../../../shared/model/issueRef';
 import { weeksPast, type RoadmapItem } from '../../../shared/model/roadmap';
 import type { PortfolioItem } from './portfolio';
 import { dayWords, type ProjectsData } from './projectData';
@@ -22,13 +24,25 @@ export const UNSORTED = '(unsorted)';
 export const NO_PROJECT = '(no-project)';
 
 /** Today without the Not tracked projects: what every count and question
- * reads. PRs outside any project stay, since they're in no project. */
-export function trackedToday(today: Today, untracked: ReadonlySet<string>): Today {
+ * reads. PRs outside any project stay, since they're in no project. With
+ * the label prefix and the PRs' links, a Not tracked project's drafts that
+ * no group lists (Today's `drafts`) are left out too. */
+export function trackedToday(
+   today: Today,
+   untracked: ReadonlySet<string>,
+   labels?: { prefix: string | null; links?: PullLinks }
+): Today {
    if (!untracked.size) return today;
+   const ours = (p: Today['drafts'][number]) => {
+      if (!labels?.prefix) return true;
+      const slug = projectOf(p.data.labels, labels.prefix, labels.links?.[issueKey(p.data)] ?? []);
+      return slug == null || !untracked.has(slug);
+   };
    return {
       ...today,
       live: today.live.filter(g => !untracked.has(g.slug)),
       quiet: today.quiet.filter(g => !untracked.has(g.slug)),
+      drafts: today.drafts.filter(ours),
    };
 }
 

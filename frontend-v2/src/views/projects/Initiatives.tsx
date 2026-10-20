@@ -16,11 +16,23 @@ import {
    planFor,
    type RoadmapItem,
 } from '../../../../shared/model/roadmap';
-import { EmptyState, FactLink, QuietButton, textInputClass } from '../../components/bits';
+import {
+   EmptyState,
+   FactLink,
+   LoadFailed,
+   QuietButton,
+   textInputClass,
+} from '../../components/bits';
 import { Fold, Rows } from '../../components/Lane';
 import { Icon } from '../../components/Icon';
 import { focusResult, PRESS_GUARD } from '../../components/settle';
-import { fileProject, updateInitiative, type Home } from '../../model/initiativesData';
+import {
+   fileProject,
+   loadInitiatives,
+   updateInitiative,
+   type Home,
+} from '../../model/initiativesData';
+import { loadRoadmap } from '../../model/roadmapData';
 import { closedWords, homeChoices } from '../../model/initiativeBoard';
 import { dayWords } from '../../model/projectData';
 import { stageWord, type PortfolioItem } from '../../model/portfolio';
@@ -331,6 +343,9 @@ function EditFields({
    const [name, setName] = useState(initiative.name);
    const [goal, setGoal] = useState(initiative.goal);
    const [owner, setOwner] = useState(initiative.owner ?? '');
+   // the initiative as the form opened it: only what the person changed is
+   // sent, so a field someone else saved since isn't put back
+   const [start] = useState(initiative);
    const [problem, setProblem] = useState<string | null>(null);
    const ids = { name: useId(), goal: useId(), owner: useId() };
    const save = async () => {
@@ -338,7 +353,7 @@ function EditFields({
       if ('error' in checked) return setProblem(checked.error);
       const changed = Object.fromEntries(
          Object.entries(checked.fields).filter(
-            ([k, v]) => v !== (initiative as unknown as Record<string, unknown>)[k]
+            ([k, v]) => v !== (start as unknown as Record<string, unknown>)[k]
          )
       ) as Partial<InitiativeFields>;
       if (!Object.keys(changed).length) return onDone(null);
@@ -441,6 +456,8 @@ export function InitiativePage({
    items,
    plans,
    calls,
+   owed: owedRows,
+   loadFailed = false,
    nav,
    navigate,
    onPerson,
@@ -453,6 +470,10 @@ export function InitiativePage({
    plans: readonly RoadmapItem[] | null;
    /** Decide's rows with this visit's calls kept */
    calls: readonly DecideRow[];
+   /** the rows still owed: `calls` less the ones answered this visit */
+   owed: readonly DecideRow[];
+   /** the initiatives or the plans failed to load */
+   loadFailed?: boolean;
    nav: ProjectsNav;
    navigate: Navigate;
    onPerson: (login: string) => void;
@@ -474,8 +495,19 @@ export function InitiativePage({
          document.title = was;
       };
    }, [initiative?.name]);
-   if (!initiatives || !plans)
-      return <p className="text-[13px] text-ink-3">Loading the initiative…</p>;
+   if (!initiatives || !plans) {
+      return loadFailed ? (
+         <LoadFailed
+            what="the initiative"
+            onRetry={() => {
+               void loadInitiatives();
+               void loadRoadmap();
+            }}
+         />
+      ) : (
+         <p className="text-[13px] text-ink-3">Loading the initiative…</p>
+      );
+   }
    if (!initiative) {
       return (
          <EmptyState
@@ -512,8 +544,10 @@ export function InitiativePage({
       (r.plan ? !isUnderWay(r.plan.status) : r.item ? r.item.stage === 'closed' : false);
    const shown = rows.filter(r => !finished(r));
    const done = rows.filter(finished);
-   const owed = calls.filter(
-      r => r.reasons.length && (aboutIt.includes(r) || (!!r.slug && slugs.includes(r.slug)))
+   const owed = owedRows.filter(
+      r =>
+         r.reasons.length &&
+         (askedInitiative(r) === initiative.id || (!!r.slug && slugs.includes(r.slug)))
    ).length;
    const kindWord =
       initiative.kind === 'upkeep' && initiative.name !== 'Upkeep'

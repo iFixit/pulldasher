@@ -866,6 +866,7 @@ describe('an initiative’s page', () => {
             items={items}
             plans={plans}
             calls={calls}
+            owed={calls}
             nav={{} as ProjectsNav}
             navigate={nothing}
             onPerson={nothing}
@@ -905,6 +906,7 @@ describe('an initiative’s page', () => {
             items={ITEMS}
             plans={[done]}
             calls={[asked]}
+            owed={[asked]}
             nav={{} as ProjectsNav}
             navigate={go}
             onPerson={nothing}
@@ -915,6 +917,86 @@ describe('an initiative’s page', () => {
       ) as HTMLButtonElement;
       act(() => door.click());
       expect(go).toHaveBeenCalledWith(expect.objectContaining({ view: 'decide', within: 'catalog' }));
+   });
+
+   it('counts only the questions still owed, not one answered on this visit', () => {
+      const answered: DecideRow = {
+         slug: 'emails',
+         item: null,
+         reasons: [{ kind: 'stalled', days: 30 }],
+      };
+      const el = mount(
+         <InitiativePage
+            slug="onboarding"
+            initiatives={INITIATIVES}
+            items={ITEMS}
+            plans={[]}
+            calls={[answered]}
+            owed={[]}
+            nav={{} as ProjectsNav}
+            navigate={nothing}
+            onPerson={nothing}
+         />
+      );
+      expect(el.textContent).not.toMatch(/question.? on Decide/);
+   });
+
+   it('sends only the fields Edit changed, so a save someone made since stays', async () => {
+      const at = (initiatives: Initiative[]) => (
+         <AllItemsContext.Provider value={ITEMS}>
+            <InitiativePage
+               slug="onboarding"
+               initiatives={initiatives}
+               items={ITEMS}
+               plans={[]}
+               calls={[]}
+               owed={[]}
+               nav={{} as ProjectsNav}
+               navigate={nothing}
+               onPerson={nothing}
+            />
+         </AllItemsContext.Provider>
+      );
+      host = document.createElement('div');
+      document.body.append(host);
+      const root = createRoot(host);
+      roots.push(root);
+      act(() => root.render(at(INITIATIVES)));
+      click(host, 'Edit');
+      const name = host.querySelector('input') as HTMLInputElement;
+      act(() => {
+         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(
+            name,
+            'Welcome'
+         );
+         name.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      // someone else sets its owner, and the socket's reload brings that in
+      act(() =>
+         root.render(at(INITIATIVES.map(i => (i.id === 4 ? { ...i, owner: 'someone-else' } : i))))
+      );
+      click(host, 'Save');
+      await settle();
+      expect(calls.filter(c => c.method === 'PATCH').at(-1)?.body).toEqual({ name: 'Welcome' });
+   });
+
+   it('says the initiative couldn’t load, with Try again, when a load failed', () => {
+      const el = mount(
+         <InitiativePage
+            slug="onboarding"
+            initiatives={INITIATIVES}
+            items={ITEMS}
+            plans={null}
+            calls={[]}
+            owed={[]}
+            loadFailed
+            nav={{} as ProjectsNav}
+            navigate={nothing}
+            onPerson={nothing}
+         />
+      );
+      expect(el.textContent).toContain('Couldn’t load the initiative.');
+      expect(buttons(el)).toContain('Try again');
    });
 
    it('says it has no plans once, with no end or people to name', () => {
@@ -937,6 +1019,7 @@ describe('an initiative’s page', () => {
             items={[...ITEMS, akeneo]}
             plans={[done]}
             calls={[]}
+            owed={[]}
             nav={{} as ProjectsNav}
             navigate={nothing}
             onPerson={nothing}
@@ -1467,6 +1550,7 @@ describe('the one chooser, wherever a project is filed', () => {
             items={ITEMS}
             plans={[]}
             calls={[]}
+            owed={[]}
             nav={{} as ProjectsNav}
             navigate={nothing}
             onPerson={nothing}

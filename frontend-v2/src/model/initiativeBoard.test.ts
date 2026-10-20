@@ -109,6 +109,25 @@ describe('trackedToday', () => {
    });
 });
 
+describe('trackedToday’s drafts', () => {
+   const draft = (number: number, label: string | null) =>
+      ({
+         data: { repo: 'o/r', number, labels: label ? [{ title: label }] : [] },
+      } as unknown as Today['drafts'][number]);
+   it('leaves out a Not tracked project’s drafts that no group lists', () => {
+      const today: Today = {
+         live: [],
+         quiet: [],
+         misc: [],
+         unsorted: [],
+         doubleLabeled: [],
+         drafts: [draft(1, 'project:ops'), draft(2, 'project:store'), draft(3, null)],
+      };
+      const tracked = trackedToday(today, new Set(['ops']), { prefix: 'project:' });
+      expect(tracked.drafts.map(p => p.data.number)).toEqual([2, 3]);
+   });
+});
+
 describe('grownProjects', () => {
    it('asks about the grown ones still Not tracked, with their counts', () => {
       const data = {
@@ -361,5 +380,19 @@ describe('a Not tracked project', () => {
       const filed = [...initiatives, initiative(2, 'ops-work', ['ops'])];
       expect(notTrackedSlugs(data, filed)).toEqual(new Set());
       expect(trackedPlans(allPlans, filed).map(p => p.id)).toEqual([1, 2, 3]);
+   });
+});
+
+describe('Group by Initiative’s bands', () => {
+   it('have keys of their own when two share a name, or one is called Unsorted', () => {
+      const initiatives = [
+         initiative(1, 'a', ['p'], { name: 'Same' }),
+         initiative(2, 'b', ['q'], { name: 'Same' }),
+         initiative(3, 'c', ['r'], { name: 'Unsorted' }),
+      ];
+      const items = ['p', 'q', 'r', 'loose'].map(slug => ({ slug } as PortfolioItem));
+      const keys = groupItems(items, 'initiative', undefined, [], initiatives).map(g => g.key);
+      expect(keys).toHaveLength(4);
+      expect(new Set(keys).size).toBe(4);
    });
 });

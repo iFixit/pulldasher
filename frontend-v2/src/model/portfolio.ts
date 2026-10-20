@@ -836,9 +836,31 @@ export function groupItems(
    keep: ReadonlySet<number> = new Set()
 ): {
    title: string;
+   /** unique among the groups, as a React key: names aren't, and an
+    * initiative may be called Unsorted */
+   key: string;
    items: PortfolioItem[];
    repeats: ReadonlySet<string>;
    /** by initiative: the one the group is, absent for Unsorted */
+   initiative?: Initiative;
+}[] {
+   return groupsOf(items, by, nameOf, teams, initiatives, keep).map(g => ({
+      ...g,
+      key: g.initiative ? `i:${g.initiative.id}` : g.title,
+   }));
+}
+
+function groupsOf(
+   items: readonly PortfolioItem[],
+   by: string,
+   nameOf: (slug: string) => string,
+   teams: readonly string[],
+   initiatives: readonly Initiative[],
+   keep: ReadonlySet<number>
+): {
+   title: string;
+   items: PortfolioItem[];
+   repeats: ReadonlySet<string>;
    initiative?: Initiative;
 }[] {
    if (by === 'initiative') return byInitiative(items, initiatives, keep);
