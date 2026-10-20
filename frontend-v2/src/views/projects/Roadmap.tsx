@@ -2348,6 +2348,9 @@ export function Roadmap({
       focusResult(el, said, row?.firstElementChild as HTMLElement | null);
    });
    const stickyRef = useRef<HTMLDivElement>(null);
+   // the done plans the last render folded: an open plan or a receipt keeps
+   // a row where it was drawn, never pulls one out of the fold
+   const foldedLast = useRef<ReadonlySet<number>>(new Set());
    const now = new Date();
    const today = dayOf(now);
    const timeline = nav.scale !== 'now';
@@ -2608,13 +2611,21 @@ export function Roadmap({
    // done plans that ended before the window rest in one fold under the
    // rows, closed, instead of each taking a row; one open stays in its place
    // one Decide asks about always shows, as the initiative lanes keep it
+   // the open plan, the one being moved (run: set before its save shows) and
+   // the one whose receipt shows stay where the last render drew them
+   const heldHere = (i: RoadmapItem) =>
+      (i.id === nav.item ||
+         receipt?.key === `plan:${i.id}` ||
+         run.current?.key === `plan:${i.id}`) &&
+      !foldedLast.current.has(i.id);
    const before = new Set(
       doneBefore(listed, horizon.start).flatMap(i =>
-         i === gone || i.id === nav.item || receipt?.key === `plan:${i.id}` || planCalls.has(i.id)
-            ? []
-            : [i.id]
+         i === gone || heldHere(i) || planCalls.has(i.id) ? [] : [i.id]
       )
    );
+   useEffect(() => {
+      foldedLast.current = before;
+   });
    // a week picked on the load chart narrows the fold by the chart's rule
    // too, so its count and the fold agree
    const shownBefore = showPlans
@@ -3339,7 +3350,14 @@ export function Roadmap({
    const trackedIds = new Set(ids);
    const recent = (slug: string | null) => (slug && bySlug.get(slug)?.lastActivity?.at) || 0;
    const notTrackedPlans = (everyPlan ?? [])
-      .filter(i => !trackedIds.has(i.id) && isUnderWay(i.status) && found(i))
+      // the open plan and the one whose receipt shows stay, as heldPlan
+      // keeps them in the initiative lanes, so a save keeps its Undo
+      .filter(
+         i =>
+            !trackedIds.has(i.id) &&
+            (isUnderWay(i.status) || i.id === nav.item || receipt?.key === `plan:${i.id}`) &&
+            found(i)
+      )
       .sort((a, b) => recent(b.project) - recent(a.project));
    const notTrackedPlanned = new Set(notTrackedPlans.flatMap(i => (i.project ? [i.project] : [])));
    const notTrackedLoose =

@@ -51,6 +51,14 @@ const PLANS = [
    plan(5, { name: 'Edge done', status: 'done', start: '2026-06-29', weeks: 1 }),
    // under way, with no project: the No project yet lane
    plan(6, { name: 'Loose work', status: 'active', start: '2026-10-05', weeks: 2 }),
+   // under way in a Not tracked project: the Not tracked lane
+   plan(7, {
+      name: 'Ops runbooks',
+      project: 'ops',
+      status: 'active',
+      start: '2026-10-05',
+      weeks: 2,
+   }),
 ];
 const REOPEN: DecideRow = {
    slug: 'akeneo',
@@ -73,6 +81,22 @@ const INITIATIVES: Initiative[] = [
       updated_by: null,
       updated_at: 1,
       projects: [{ project: 'akeneo', set_by: null, set_at: 50, baseline_prs: 0 }],
+   },
+   {
+      id: 2,
+      slug: 'not-tracked',
+      name: 'Not tracked',
+      kind: 'untracked',
+      goal: '',
+      owner: null,
+      priority: 2,
+      status: 'open',
+      status_at: null,
+      created_by: null,
+      created_at: null,
+      updated_by: null,
+      updated_at: 1,
+      projects: [{ project: 'ops', set_by: null, set_at: 50, baseline_prs: 0 }],
    },
 ];
 
@@ -336,8 +360,10 @@ describe('a plan just saved', () => {
 describe('the load chart', () => {
    it('counts a picked week only while it draws it, so the headline and the chip agree', async () => {
       const el = await mount({ week: '2026-09-14', window: '2027-Q3..2028-Q2' });
-      // a window stepped away from the pick: no pick at all
+      // a window stepped away from the pick: no pick at all, so the
+      // headline counts this week and no rows are narrowed
       expect(text(el)).not.toContain('Week of Sep 14');
+      expect(text(el)).toMatch(/this week/);
       expect(buttons(el).some(b => b.getAttribute('aria-pressed') === 'true')).toBe(false);
    });
 
@@ -346,6 +372,12 @@ describe('the load chart', () => {
       const ask = asked.find(a => a.startsWith('/projects-data'));
       expect(ask).toContain('start=2025-');
       expect(text(el)).toContain('PR history from');
+      // and hatches the weeks before it, as plans only
+      const hatched = [...el.querySelectorAll<HTMLElement>('span[aria-hidden]')].filter(e =>
+         e.getAttribute('style')?.includes('repeating-linear-gradient')
+      );
+      expect(hatched).toHaveLength(1);
+      expect(parseFloat(hatched[0].style.width)).toBeGreaterThan(50);
    });
 });
 
@@ -355,5 +387,40 @@ describe('the lane glosses', () => {
       const label = text(el).match(/On the roadmap · (\d+) plans?/)?.[1];
       const gloss = text(el).match(/(\d+) plans? in priority order: what matters most/)?.[1];
       expect(gloss).toBe(label);
+   });
+});
+
+describe('a plan held where it was drawn', () => {
+   it('in the Not tracked lane: marked done from its open details, it keeps its row and receipt', async () => {
+      const el = await mount({ item: 7 });
+      expect(el.querySelector('#roadmap-item-7')).toBeTruthy();
+      await press(button(el, 'Edit details'));
+      const done = [
+         ...el.querySelectorAll<HTMLElement>(
+            '#roadmap-item-7 [role="radio"], #roadmap-item-7 button'
+         ),
+      ].find(b => b.textContent === 'Done');
+      await press(done);
+      await press(button(el, /^Save/));
+      await settle();
+      expect(text(el)).toContain('Marked Ops runbooks done');
+      expect(el.querySelector('#roadmap-item-7')).toBeTruthy();
+   });
+
+   it('in the Done before fold: opening it keeps its row in the fold', async () => {
+      const el = await mount({ window: '2026-07..2026-12' });
+      const row = () => el.querySelector('#roadmap-item-2');
+      const inFold = () =>
+         !!row()
+            ?.closest('details')
+            ?.querySelector('summary')
+            ?.textContent?.includes('Done before');
+      expect(inFold()).toBe(true);
+      const name = [...(row()?.querySelectorAll<HTMLElement>('button') ?? [])].find(
+         b => b.textContent === 'Old export'
+      );
+      await press(name);
+      expect(last()).toMatchObject({ item: 2 });
+      expect(inFold()).toBe(true);
    });
 });

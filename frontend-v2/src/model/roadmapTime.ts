@@ -43,7 +43,10 @@ export function zoomKey(z: Zoom): string {
 export function shiftZoom(z: Zoom, by: number): Zoom {
    const per = z.kind === 'quarter' ? 4 : 12;
    const at = z.year * per + z.index + by;
-   return { kind: z.kind, year: Math.floor(at / per), index: ((at % per) + per) % per };
+   const year = Math.floor(at / per);
+   // past the years the URL takes (lens.ts), stay put
+   if (year < 1970 || year > 2999) return z;
+   return { kind: z.kind, year, index: ((at % per) + per) % per };
 }
 
 /** The quarter or month a day falls in. */
@@ -273,8 +276,15 @@ export function drawnWindow(
 /** The window `by` of its own lengths later (earlier when negative). */
 export function shiftWindow(w: Months, by: number): Months {
    const length = w.to - w.from;
-   return { from: w.from + by * length, to: w.to + by * length };
+   const moved = { from: w.from + by * length, to: w.to + by * length };
+   // the URL takes years 1970 to 2999 (lens.ts): past them, stay put
+   return moved.from < FIRST_MONTH || moved.to > LAST_MONTH ? w : moved;
 }
+
+/** The months the board draws, as month indexes (year * 12 + month): Jan
+ * 1970, and the month after Dec 2999. */
+const FIRST_MONTH = 1970 * 12;
+const LAST_MONTH = 3000 * 12;
 
 /**
  * A window of the same length holding a day: the same one when it already
@@ -327,9 +337,17 @@ export function columnNames(columns: readonly Column[], px: readonly number[]): 
       monthDate(first[i]).toLocaleDateString(undefined, { month: 'short' });
    const year = (i: number) => String(Math.floor(first[i] / 12));
    const startsYear = (i: number) => first[i] % 12 === 0;
+   const yearAt = (i: number) => i === 0 || startsYear(i);
    const levels: ((c: Column, i: number) => string)[] = quarters
       ? [c => c.label, (c, i) => (i === 0 || startsYear(i) ? c.label : c.label.slice(0, 2))]
-      : [c => c.label, (_, i) => month(i), (_, i) => month(i).slice(0, 1)];
+      : [
+           c => c.label,
+           // shorter, the year still on the first column and each January:
+           // "Jan ’23", then the year in the month's place, as thin() does
+           (_, i) => (yearAt(i) ? `${month(i)} ’${year(i).slice(2)}` : month(i)),
+           (_, i) => (yearAt(i) ? year(i) : month(i)),
+           (_, i) => month(i).slice(0, 1),
+        ];
    for (const level of levels) {
       const names = columns.map(level);
       if (names.every((t, i) => nameWidth(t) <= px[i])) return names;

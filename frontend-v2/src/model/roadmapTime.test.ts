@@ -332,7 +332,8 @@ describe('columnNames', () => {
    it('shortens on a phone, keeping a year where one starts, and never drops February', () => {
       const short = columnNames(twelve, each(twelve, 40));
       expect(short).toHaveLength(12);
-      expect(short.every(t => t && t.length === 3)).toBe(true);
+      // the first column and January say their year, the rest their month
+      expect(short.filter(t => t?.length !== 3)).toEqual(['2025', '2026']);
       expect(columnNames(twelve, each(twelve, 20))).toEqual([
          'N',
          'D',
@@ -351,6 +352,16 @@ describe('columnNames', () => {
       expect(columnNames(quarters, [70, 30, 70, 30])).toEqual(['Q3 2026', 'Q4', 'Q1 2027', 'Q2']);
       expect(columnNames(quarters, each(quarters, 45))).toEqual(['Q3', 'Q4', '2027', 'Q2']);
       expect(columnNames(quarters, each(quarters, 30))).toEqual(['Q3', null, '2027', null]);
+   });
+
+   it('keeps the year on the first month and on each January when months shorten', () => {
+      const two = columnsFor('quarter', null, now, resolveWindow('2023-01..2024-12', now));
+      const yearly = (names: (string | null)[]) => names.filter((_, i) => i % 12 === 0);
+      expect(yearly(columnNames(two, each(two, 60)))).toEqual(['Jan ’23', 'Jan ’24']);
+      expect(yearly(columnNames(two, each(two, 45)))).toEqual(['2023', '2024']);
+      expect(columnNames(two, each(two, 45))[1]).toBe('Feb');
+      // a window starting mid-year says its year on its first column
+      expect(columnNames(twelve, each(twelve, 60))[0]).toBe('Nov ’25');
    });
 
    it('thins five years of months to their years, every column still a column', () => {
@@ -384,5 +395,20 @@ describe('dayAcross', () => {
       const to = Date.UTC(2027, 2, 1) / 1000; // Mar 1, 2027, a Monday
       expect(dayAcross(from, to, 1)).toBe('2027-02-28');
       expect(dayAcross(from, to, 0)).toBe('2027-01-01');
+   });
+});
+
+describe('a step past the years the URL takes', () => {
+   it('stays put at 1970 and at 2999, in a window and a zoom', () => {
+      const first = { from: 1970 * 12, to: 1970 * 12 + 12 };
+      expect(shiftWindow(first, -1)).toEqual(first);
+      expect(shiftWindow(first, 1)).toEqual({ from: 1971 * 12, to: 1971 * 12 + 12 });
+      const last = { from: 2999 * 12, to: 3000 * 12 };
+      expect(shiftWindow(last, 1)).toEqual(last);
+      const jan = { kind: 'month' as const, year: 1970, index: 0 };
+      expect(shiftZoom(jan, -1)).toEqual(jan);
+      const q4 = { kind: 'quarter' as const, year: 2999, index: 3 };
+      expect(shiftZoom(q4, 1)).toEqual(q4);
+      expect(shiftZoom(q4, -1)).toEqual({ kind: 'quarter', year: 2999, index: 2 });
    });
 });
