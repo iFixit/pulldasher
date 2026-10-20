@@ -1,6 +1,5 @@
 import config from './lib/config-loader.js';
 import express from 'express';
-import bodyParser from 'body-parser';
 import expressSession from 'express-session';
 import authManager from './lib/authentication.js';
 import socketAuthenticator from './lib/socket-auth.js';
@@ -13,6 +12,7 @@ import { createRefreshAll } from './lib/refresh-all.js';
 import { createPacer } from './lib/pacer.js';
 import mainController from './controllers/main.js';
 import hooksController from './controllers/githubHooks.js';
+import { useBodyParsers } from './lib/body-parsers.js';
 import statsController from './controllers/stats.js';
 import userNamesController from './controllers/user-names.js';
 import projectsController from './controllers/projects.js';
@@ -52,7 +52,6 @@ const refreshAll = createRefreshAll({
 
 const app = express();
 const httpServer = createServer(app);
-const maxPostSize = 1024 * 1024;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -63,8 +62,7 @@ app.set('view engine', 'html');
  * Middleware
  */
 app.use('/public', express.static(__dirname + '/public'));
-app.use(bodyParser.urlencoded({ limit: maxPostSize, extended: false }));
-app.use(bodyParser.json({ limit: maxPostSize }));
+useBodyParsers(app, config.github.hook_secret);
 app.use(
    expressSession({
       secret: config.session.secret,
