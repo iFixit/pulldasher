@@ -239,7 +239,7 @@ export function Projects({
                ariaLabel="projects view"
                value={nav.view}
                options={views}
-               counts={{ decide: owedCalls?.length }}
+               counts={{ decide: decisions ? kept.open.length : undefined }}
                tabs
                // a view's own picks (its sort, team, person, week) stay with it,
                // so one view never quietly narrows the next; the range, the find
@@ -267,7 +267,7 @@ export function Projects({
                items={allItems}
                plans={allPlans}
                calls={kept.all}
-               owed={kept.owed}
+               owed={kept.open}
                loadFailed={initiativesFailed || plansFailed}
                nav={nav}
                navigate={navigate}

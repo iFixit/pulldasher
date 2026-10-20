@@ -252,7 +252,12 @@ function patchMade(key: string, token: number, state: Made['state'], patch: Part
 export function keepCalls(
    queue: readonly DecideRow[],
    made: ReadonlyMap<string, Made>
-): { owed: DecideRow[]; all: DecideRow[]; settled: ReadonlyMap<string, Made> } {
+): {
+   owed: DecideRow[];
+   all: DecideRow[];
+   settled: ReadonlyMap<string, Made>;
+   open: DecideRow[];
+} {
    const byKey = new Map(queue.map(row => [rowKey(row), row]));
    const settled = new Map<string, Made>();
    // answered about its home, still asked about its plan: owed, so every
@@ -283,7 +288,13 @@ export function keepCalls(
       ...owed.filter(row => !settled.has(rowKey(row))).map(row => asked.get(rowKey(row)) ?? row),
       ...[...settled.values()].map(m => m.row),
    ].sort(compareRows);
-   return { owed, all, settled };
+   // what every count says is left: a row answered about its home this
+   // visit is still owed for its plan (so the Roadmap and the Overview keep
+   // it in sight), but Decide asks that on the next visit, so no count
+   // takes it now and the badge, the switches and the page agree with
+   // Decide's heading
+   const open = owed.filter(row => !settled.has(rowKey(row)));
+   return { owed, all, settled, open };
 }
 
 /** A filing or status call on a row that also asked about its plan: the
@@ -2329,7 +2340,7 @@ export function Decide({
       : teamWords;
    // as the sections count: a row answered about its home here keeps its
    // receipt, and its plan question waits for the next visit
-   const toMake = owed.filter(row => !kept.settled.has(rowKey(row))).length;
+   const toMake = kept.open.filter(inTeam).length;
    const heading = toMake
       ? `${n(toMake, 'decision')} to make`
       : decidedHere.length
@@ -2383,9 +2394,9 @@ export function Decide({
 
    // each team's decisions still owed, for the team switch: "Store · 2",
    // never a zero
-   const teams = teamOrder(Object.keys(teamMembers), kept.owed.map(teamOfRow));
+   const teams = teamOrder(Object.keys(teamMembers), kept.open.map(teamOfRow));
    const owedBy = (team: string) =>
-      kept.owed.filter(row => (teamOfRow(row) ?? '(none)') === team).length;
+      kept.open.filter(row => (teamOfRow(row) ?? '(none)') === team).length;
    const counted = (label: string, count: number) => (count ? `${label} · ${count}` : label);
    const people = [...new Set(Object.values(teamMembers).flat())].sort();
    // a team's load counts its work in flight; the row each one has here
@@ -2447,7 +2458,7 @@ export function Decide({
             {(initiatives ?? []).length > 0 && (
                <InitiativeSwitch
                   initiatives={initiatives ?? []}
-                  owedIn={slug => kept.owed.filter(row => withinOf(row) === slug).length}
+                  owedIn={slug => kept.open.filter(row => withinOf(row) === slug).length}
                   value={nav.within}
                   onChange={within => navigate({ within })}
                />
@@ -2458,7 +2469,7 @@ export function Decide({
                      ariaLabel="team"
                      value={nav.team ?? ''}
                      options={[
-                        ['', counted('All teams', kept.owed.length)],
+                        ['', counted('All teams', kept.open.length)],
                         // a team with nothing owed has nothing to show
                         ...teams
                            .filter(t => owedBy(t) > 0 || nav.team === t)
@@ -2500,7 +2511,7 @@ export function Decide({
                         : `Nothing left to decide for ${nav.team}`
                   }
                   sub={
-                     nav.team && kept.owed.length
+                     nav.team && kept.open.length
                         ? 'Other teams have decisions waiting.'
                         : decidedHere.length
                         ? `${n(
@@ -2510,7 +2521,7 @@ export function Decide({
                         : 'Rows show up here when work needs a plan, stalls, is overdue or misses its target date, or is marked done or parked but still worked on.'
                   }
                />
-               {nav.team && kept.owed.length > 0 && (
+               {nav.team && kept.open.length > 0 && (
                   <p className="m-0 mb-6 text-center text-[13px]">
                      <QuietButton onClick={() => navigate({ team: null })}>
                         Show all teams

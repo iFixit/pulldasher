@@ -815,6 +815,9 @@ describe('a project whose closed initiative and done plan are both asked about',
       expect(kept.owed).toEqual([plan]);
       expect(kept.settled.has('akeneo:8')).toBe(true);
       expect(kept.all).toEqual([both]);
+      // but counted nowhere until Decide asks it, on the next visit, so the
+      // badge, the switches and the initiative page agree with its heading
+      expect(kept.open).toEqual([]);
    });
 });
 
