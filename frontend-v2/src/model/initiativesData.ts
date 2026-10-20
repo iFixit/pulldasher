@@ -41,6 +41,7 @@ interface FileBody {
    expect?: string | null;
    baseline_prs?: number;
    set_at?: number;
+   undo?: true;
 }
 
 interface Api {
@@ -102,7 +103,7 @@ function dummyApi(): Api {
    const now = () => Math.floor(Date.now() / 1000);
    return {
       list: () => ok({ initiatives: copy() }),
-      file: ({ project, initiative, expect, baseline_prs, set_at }) => {
+      file: ({ project, initiative, expect, baseline_prs, set_at, undo }) => {
          const homes = homesOf(dummy.initiatives);
          const current = homes.get(project);
          const was: Home = current
@@ -119,7 +120,7 @@ function dummyApi(): Api {
             initiative == null ? null : dummy.initiatives.find(i => i.slug === initiative);
          if (initiative != null && !target) return bad('no initiative has that slug', 404);
          // as the server: nothing into a closed one, but an Undo puts it back
-         if (target && target.status !== 'open' && set_at == null) {
+         if (target && target.status !== 'open' && set_at == null && !undo) {
             return bad('that initiative is closed; reopen it before filing a project in it', 409);
          }
          if (current) {
@@ -262,7 +263,13 @@ export async function fileProject(
       expect,
       set_at,
       baseline_prs,
-   }: { expect?: string | null; set_at?: number | null; baseline_prs?: number } = {}
+      undo,
+   }: {
+      expect?: string | null;
+      set_at?: number | null;
+      baseline_prs?: number;
+      undo?: boolean;
+   } = {}
 ): Promise<{ before: Home } | { error: string }> {
    const takeBack = optimistic(list =>
       withFiling(list, project, to, {
@@ -278,6 +285,7 @@ export async function fileProject(
          ...(expect !== undefined ? { expect } : {}),
          ...(set_at != null ? { set_at } : {}),
          ...(baseline_prs != null && set_at != null ? { baseline_prs } : {}),
+         ...(undo ? { undo: true as const } : {}),
       })
       .catch((): Reply => ({ status: 0, json: {} }));
    if (reply.status === 409 && reply.json.home !== undefined) {

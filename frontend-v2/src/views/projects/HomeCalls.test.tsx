@@ -330,8 +330,11 @@ describe('a row that asks about an initiative', () => {
       expect(calls.filter(c => c.path === '/initiatives/file').at(-1)?.body).toEqual({
          project: 'akeneo',
          initiative: 'catalog',
+         // only while it's still where the call put it
+         expect: 'fixbot',
          set_at: 50,
          baseline_prs: 0,
+         undo: true,
       });
    });
 });
@@ -359,8 +362,10 @@ describe('a Not tracked project that grew', () => {
       expect(calls.filter(c => c.path === '/initiatives/file').at(-1)?.body).toEqual({
          project: 'ops',
          initiative: 'shelf',
+         expect: 'shelf',
          set_at: 50,
          baseline_prs: 2,
+         undo: true,
       });
    });
 
@@ -406,8 +411,10 @@ describe('a Not tracked project that grew', () => {
       expect(calls.filter(c => c.path === '/initiatives/file').at(-1)?.body).toEqual({
          project: 'ops',
          initiative: 'shelf',
+         expect: 'fixbot',
          set_at: 50,
          baseline_prs: 2,
+         undo: true,
       });
    });
 });

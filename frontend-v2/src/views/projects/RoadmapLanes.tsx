@@ -359,8 +359,10 @@ export function initiativeLanes(c: LaneContext) {
                openFold(laneId(r.before.initiative ?? UNSORTED));
                said(key, `Put ${item.name} back in ${fromHome?.name ?? UNSORTED_WORD}`, held);
                void fileProject(slug, r.before.initiative, {
+                  expect: target,
                   set_at: r.before.set_at,
                   baseline_prs: r.before.baseline_prs,
+                  undo: true,
                }).then(back => {
                   if (!('error' in back)) return;
                   // the server's reason, with the Undo kept to try again

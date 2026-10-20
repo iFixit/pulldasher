@@ -60,6 +60,17 @@ async function liveProjects(initiative) {
    );
 }
 
+// Writes that check and then change initiatives run one at a time, so a
+// close can't pass its check while a filing lands, nor a delete while one
+// files into it. ponytail: one process serves the board and the API; a
+// lock in MySQL if Pulldasher ever runs more than one
+let writing = Promise.resolve();
+function serially(run) {
+   const done = writing.then(run, run);
+   writing = done.catch(() => {});
+   return done;
+}
+
 /** A failed write's 500, logged. */
 function failed(res, what) {
    return err => {
@@ -127,7 +138,7 @@ export default {
       const { restate, undo, ...body } = req.body ?? {};
       const checked = checkInitiativeFields(body, { partial: true });
       if (checked.error) return res.status(400).json({ error: checked.error });
-      (async () => {
+      serially(async () => {
          const was = await getInitiative(id);
          if (!was) return res.status(404).json({ error: 'no such initiative' });
          const closing = checked.fields.status && checked.fields.status !== 'open';
@@ -150,7 +161,7 @@ export default {
          });
          if (!changed) return res.status(404).json({ error: 'no such initiative' });
          res.json({ initiative: (await sent([changed]))[0] });
-      })().catch(failed(res, 'update'));
+      }).catch(failed(res, 'update'));
    },
 
    /** DELETE /initiatives/:id -- only one with no projects in it (the undo
@@ -158,7 +169,7 @@ export default {
    remove: function (req, res) {
       const id = idOf(req);
       if (!id) return res.status(400).json({ error: 'the id must be a positive whole number' });
-      deleteInitiative(id)
+      serially(() => deleteInitiative(id))
          .then(result => {
             if (result.missing) return res.status(404).json({ error: 'no such initiative' });
             if (result.notEmpty) {
@@ -197,7 +208,9 @@ export default {
     * 409 with the one it has now (`home`) when that's stale. Answers
     * `before` and `home` (initiative, set_by, set_at, baseline_prs), so an
     * undo sends `before` back with `set_at` and `baseline_prs`. A closed
-    * initiative is a 409, except for an undo (`set_at`) putting a filing back.
+    * initiative is a 409, except for an undo (`undo: true` or `set_at`)
+    * putting a filing back. Unsorted is a 409 for a project Not tracked by
+    * its repos, except for an undo.
     */
    file: function (req, res) {
       const body = req.body ?? {};
@@ -211,7 +224,8 @@ export default {
             .status(400)
             .json({ error: 'send initiative (and expect) as an initiative’s slug, or null for none' });
       }
-      const count = v => v == null || (Number.isInteger(v) && v >= 0);
+      // the column is an int unsigned; no project has near a million PRs
+      const count = v => v == null || (Number.isInteger(v) && v >= 0 && v <= 1e6);
       const now = Math.floor(Date.now() / 1000);
       const when = v => v == null || (Number.isInteger(v) && v > 0 && v <= now);
       if (!count(body.baseline_prs) || !when(body.set_at)) {
@@ -220,13 +234,17 @@ export default {
          });
       }
       const settings = projectSettings();
-      fileProject(project, initiative, req.roadmapLogin, {
-         prefix: settings?.prefix ?? DEFAULT_PROJECT_PREFIX,
-         expect,
-         baseline_prs: body.baseline_prs ?? null,
-         set_at: body.set_at ?? null,
-         now,
-      })
+      serially(() =>
+         fileProject(project, initiative, req.roadmapLogin, {
+            prefix: settings?.prefix ?? DEFAULT_PROJECT_PREFIX,
+            expect,
+            baseline_prs: body.baseline_prs ?? null,
+            set_at: body.set_at ?? null,
+            undo: body.undo === true,
+            untrackedRepos: settings?.untrackedRepos ?? [],
+            now,
+         })
+      )
          .then(result => {
             if (result.missing) return res.status(404).json({ error: 'no initiative has that slug' });
             if (result.closed) {
@@ -234,12 +252,17 @@ export default {
                   .status(409)
                   .json({ error: 'that initiative is closed; reopen it before filing a project in it' });
             }
+            if (result.untracked) {
+               return res.status(409).json({
+                  error: 'its PRs are all in repos that are Not tracked, so it stays Not tracked until it’s filed in an initiative',
+               });
+            }
             if (result.conflict) {
                return res
                   .status(409)
                   .json({ error: 'its home changed; here it is now', home: result.home });
             }
-            res.json({ project, before: result.before, home: result.home });
+            res.json({ project: result.project, before: result.before, home: result.home });
          })
          .catch(failed(res, 'filing'));
    },

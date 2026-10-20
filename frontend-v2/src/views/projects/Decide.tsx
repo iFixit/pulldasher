@@ -393,7 +393,7 @@ function afterRow(
 // What Undo takes back
 interface Landed {
    id: number | null;
-   home?: { project: string; before: Home };
+   home?: { project: string; to: string | null; before: Home };
    /** the plan a link gave a project */
    linked?: number;
    initiative?: {
@@ -425,7 +425,7 @@ async function homeWrite(
       const r = await fileProject(slug, call.to, { expect: homeSlugOf(slug) });
       return 'error' in r
          ? { why: whyNot(r.error) }
-         : { home: { project: slug, before: r.before } };
+         : { home: { project: slug, to: call.to, before: r.before } };
    }
    const id = askedInitiative(row);
    if (id == null) return { why: '' };
@@ -495,11 +495,11 @@ function makeCall(
          // the filing goes first: if the plan then fails, the project stays
          // filed, which is harmless, and Try again doesn't file it twice
          if (filed && row.slug) {
-            if (filedBefore) done.home = { project: row.slug, before: filedBefore };
+            if (filedBefore) done.home = { project: row.slug, to: filed.to, before: filedBefore };
             else {
                const r = await fileProject(row.slug, filed.to, { expect: filed.from });
                if ('error' in r) why = whyNot(r.error);
-               else done.home = { project: row.slug, before: r.before };
+               else done.home = { project: row.slug, to: filed.to, before: r.before };
             }
          }
          if (why != null) {
@@ -586,10 +586,13 @@ function undoCall(key: string, batch?: { after: Promise<unknown> }): Promise<unk
          // then the home it had, with its time and count, so a Kept growth
          // row comes back rather than starting its count again
          if (why == null && saved.home) {
-            const { project: slug, before } = saved.home;
+            const { project: slug, to, before } = saved.home;
+            // expect: only while it's still where the call put it
             const r = await fileProject(slug, before.initiative, {
+               expect: to,
                set_at: before.set_at,
                baseline_prs: before.baseline_prs,
+               undo: true,
             });
             if ('error' in r) why = whyNot(r.error);
          }

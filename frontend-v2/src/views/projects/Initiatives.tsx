@@ -112,9 +112,12 @@ export function HomeLine({
          // said at once, in Undo's place, so a second click lands on words
          setPick(before.initiative ?? '');
          say({ words: `Put ${projectName} back in ${homeName(home)}`, settled: true });
+         // expect: only while it's still where this move put it
          const back = await fileProject(slug, before.initiative, {
+            expect: to,
             set_at: before.set_at,
             baseline_prs: before.baseline_prs,
+            undo: true,
          });
          // the server's reason, with the Undo kept to try again
          if ('error' in back)

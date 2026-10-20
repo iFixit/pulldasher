@@ -449,8 +449,10 @@ before(() => {
       }
       if (sql.includes('FROM `initiative_projects`')) return filingRows;
       if (sql.startsWith('SELECT l.`title`, p.`repo`')) return labelRepos;
-      if (sql.startsWith('SELECT l.`title`, p.`date`')) {
-         return labelDates.filter(r => params[0].includes(r.title));
+      if (sql.startsWith('SELECT DISTINCT l.`title`, p.`repo`, p.`number`, p.`date`')) {
+         return labelDates
+            .filter(r => params[0].includes(r.title))
+            .map((r, number) => ({ repo: 'test/repo-a', number, owner: 'alice', ...r }));
       }
       if (sql.includes('FROM `roadmap_items`')) return roadmapRows;
       if (sql.includes('FROM `roadmap_updates`')) return [];

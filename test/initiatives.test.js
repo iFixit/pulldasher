@@ -7,7 +7,7 @@ import db from '../lib/db.js';
 import Pull from '../models/pull.js';
 import Label from '../models/label.js';
 import pullManager from '../lib/pull-manager.js';
-import { trackedOnly } from '../lib/initiatives.js';
+import { fileProject, grownSlugs, prCount, trackedOnly } from '../lib/initiatives.js';
 import initiativesController from '../controllers/initiatives.js';
 import { canWrite } from '../controllers/roadmap.js';
 import { API_ROUTES, PROJECT_WRITES } from '../controllers/api-routes.js';
@@ -19,9 +19,12 @@ import { API_ROUTES, PROJECT_WRITES } from '../controllers/api-routes.js';
 let initiatives = [];
 let filings = [];
 let plans = [];
-// labeled PRs: { title, date }
+// labeled PRs: { title, date, repo?, owner?, draft? }
 let prs = [];
 let nextId = 1;
+
+// project and slug columns are utf8mb4_general_ci: '=' ignores case
+const same = (a, b) => a.toLowerCase() === b.toLowerCase();
 
 const byRank = () => [...initiatives].sort((a, b) => a.priority - b.priority || a.id - b.id);
 
@@ -67,25 +70,44 @@ function fakeQuery(sql, params = []) {
    }
    if (sql.startsWith('SELECT f.`project`')) {
       return filings
-         .filter(f => f.project === params[0])
+         .filter(f => same(f.project, params[0]))
          .map(f => {
             const i = initiatives.find(r => r.id === f.initiative_id);
             return { ...f, slug: i.slug, kind: i.kind };
          });
    }
-   if (sql.startsWith('SELECT COUNT(DISTINCT')) {
+   if (sql.startsWith('SELECT DISTINCT p.`repo`, p.`number`, p.`owner`')) {
       const [title, since] = params;
-      return [{ n: prs.filter(p => p.title === title && p.date > since).length }];
+      return prs
+         .filter(p => same(p.title, title) && p.date > since && !p.draft)
+         .map((p, number) => ({ repo: 'o/r', number, owner: p.owner ?? 'dana' }));
    }
-   if (sql.startsWith('SELECT `id`, `kind`, `status` FROM `initiatives`')) {
-      return initiatives.filter(i => i.slug === params[0]);
+   if (sql.startsWith('SELECT DISTINCT l.`title`, p.`repo`, p.`number`, p.`date`, p.`owner`')) {
+      return prs
+         .filter(p => params[0].some(t => same(t, p.title)) && !p.draft)
+         .map((p, number) => ({
+            title: p.title,
+            repo: 'o/r',
+            number,
+            date: p.date,
+            owner: p.owner ?? 'dana',
+         }));
+   }
+   if (sql.startsWith('SELECT `title` FROM `pull_labels`')) {
+      return prs.filter(p => same(p.title, params[0])).slice(0, 1);
+   }
+   if (sql.startsWith('SELECT l.`title`, p.`repo`')) {
+      return prs.map(p => ({ title: p.title, repo: p.repo ?? 'o/r' }));
+   }
+   if (sql.startsWith('SELECT `id`, `kind`, `status`')) {
+      return initiatives.filter(i => same(i.slug, params[0]));
    }
    if (sql.startsWith('DELETE FROM `initiative_projects`')) {
-      filings = filings.filter(f => f.project !== params[0]);
+      filings = filings.filter(f => !same(f.project, params[0]));
       return { affectedRows: 1 };
    }
    if (sql.startsWith('REPLACE INTO `initiative_projects` SET ?')) {
-      filings = [...filings.filter(f => f.project !== params[0].project), { ...params[0] }];
+      filings = [...filings.filter(f => !same(f.project, params[0].project)), { ...params[0] }];
       return { affectedRows: 1 };
    }
    // the board's projects and PR links (the close check's open PRs): none
@@ -110,10 +132,29 @@ function makeApp() {
    return app;
 }
 
+// holds one statement (`at`) until another (`release`) is sent or 200 ms
+// pass, to make two writes interleave
+let hold = null;
+function holdUntil(at, release) {
+   let open;
+   let reached;
+   const until = new Promise(r => (open = r));
+   const arrived = new Promise(r => (reached = r));
+   hold = { at, release, until, open, reached };
+   return Promise.race([arrived, new Promise(r => setTimeout(r, 1000))]);
+}
+
 let server;
 let base;
 before(async () => {
-   mock.method(db, 'query', async (sql, params) => fakeQuery(sql, params));
+   mock.method(db, 'query', async (sql, params) => {
+      if (hold && sql.startsWith(hold.release)) hold.open();
+      if (hold && sql.startsWith(hold.at)) {
+         hold.reached();
+         await Promise.race([hold.until, new Promise(r => setTimeout(r, 200))]);
+      }
+      return fakeQuery(sql, params);
+   });
    await new Promise(resolve => {
       server = makeApp().listen(0, () => {
          base = `http://127.0.0.1:${server.address().port}`;
@@ -131,6 +172,7 @@ beforeEach(() => {
    plans = [];
    prs = [];
    nextId = 1;
+   hold = null;
 });
 
 async function call(method, path, body) {
@@ -482,4 +524,97 @@ test('every API write is one open boards hear about, initiatives included', () =
       assert.ok(r.does.length > 20);
       if (r.method !== 'get') assert.equal(r.handlers[0], canWrite);
    }
+});
+
+test('a slug in other case files the project as its label spells it', async () => {
+   await make('site-speed');
+   await make('b');
+   prs = [{ title: 'project:site-speed', date: 1 }];
+   const filed = await call('PUT', '/initiatives/file', {
+      project: 'Site-Speed',
+      initiative: 'Site-Speed',
+      expect: null,
+   });
+   assert.equal(filed.status, 200);
+   assert.equal(filed.body.project, 'site-speed');
+   assert.equal(filed.body.home.initiative, 'site-speed');
+   assert.deepEqual(
+      filings.map(f => f.project),
+      ['site-speed']
+   );
+   // the home it has, in any case, is the home the person saw
+   const moved = await call('PUT', '/initiatives/file', {
+      project: 'site-speed',
+      initiative: 'b',
+      expect: 'SITE-speed',
+   });
+   assert.equal(moved.status, 200);
+   assert.equal(moved.body.before.initiative, 'site-speed');
+});
+
+test('a project Not tracked by its repos stays out of Unsorted, except on an undo', async () => {
+   await make('not-tracked', { kind: 'untracked' });
+   prs = [{ title: 'project:deploys', date: 1, repo: 'iFixit/ops' }];
+   await call('PUT', '/initiatives/file', { project: 'deploys', initiative: 'not-tracked' });
+   const opts = { prefix: 'project:', expect: 'not-tracked', untrackedRepos: ['ops'] };
+   const refused = await fileProject('deploys', null, 'kyle', opts);
+   assert.equal(refused.untracked, true);
+   assert.equal(filings.length, 1);
+   // one PR elsewhere ends the repo default, so Unsorted is real then
+   const undone = await fileProject('deploys', null, 'kyle', { ...opts, undo: true });
+   assert.equal(undone.home, null);
+   assert.equal(filings.length, 0);
+});
+
+test('a baseline past what the column holds is refused', async () => {
+   await make('a');
+   const big = await call('PUT', '/initiatives/file', {
+      project: 'p',
+      initiative: 'a',
+      baseline_prs: 5_000_000_000,
+      set_at: 50,
+   });
+   assert.equal(big.status, 400);
+});
+
+test('the growth check counts no drafts and no bots, the same on both sides', async () => {
+   const now = Math.floor(Date.now() / 1000);
+   prs = [
+      { title: 'project:ops', date: now, owner: 'dana' },
+      { title: 'project:ops', date: now, owner: 'dana', draft: 1 },
+      { title: 'project:ops', date: now, owner: 'fixture-bot' },
+      ...Array.from({ length: 30 }, () => ({
+         title: 'project:ops',
+         date: now,
+         owner: 'renovate[bot]',
+      })),
+   ];
+   assert.equal(await prCount('project:', 'ops'), 1);
+   const grown = await grownSlugs({ prefix: 'project:' }, [], new Set(['ops']));
+   assert.equal(grown.size, 0);
+});
+
+test('a delete racing a filing into it leaves no filing in a missing initiative', async () => {
+   const id = (await make('a')).body.initiative.id;
+   const reached = holdUntil('REPLACE INTO `initiative_projects`', 'DELETE FROM `initiatives`');
+   const filing = call('PUT', '/initiatives/file', { project: 'p', initiative: 'a' });
+   await reached;
+   const deleting = call('DELETE', `/initiatives/${id}`);
+   await Promise.all([filing, deleting]);
+   assert.ok(
+      filings.every(f => initiatives.some(i => i.id === f.initiative_id)),
+      'a filing points at a deleted initiative'
+   );
+});
+
+test('a close racing a filing of a live project into it is refused', async () => {
+   const id = (await make('a')).body.initiative.id;
+   plans = [plan(1, 'p')];
+   const reached = holdUntil('REPLACE INTO `initiative_projects`', 'UPDATE `initiatives` SET ?');
+   const filing = call('PUT', '/initiatives/file', { project: 'p', initiative: 'a' });
+   await reached;
+   const closing = call('PATCH', `/initiatives/${id}`, { status: 'done' });
+   const [, closed] = await Promise.all([filing, closing]);
+   assert.equal(closed.status, 409);
+   assert.equal(initiatives[0].status, 'open');
 });

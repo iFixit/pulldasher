@@ -67,7 +67,8 @@ export const API_ROUTES = [
          '?start=&end= (YYYY-MM-DD days, default the last 30); ?project=<slug> narrows the numbers to one. ' +
          'A PR counts toward its project label, or with none the project whose issue it links; ' +
          '`double_labeled` holds the open PRs in two. Each project says its `initiative` (slug, or null for ' +
-         'Unsorted), whether it is `tracked`, and whether it `grew` while not tracked',
+         'Unsorted), whether it is `tracked`, and whether it `grew` while not tracked. A project Not tracked because ' +
+         'its PRs are all in projects.untrackedRepos has `initiative: null` with `tracked: false`',
    },
    {
       method: 'get',
@@ -262,10 +263,12 @@ export const API_ROUTES = [
       path: '/api/v1/initiatives/file',
       handlers: [canWrite, initiativesController.file],
       does:
-         'File a project: {project, initiative: <slug> or null for none, expect?, baseline_prs?, set_at?}. `expect` ' +
-         'is the home you saw (a slug or null); 409 with the current `home` when it changed. 409 when the ' +
-         'initiative is closed, unless `set_at` is sent (an undo). Answers `before` and `home` (initiative, ' +
-         'set_by, set_at, baseline_prs); undo by sending `before` back with its set_at and baseline_prs. ' +
+         'File a project: {project, initiative: <slug> or null for none, expect?, baseline_prs?, set_at?, undo?}. ' +
+         '`expect` is the home you saw (a slug or null); 409 with the current `home` when it changed. 409 when ' +
+         'the initiative is closed, unless it is an undo (`undo: true`, or `set_at` sent). null is a 409 for a ' +
+         'project Not tracked because its PRs are all in projects.untrackedRepos, unless it is an undo. ' +
+         'Answers `project` as its label spells it, `before` and `home` (initiative, set_by, set_at, ' +
+         'baseline_prs); undo by sending `before` back with its set_at, baseline_prs and `undo: true`. ' +
          'Into Not tracked with no baseline_prs, the count is its old baseline plus the PRs since (when it was ' +
          'already not tracked), else its PR count now',
    },
