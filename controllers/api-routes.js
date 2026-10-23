@@ -69,7 +69,10 @@ export const API_ROUTES = [
          'A PR counts toward its project label, or with none the project whose issue it links; ' +
          '`double_labeled` holds the open PRs in two. Each project says its `initiative` (slug, or null for ' +
          'Unsorted), whether it is `tracked`, and whether it `grew` while not tracked. A project Not tracked because ' +
-         'its PRs are all in projects.untrackedRepos has `initiative: null` with `tracked: false`',
+         'its PRs are all in projects.untrackedRepos has `initiative: null` with `tracked: false`. For the ' +
+         'labeling job: `status`, its plan’s status or null; `last_activity`, the day its newest PR opened or ' +
+         'merged; `examples`, up to 5 of its labeled PRs {repo, number, title, merged_at, by}, `by` "person" ' +
+         '(listed first) or "job" (a bot, or a projects.machineLabelRuns window), newest first',
    },
    {
       method: 'get',

@@ -380,6 +380,9 @@ before(() => {
       repo: 'test/projects',
       developerTeams: { Store: ['Alice'] },
       autoCalls: false,
+      machineLabelRuns: [
+         { actor: 'jarstelfox', from: '2026-10-10T07:55:00Z', to: '2026-10-10T08:05:00Z' },
+      ],
    };
    const now = Math.floor(Date.now() / 1000);
    // two open PRs in alpha (one person), one unsorted, one bot PR in alpha
@@ -462,6 +465,37 @@ before(() => {
             .filter(r => params[0].includes(r.title))
             .map((r, number) => ({ repo: 'test/repo-a', number, owner: 'alice', ...r }));
       }
+      // every project's PRs (lib/auto-calls.js loadProjectPulls): who put
+      // each label on, a person, a bot, or a person's token in a script run
+      if (sql.startsWith('SELECT p.repo, p.number, p.title AS pr_title')) {
+         if (!sql.includes('JOIN pull_labels')) return [];
+         const pr = (number, over) => ({
+            repo: 'test/repo-a',
+            number,
+            pr_title: `PR ${number}`,
+            owner: 'alice',
+            date: now - 3 * DAY,
+            state: 'open',
+            draft: 0,
+            title: 'project:alpha',
+            ...over,
+         });
+         return [
+            pr(11, {
+               date: now - 4 * DAY,
+               label_user: 'jarstelfox',
+               label_date: Date.parse('2026-10-10T08:00:00Z') / 1000,
+            }),
+            pr(12, { label_user: 'job-bot[bot]', label_date: now - 3 * DAY }),
+            pr(15, {
+               state: 'closed',
+               date: now - 5 * DAY,
+               date_merged: now - DAY,
+               label_user: 'alice',
+               label_date: now - 5 * DAY,
+            }),
+         ];
+      }
       if (sql.includes('FROM `roadmap_items`')) return roadmapRows;
       if (sql.includes('FROM `roadmap_updates`')) return [];
       // alpha's own issue carries its label; its side names #11, on the
@@ -532,6 +566,22 @@ test('/api/v1/projects lists each project with today and the window', async () =
    const beta = body.projects.find(p => p.slug === 'beta');
    assert.equal(beta.standing, 'dropped');
    assert.deepEqual(body.unsorted.open, ['test/repo-a#13']);
+   // what the labeling job reads: no plan, its newest PR merged yesterday,
+   // and the PR a person labeled before the job's, a script run's included
+   assert.equal(alpha.status, null);
+   const yesterday = new Date(Date.now() - DAY * 1000).toISOString().slice(0, 10);
+   assert.equal(alpha.last_activity, yesterday);
+   assert.deepEqual(
+      alpha.examples.map(e => [e.number, e.by]),
+      [
+         [15, 'person'],
+         [12, 'job'],
+         [11, 'job'],
+      ]
+   );
+   assert.equal(alpha.examples[0].title, 'PR 15');
+   assert.ok(alpha.examples[0].merged_at);
+   assert.equal(alpha.examples[1].merged_at, null);
    assert.equal(body.totals.backlog_end, 2);
    assert.equal(body.days.length, 30);
 });

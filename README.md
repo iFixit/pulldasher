@@ -275,7 +275,14 @@ curl -s -H "Authorization: Bearer $(gh auth token)" https://pulldasher.example.c
 - `GET /api/v1/projects` and `GET /api/v1/people`: each project and each
   person with where they stand today and their numbers for a window. Both
   take `start` and `end` as `YYYY-MM-DD` days (default: the last 30 days, at
-  most 400), and `project=<slug>` narrows the numbers to one project.
+  most 400), and `project=<slug>` narrows the numbers to one project. Each
+  project also says what the labeling job reads: `status`, its plan's
+  status (null with none), `last_activity`, the day its newest PR opened
+  or merged, and `examples`, up to 5 of its labeled PRs (`repo`, `number`,
+  `title`, `merged_at`, `by`), the ones a person labeled (`by: "person"`)
+  before the job's (`"job"`), newest first. A bot's label, or one a script
+  added with a person's token inside a `projects.machineLabelRuns` window,
+  is the job's.
 - `GET /api/v1/decide`: the calls owed now, worst first, each with its
   project, its roadmap item if it has one, and its reasons. `GET /api/v1`
   says what each reason means and which write clears it. It also names who

@@ -154,6 +154,19 @@ module.exports = {
       // change always wins. false turns it off, and Decide asks them again.
       autoCalls: true,
       idleDays: 28,
+      // When a script added project labels with a person's token: a label
+      // `actor` added between `from` and `to` (ISO times, UTC) counts as the
+      // labeling job's, not theirs, in /api/v1/projects `examples`.
+      machineLabelRuns: [
+         { actor: 'jarstelfox', from: '2026-09-30T06:57:00Z', to: '2026-09-30T07:00:00Z' },
+         { actor: 'jarstelfox', from: '2026-10-10T07:55:00Z', to: '2026-10-10T08:05:00Z' },
+         { actor: 'jarstelfox', from: '2026-10-10T18:14:00Z', to: '2026-10-10T18:51:00Z' },
+         { actor: 'jarstelfox', from: '2026-10-10T19:28:00Z', to: '2026-10-10T19:41:00Z' },
+         { actor: 'jarstelfox', from: '2026-10-10T22:50:00Z', to: '2026-10-11T00:11:00Z' },
+         { actor: 'jarstelfox', from: '2026-10-11T02:35:00Z', to: '2026-10-11T03:10:00Z' },
+         { actor: 'jarstelfox', from: '2026-10-13T22:23:00Z', to: '2026-10-13T22:59:00Z' },
+         { actor: 'jarstelfox', from: '2026-10-13T23:32:00Z', to: '2026-10-13T23:42:00Z' },
+      ],
    },
 
    // The usual MySQL stuff. Like every other MySQL webapp, basically.

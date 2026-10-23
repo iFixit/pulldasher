@@ -12,7 +12,7 @@ import {
 import { listItems } from '../lib/roadmap.js';
 import { trackedOnly } from '../lib/initiatives.js';
 import { trackedNow } from './roadmap.js';
-import { loadDecide } from '../lib/auto-calls.js';
+import { loadDecide, loadProjectPulls, projectActivity } from '../lib/auto-calls.js';
 import {
    attachIssue,
    detachIssue,
@@ -39,6 +39,7 @@ import {
    windowStats,
    prStage,
    MISC_SLUG,
+   planFor,
    PROJECT_SLUG,
    STALL_DAYS,
 } from '../shared/dist/index.js';
@@ -103,9 +104,18 @@ function load(req, res) {
  * then quiet ones, then the rest (done, dropped, or only in the window's
  * history) by slug. Each says its initiative (its home's slug, or null),
  * whether it's tracked, and whether it grew while not tracked
- * (lib/initiatives.js tracking).
+ * (lib/initiatives.js tracking). With `plans` and `pulls` (every project's
+ * PRs, lib/auto-calls.js loadProjectPulls), its plan's status and what the
+ * labeling job reads (projectActivity) too.
  */
-function projectRecords(projects, today, stats, prefix, { homes, untracked, grown }) {
+function projectRecords(
+   projects,
+   today,
+   stats,
+   prefix,
+   { homes, untracked, grown },
+   { plans = [], pulls = new Map(), runs = [] } = {}
+) {
    const bySlug = new Map(projects.map(p => [p.slug, p]));
    const groups = new Map();
    const standing = new Map();
@@ -157,6 +167,8 @@ function projectRecords(projects, today, stats, prefix, { homes, untracked, grow
          people: g ? g.people : [],
          idle_days: g ? g.idleDays : null,
          flags: g ? g.flags : [],
+         status: planFor(slug, plans)?.status ?? null,
+         ...projectActivity(pulls.get(slug) ?? [], runs),
          // its open PRs by where they stand, in the project page's words
          stages: stageCounts(g ? g.open : []),
          window: stats.projects[slug] || null,
@@ -235,7 +247,11 @@ export default {
       if (!loaded) return;
       respondOrError(
          res,
-         loaded.then(({ settings, projects, linked, tracked, stats }) => {
+         loaded.then(async ({ settings, projects, linked, tracked, stats }) => {
+            const [plans, history] = await Promise.all([
+               listItems(),
+               loadProjectPulls(settings, linked),
+            ]);
             const now = Date.now() / 1000;
             const pulls = pullManager.getPulls();
             const today = todayFromBoard(pulls, projects, settings.prefix, now, linked);
@@ -244,7 +260,11 @@ export default {
                start: stats.start,
                end: stats.end,
                label_prefix: settings.prefix,
-               projects: projectRecords(projects, today, stats, settings.prefix, tracked),
+               projects: projectRecords(projects, today, stats, settings.prefix, tracked, {
+                  plans,
+                  pulls: history,
+                  runs: settings.machineLabelRuns,
+               }),
                misc: {
                   open: today.misc.map(d => key(d.data)),
                   window: stats.projects[MISC_SLUG] || null,
