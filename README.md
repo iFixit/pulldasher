@@ -216,11 +216,13 @@ sync of the projects' work (a webhook on a project's issue, or the hourly
 pass), it:
 
 - picks a plan up again: a parked plan whose project gets a PR opened, or
-  an open PR labeled into it, after it was parked goes back in progress
+  an open PR a person labeled into it, after it was parked goes back in progress
   ("Picked up again by owner/repo#12 on 2026-10-20"). A done or dropped
   plan takes 2 such PRs, since one fix after a finish isn't a return. PRs
-  that were already open when someone marked it done don't count. A plan
-  whose project issue closed after it stopped isn't picked up: Decide asks
+  that were already open when someone marked it done don't count, and
+  neither does an old PR the labeling job files later: a job's PR counts
+  by when it opened, not when its label went on. A plan whose project
+  issue closed after the plan last changed isn't picked up: Decide asks
   about that.
 - puts a plan down: a plan in progress is parked when, for `idleDays` (28),
   its project had no PR opened, merged or pushed to, nobody posted an
@@ -229,15 +231,19 @@ pass), it:
   closed, with no PRs open, is done, or dropped when they were closed as not
   planned. One past its hard end with none open, its status untouched
   since, is done.
-- plans a project: one with 3 or more PRs (open, or merged in the last 14
-  days) that never had a plan gets one, in progress from its first open
-  PR's week with no end, named by its issue or its label. A plan someone
-  removed isn't made again. Decide asks about it with every PR, but the
-  plan is made only once 3 PRs count by the rule below.
+- plans a project: one with 3 or more PRs open or merged in the last 14
+  days that never had a plan gets one, in progress from its first open
+  PR's week (or its first PR's, when all have merged) with no end, named
+  by its issue or its label. A burst that already merged counts too, and
+  put down parks it once it goes quiet. A plan someone removed isn't made
+  again, and Not tracked, ongoing and closed projects get none. Decide's
+  own question about a new project still needs a PR open.
 - names a lead: a plan planned or in progress with no lead, whose status
   it isn't changing in the same pass, gets its project issue's assignee,
   else the author with the most PRs in its project over the last 60 days.
-  A lead someone set is never replaced.
+  A lead someone set is never replaced, and a plan a person changed since
+  its project's PRs last moved keeps an empty lead, since they may have
+  cleared it.
 
 Each call is a roadmap write like a person's, recorded as `pulldasher`,
 with why in the plan's `auto_note` and when in `auto_at` (a lead fills in
@@ -257,9 +263,15 @@ toward picking a plan up or making a new one only once that label is
 by an issue link, counts at once.
 
 It's off until `autoCalls: true` is set in config.js's `projects`, and
-while it's off Decide asks those calls. To turn it on, deploy, run
-`bin/auto-calls` on the server to see what it would do now (it writes
-nothing), and then set `autoCalls: true`.
+while it's off Decide asks those calls. To turn it on:
+
+1. Deploy.
+2. On the server, run `bin/auto-calls` to see what it would do now. It
+   writes nothing.
+3. Run `bin/auto-calls --at <the day 28 days from today>` to see the plans
+   that will be put down once a burst of new labels goes quiet. It runs
+   the rules as of that day on today's PRs and plans.
+4. Set `autoCalls: true`.
 
 To put the plans where people already look, `bin/sync-issue-fields` copies
 each plan under way into its project issue's Start date, Target date and

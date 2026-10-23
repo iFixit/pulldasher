@@ -14,10 +14,12 @@ import { isUnderWay, mondayOf, planEnd, type RoadmapItem } from './roadmap';
  * The calls Pulldasher makes on the roadmap itself, from what already
  * happened, so a plan follows the work without anyone answering Decide:
  * - picked up again: a parked plan whose project gets a PR opened, or an
- *   open PR labeled into it, after that status was set, is in progress
- *   again; a done or dropped one takes RETURN_PRS of them, since one fix
- *   after a finish isn't a return (only the project's latest plan, and
- *   only when none of its plans is under way)
+ *   open PR a person labeled into it, after that status was set, is in
+ *   progress again; a done or dropped one takes RETURN_PRS of them, since
+ *   one fix after a finish isn't a return (only the project's latest plan,
+ *   only when none of its plans is under way, and never once its issue
+ *   closed since). The job's labels never wake a plan by when they went
+ *   on, only by when their PR opened
  * - put down: a plan in progress whose project had no PR opened, merged or
  *   pushed to for `idleDays`, with no update posted and no change by a
  *   person in that time, is parked
@@ -25,12 +27,17 @@ import { isUnderWay, mondayOf, planEnd, type RoadmapItem } from './roadmap';
  *   closed, with none of its PRs open, is done (dropped when they were
  *   closed as not planned); one past its hard end with none open, its
  *   status untouched since, is done (model/decide.ts answeredOnItsOwn)
- * - new: a project Decide would ask a first plan of, that never had one
- *   (not even one since removed), gets one in progress, with no end
+ * - new: a project with DECIDE_MIN_PRS or more PRs open or merged in the
+ *   last LIVE_DAYS, that never had a plan (not even one since removed),
+ *   gets one in progress, with no end; put down parks it once it's idle.
+ *   Unlike Decide's `new`, a burst that already merged counts too
  * - lead: a plan under way with no lead, whose status this pass leaves
- *   alone, gets its project issue's assignee, else the author with the
- *   most PRs in its project over the last LEAD_DAYS; a lead someone set is
- *   never replaced
+ *   alone, and that no person changed since its project's latest PR
+ *   activity (they may have cleared it), gets its project issue's
+ *   assignee, else the author with the most PRs in its project over the
+ *   last LEAD_DAYS; a lead someone set is never replaced
+ * The job's labels count toward a pick-up or a new plan only once they
+ * are `settleDays` old.
  * Pure: the server reads the inputs and writes the calls (lib/auto-calls.js).
  * A person's write always wins, since each rule only reads changes made
  * after the last status change. Decide leaves out only what a call made
@@ -139,11 +146,12 @@ const settled = (p: AutoPull, now: number, settleDays: number) =>
    p.by !== 'job' || (p.labeledAt != null && now - p.labeledAt >= settleDays * DAY);
 
 /** The PRs that came to a project after `since`, each opened, or open and
- * labeled into it, after then, with when, first first. */
+ * labeled into it by a person, after then, with when, first first. The
+ * job labeling an old PR (a seed run's filing) isn't new work. */
 function cameAfter(pulls: readonly AutoPull[], since: number) {
    const after = pulls.flatMap(p => {
       if (p.opened > since) return [{ pull: p, at: p.opened }];
-      if (p.open && p.labeledAt != null && p.labeledAt > since)
+      if (p.by !== 'job' && p.open && p.labeledAt != null && p.labeledAt > since)
          return [{ pull: p, at: p.labeledAt }];
       return [];
    });
@@ -175,12 +183,13 @@ export function autoCalls({
    leads = new Map(),
    ongoing = new Set(),
    closed = new Map(),
+   untracked = new Set(),
    idleDays = IDLE_DAYS,
    settleDays = SETTLE_DAYS,
    timeZone,
    now,
 }: {
-   /** Decide's queue asked without `auto`: what happened, as it reads it */
+   /** Decide's queue: what happened, as it reads it */
    rows: readonly DecideRow[];
    /** the plans, tracked projects' only, as Decide was given them */
    items: readonly RoadmapItem[];
@@ -199,6 +208,9 @@ export function autoCalls({
    /** closed project issues, by slug (decide.ts closedIssues): one closed
     * after a plan stopped is the news, so the plan isn't picked up */
    closed?: ReadonlyMap<string, ClosedIssue>;
+   /** Not tracked projects (initiatives.ts), which `pulls` holds too: never
+    * given a plan */
+   untracked?: ReadonlySet<string>;
    idleDays?: number;
    settleDays?: number;
    /** the team's (projects.timeZone), for the day a plan ends */
@@ -226,14 +238,6 @@ export function autoCalls({
    for (const row of rows) {
       for (const r of row.reasons) {
          const item = row.item;
-         if (r.kind === 'new' && row.slug && !item && !planned.has(row.slug)) {
-            // Decide asks with every PR; a plan is made once enough have settled
-            const live = counted(pulls.get(row.slug) ?? []).filter(
-               p => p.open || (p.merged ?? 0) >= now - LIVE_DAYS * DAY
-            );
-            if (live.length >= DECIDE_MIN_PRS) calls.push(newPlan(row.slug, r.since));
-            continue;
-         }
          if (!item || !isUnderWay(item.status) || !answeredOnItsOwn(r, item, timeZone)) continue;
          if (r.kind === 'issue_closed') {
             const as = r.as === 'dropped' ? 'not planned' : 'completed';
@@ -248,6 +252,15 @@ export function autoCalls({
       }
    }
 
+   // new: enough PRs open or merged lately, and no plan ever; Decide asks
+   // its own `new` with every PR, but only while one is open
+   for (const [slug, prs] of pulls) {
+      if (planned.has(slug) || untracked.has(slug) || ongoing.has(slug) || closed.has(slug))
+         continue;
+      const live = counted(prs).filter(p => p.open || (p.merged ?? 0) >= now - LIVE_DAYS * DAY);
+      if (live.length >= DECIDE_MIN_PRS) calls.push(newPlan(slug, live));
+   }
+
    // in Decide's order, so lastPlan breaks a tie as it does
    const plansOf = new Map<string, RoadmapItem[]>();
    for (const item of [...items].sort((a, b) => a.priority - b.priority || a.id - b.id)) {
@@ -259,7 +272,8 @@ export function autoCalls({
       // none under way, and not when its issue closed since: that's asked
       const last = plans.some(p => isUnderWay(p.status)) ? null : lastPlan(plans);
       const issue = closed.get(slug);
-      if (last && !(issue && issue.at > statusAt(last))) {
+      // the issue closed after the plan's last change, as Decide reads it
+      if (last && !(issue && issue.at > (last.updated_at ?? 0))) {
          const finished = last.status === 'done' || last.status === 'dropped';
          const after = finished && ongoing.has(slug) ? [] : cameAfter(counted(prs), statusAt(last));
          if (after.length >= (finished ? RETURN_PRS : 1)) {
@@ -295,14 +309,20 @@ export function autoCalls({
    // a plan whose status moved this pass keeps that call's note
    for (const item of items) {
       if (item.lead || !item.project || !isUnderWay(item.status) || moved.has(item.id)) continue;
-      const lead = leadFor(leads.get(item.project), pulls.get(item.project) ?? [], now);
+      const prs = pulls.get(item.project) ?? [];
+      // a person changed it since its PRs last moved: an empty lead may be theirs
+      const byPerson = item.updated_by != null && item.updated_by !== AUTO_LOGIN;
+      if (byPerson && (item.updated_at ?? 0) > (lastActivity(prs) ?? 0)) continue;
+      const lead = leadFor(leads.get(item.project), prs, now);
       if (lead) calls.push({ kind: 'lead', id: item.id, lead: lead.login, note: lead.note });
    }
    return calls;
 
-   // `since`: Decide's day for it, its first open PR's
-   function newPlan(slug: string, since: string | null): AutoCall {
+   // starts the week of its first open PR, else of the first that counted
+   function newPlan(slug: string, live: readonly AutoPull[]): AutoCall {
       const prs = pulls.get(slug) ?? [];
+      const open = live.filter(p => p.open);
+      const first = Math.min(...(open.length ? open : live).map(p => p.opened));
       const lead = leadFor(leads.get(slug), prs, now);
       const name = (names.get(slug) ?? slugName(slug)).slice(0, NAME_MAX).trim();
       return {
@@ -311,12 +331,13 @@ export function autoCalls({
             name,
             project: slug,
             status: 'active',
-            start: mondayOf(since ?? utcDay(now)),
+            start: mondayOf(utcDay(first)),
             end_kind: 'ongoing',
             lead: lead?.login ?? null,
          },
          note:
-            `Planned on its own: ${DECIDE_MIN_PRS} or more PRs and no plan` +
+            `Planned on its own: ${live.length} PRs open or merged in the last ${LIVE_DAYS} days ` +
+            'and no plan' +
             (lead ? `. ${lead.note}` : ''),
       };
    }

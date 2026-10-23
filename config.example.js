@@ -169,7 +169,8 @@ module.exports = {
       settleDays: 3,
       // When a script added project labels with a person's token: a label
       // `actor` added between `from` and `to` (ISO times, UTC) counts as the
-      // labeling job's, not theirs, in /api/v1/projects `examples`.
+      // labeling job's, not theirs: in /api/v1/projects `examples`, and it
+      // waits `settleDays` before counting toward an automatic call.
       machineLabelRuns: [
          { actor: 'jarstelfox', from: '2026-09-30T06:57:00Z', to: '2026-09-30T07:00:00Z' },
          { actor: 'jarstelfox', from: '2026-10-10T07:55:00Z', to: '2026-10-10T08:05:00Z' },

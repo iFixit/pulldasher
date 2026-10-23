@@ -4,23 +4,27 @@
  * projects' work (lib/auto-calls.js) would be now: a plan picked up again,
  * put down, finished, planned or given a lead. It only says so and writes
  * nothing, whether or not config.js projects.autoCalls is on: the server is
- * the one writer, so two processes never make the same call.
+ * the one writer, so two processes never make the same call. With --at, it
+ * runs the rules as of that day (lib/auto-calls.js asOf), on today's PRs
+ * and plans: what nothing new would bring, such as the put-downs idleDays
+ * after a burst of labels.
  *
- * Usage: bin/auto-calls
+ * Usage: bin/auto-calls [--at YYYY-MM-DD]
  */
 import db from '../lib/db.js';
 import dbManager from '../lib/db-manager.js';
 import pullManager from '../lib/pull-manager.js';
-import { describe, runAutoCalls } from '../lib/auto-calls.js';
+import { asOf, describe, runAutoCalls } from '../lib/auto-calls.js';
 import { projectSettings } from '../lib/projects.js';
 
 async function main() {
    const settings = projectSettings();
    if (!settings) throw new Error('this Pulldasher has no projects config');
+   const now = asOf(process.argv);
    // the board's pulls, as the server holds them: what's open now is read off them
    const pulls = await dbManager.getRecentPulls(pullManager.getOldestAllowedPullTimestamp());
    for (const pull of pulls) pullManager.updatePull(pull);
-   const calls = await runAutoCalls(settings, { apply: false });
+   const calls = await runAutoCalls(settings, { apply: false, now });
    for (const call of calls) console.log(describe(call));
    console.log(`${calls.length} call(s). Nothing was written.`);
 }

@@ -1,7 +1,7 @@
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import db from '../lib/db.js';
-import { describe, projectActivity, projectPullsFrom } from '../lib/auto-calls.js';
+import { asOf, describe, projectActivity, projectPullsFrom } from '../lib/auto-calls.js';
 import { autoWrite } from '../lib/roadmap.js';
 
 const row = (number, over = {}) => ({
@@ -154,4 +154,14 @@ test('a call reads in one line', () => {
       }),
       '#4 active -> parked: Put down: x'
    );
+});
+
+test('bin/auto-calls runs as of now, or noon UTC on the day --at names', () => {
+   assert.equal(asOf(['node', 'bin/auto-calls'], 500), 500);
+   assert.equal(
+      asOf(['node', 'bin/auto-calls', '--at', '2026-11-20'], 500),
+      Date.parse('2026-11-20T12:00:00Z') / 1000
+   );
+   assert.throws(() => asOf(['node', 'bin/auto-calls', '--at', 'next week']), /YYYY-MM-DD/);
+   assert.throws(() => asOf(['node', 'bin/auto-calls', '--at']), /YYYY-MM-DD/);
 });

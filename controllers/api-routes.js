@@ -400,13 +400,16 @@ export function apiIndex(req, res) {
          made_by_pulldasher:
             'With config.js projects.autoCalls true (off by default), Pulldasher makes these calls itself after each ' +
             'work sync, recorded as `pulldasher` with why in the item’s `auto_note`. Decide leaves a reason out ' +
-            'only when a call this pass answers it: `new` (a plan in progress with no end, unless one was ever ' +
+            'only when a call this pass answers it: `new` (a plan in progress with no end, made for any project ' +
+            'with 3 or more PRs open or merged in the last 14 days, merged bursts too, unless one was ever ' +
             'removed), `reopened` and `moving` (back in progress once a PR opens, or an open PR is labeled in, ' +
             'after the status was set: 1 for a parked plan, 2 for a done or dropped one, and never once its issue ' +
-            'closed since), `issue_closed` and `issues_done` with no PRs open (done, or dropped when closed as ' +
+            'closed after its last change), `issue_closed` and `issues_done` with no PRs open (done, or dropped when closed as ' +
             'not planned), and `ended` while nobody changed its status since its end; a plan being finished is ' +
             'asked nothing more. A PR the labeling job filed counts toward a pick-up or a new plan once its label ' +
-            'is projects.settleDays old (default 3); a person’s label counts at once. It also parks a plan in progress after projects.idleDays ' +
+            'is projects.settleDays old (default 3), and toward a pick-up only by when it opened; a person’s ' +
+            'label counts at once. An empty lead a person may have cleared (they changed the plan since its PRs ' +
+            'last moved) stays empty. It also parks a plan in progress after projects.idleDays ' +
             '(default 28) with no PR opened, merged or pushed, no update and no change by a person, and fills an ' +
             'empty lead on a plan under way with its issue’s assignee, else the author of the most PRs in the ' +
             'last 60 days. A person’s write wins: change it back as usual',

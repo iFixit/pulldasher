@@ -143,12 +143,17 @@ describe('picked up again', () => {
 
    it('waits for the job’s label to settle; a person’s counts at once', () => {
       const plan = item(1, { status: 'parked', status_at: ago(10) });
-      const job = (labeledAt: number) => pull(7, { opened: ago(20), labeledAt, by: 'job' });
+      // opened after it was parked, filed by the job: counts once settled
+      const job = (labeledAt: number) => pull(7, { opened: ago(5), labeledAt, by: 'job' });
       expect(calls([plan], { p1: [job(ago(2))] })).toEqual([]);
       expect(calls([plan], { p1: [job(ago(3))] })[0]).toMatchObject({ status: 'active' });
-      // opened after, but filed by the job yesterday: still a guess
-      const fresh = pull(8, { opened: ago(1), labeledAt: ago(1), by: 'job' });
-      expect(calls([plan], { p1: [fresh] })).toEqual([]);
+      // an old PR the job filed after it was parked (a seed run): never new
+      // work, however long ago it was labeled
+      const seeded = pull(9, { opened: ago(40), labeledAt: ago(9), by: 'job' });
+      expect(calls([plan], { p1: [seeded] })).toEqual([]);
+      // the same, labeled in by a person: they say it's this project's work now
+      const handed = pull(9, { opened: ago(40), labeledAt: ago(9), by: 'person' });
+      expect(calls([plan], { p1: [handed] })[0]).toMatchObject({ status: 'active' });
       const person = pull(8, { opened: ago(1), labeledAt: ago(1), by: 'person' });
       expect(calls([plan], { p1: [person] })[0]).toMatchObject({ status: 'active' });
       // joined by a link, no label: at once
@@ -156,8 +161,8 @@ describe('picked up again', () => {
       expect(calls([plan], { p1: [linked] })[0]).toMatchObject({ status: 'active' });
    });
 
-   it('never picks up a plan whose issue closed after it stopped: Decide asks that', () => {
-      const plan = item(1, { status: 'parked', status_at: ago(10) });
+   it('never picks up a plan whose issue closed after its last change: Decide asks that', () => {
+      const plan = item(1, { status: 'parked', status_at: ago(10), updated_at: ago(10) });
       const got = autoCalls({
          rows: [],
          items: [plan],
@@ -355,7 +360,7 @@ describe('new project', () => {
    ];
    const prs = {
       'ga4-events': [
-         pull(1, { opened: ago(20), author: 'erin' }),
+         pull(1, { opened: ago(20), author: 'erin', open: false, merged: ago(10) }),
          pull(2, { opened: ago(9), author: 'kim' }),
          pull(3, { opened: ago(8), author: 'kim' }),
       ],
@@ -369,13 +374,13 @@ describe('new project', () => {
                name: 'GA4 events',
                project: 'ga4-events',
                status: 'active',
-               // the week of Decide's since, not of #1, opened earlier
+               // the week of its first open PR, not of #1, merged
                start: '2026-09-21',
                end_kind: 'ongoing',
                lead: 'kim',
             },
             note:
-               'Planned on its own: 3 or more PRs and no plan. ' +
+               'Planned on its own: 3 PRs open or merged in the last 14 days and no plan. ' +
                'Lead: kim, with the most PRs here in the last 60 days (2)',
          },
       ]);
@@ -400,6 +405,36 @@ describe('new project', () => {
       expect(calls([], fresh, { rows })).toEqual([]);
       const settledPrs = { 'ga4-events': [pull(1), job(2, ago(3)), job(3, ago(4))] };
       expect(calls([], settledPrs, { rows }).map(c => c.kind)).toEqual(['new']);
+   });
+
+   it('plans a burst that already merged, from its first PR’s week, with no Decide row', () => {
+      const merged = (n: number, days: number) =>
+         pull(n, { opened: ago(days + 1), open: false, merged: ago(days) });
+      const burst = { 'template-checker': [merged(1, 6), merged(2, 4), merged(3, 2)] };
+      expect(calls([], burst)).toMatchObject([
+         { kind: 'new', fields: { project: 'template-checker', start: '2026-09-21' } },
+      ]);
+      // merged longer ago than 14 days: not lately
+      expect(calls([], { old: [merged(1, 20), merged(2, 18), merged(3, 15)] })).toEqual([]);
+   });
+
+   it('leaves out Not tracked, ongoing and closed projects', () => {
+      const got = autoCalls({
+         rows: [],
+         items: [],
+         pulls: new Map([
+            ['ga4-events', prs['ga4-events']],
+            ['ops', prs['ga4-events']],
+            ['upkeep', prs['ga4-events']],
+            ['shipped', prs['ga4-events']],
+         ]),
+         planned: new Set(),
+         untracked: new Set(['ops']),
+         ongoing: new Set(['upkeep']),
+         closed: new Map([['shipped', { as: 'done' as const, at: ago(1) }]]),
+         now: NOW,
+      });
+      expect(got.map(c => c.kind === 'new' && c.fields.project)).toEqual(['ga4-events']);
    });
 
    it('never makes again a plan someone removed', () => {
@@ -448,6 +483,23 @@ describe('lead', () => {
       // put down this pass: the status call's note stands
       const idle = item(1, { lead: null, status_at: ago(90), updated_at: ago(90) });
       expect(calls([idle], prs).map(c => c.kind)).toEqual(['status']);
+   });
+
+   it('leaves an empty lead a person may have cleared since its PRs last moved', () => {
+      const prs = { p1: [pull(3, { author: 'kim', opened: ago(10) })] };
+      const cleared = item(1, {
+         lead: null,
+         status_at: ago(30),
+         updated_by: 'dana',
+         updated_at: ago(2),
+      });
+      expect(calls([cleared], prs)).toEqual([]);
+      // a PR moved after their change: it fills
+      const moved = { p1: [pull(3, { author: 'kim', opened: ago(1) })] };
+      expect(calls([cleared], moved).map(c => c.kind)).toEqual(['lead']);
+      // Pulldasher's own last change doesn't hold it back
+      const ours = { ...cleared, updated_by: 'pulldasher' };
+      expect(calls([ours], prs).map(c => c.kind)).toEqual(['lead']);
    });
 
    it('never replaces a lead someone set', () => {
