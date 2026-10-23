@@ -225,8 +225,12 @@ bin/sync-issue-fields --apply   # write it
 Everything the tab shows, and every change the roadmap takes, is in the API,
 Bearer-authed with the caller's own GitHub token like `/api/v1/pulls`, so a
 script or a Claude session can read the projects and run the roadmap
-without a browser. `GET /api/v1` lists every route with what it does, and
-the rules a roadmap write is checked against:
+without a browser. A CI job can read it too: a GitHub App installation
+token (`ghs_...`) whose installation is on the org Pulldasher serves
+(`github.requireOrg`, else its repos' owner) is let in for `GET` only, and
+any write with one is refused, since it has no login to record. Its check is
+kept for an hour, the token's life. `GET /api/v1` lists every route with
+what it does, and the rules a roadmap write is checked against:
 
 ```sh
 curl -s -H "Authorization: Bearer $(gh auth token)" https://pulldasher.example.com/api/v1
