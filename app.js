@@ -3,7 +3,7 @@ import express from 'express';
 import expressSession from 'express-session';
 import authManager from './lib/authentication.js';
 import socketAuthenticator from './lib/socket-auth.js';
-import refresh from './lib/refresh.js';
+import refresh, { startRecentPullsSweep } from './lib/refresh.js';
 import pullManager from './lib/pull-manager.js';
 import git, { observeRateLimit } from './lib/git-manager.js';
 import dbManager from './lib/db-manager.js';
@@ -182,9 +182,17 @@ missingMigrations()
    })
    .catch(err => console.error('Checking the schema failed: %s', (err && err.message) || err));
 
-debug('Loading all recent pulls from the DB');
+// Read before webhooks and the startup refresh write any pull: the first sweep
+// reaches back to it, so events dropped while the server was down get re-read.
+let latestPullUpdate = null;
+
 dbManager
-   .getRecentPulls(pullManager.getOldestAllowedPullTimestamp())
+   .getLatestPullUpdate()
+   .then(function (latest) {
+      latestPullUpdate = latest;
+      debug('Loading all recent pulls from the DB');
+      return dbManager.getRecentPulls(pullManager.getOldestAllowedPullTimestamp());
+   })
    .then(function (pulls) {
       debug('Loaded %s pulls', pulls.length);
       pullQueue.pause();
@@ -196,6 +204,7 @@ dbManager
    .then(function () {
       debug('Refreshing all open pulls from the API');
       refresh.openPulls().finally(boardLoaded);
+      startRecentPullsSweep(refresh, config.repos, latestPullUpdate);
       syncProjectIssues();
       syncAttachedIssues();
    })
