@@ -91,15 +91,23 @@ test('the examples put a person’s labels first, then the job’s, newest first
    assert.deepEqual(projectActivity([], runs), { last_activity: null, examples: [] });
 });
 
-test("an automatic status change only lands while the plan's status is still what was read", async () => {
+test("an automatic status change only lands while the plan's status is still as it was read", async () => {
    const seen = [];
    mock.method(db, 'query', async (sql, params) => {
       seen.push({ sql, params });
       return { affectedRows: 0 };
    });
-   const call = { kind: 'status', id: 4, from: 'done', status: 'active', note: 'Picked up again' };
+   const call = {
+      kind: 'status',
+      id: 4,
+      from: 'done',
+      fromAt: 300,
+      status: 'active',
+      note: 'Picked up again',
+   };
    assert.equal(await autoWrite(call, 'pulldasher', 500), false);
-   assert.match(seen[0].sql, /`status` = \? AND `removed_at` IS NULL/);
+   // the status and when it was set, so a call made again since wins too
+   assert.match(seen[0].sql, /`status` = \? AND `status_at` <=> \? AND `removed_at` IS NULL/);
    assert.deepEqual(seen[0].params, [
       {
          status: 'active',
@@ -111,6 +119,7 @@ test("an automatic status change only lands while the plan's status is still wha
       },
       4,
       'done',
+      300,
    ]);
    // a lead only fills an empty one, and isn't a call: updated_at stays
    await autoWrite({ kind: 'lead', id: 4, lead: 'kim', note: 'Lead: kim' }, 'pulldasher', 500);
@@ -121,7 +130,14 @@ test("an automatic status change only lands while the plan's status is still wha
 
 test('a call reads in one line', () => {
    assert.equal(
-      describe({ kind: 'status', id: 4, from: 'active', status: 'parked', note: 'Put down: x' }),
+      describe({
+         kind: 'status',
+         id: 4,
+         from: 'active',
+         fromAt: 1,
+         status: 'parked',
+         note: 'Put down: x',
+      }),
       '#4 active -> parked: Put down: x'
    );
 });

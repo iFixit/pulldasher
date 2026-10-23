@@ -75,16 +75,17 @@ function calls(
 }
 
 describe('picked up again', () => {
-   it('puts a done, dropped or parked plan back in progress on a PR opened after', () => {
-      for (const status of ['done', 'dropped', 'parked'] as const) {
-         const got = calls([item(1, { status, status_at: ago(10) })], {
+   it('puts a parked plan back in progress on one PR opened after', () => {
+      {
+         const got = calls([item(1, { status: 'parked', status_at: ago(10) })], {
             p1: [pull(7, { opened: ago(3), labeledAt: ago(3) })],
          });
          expect(got).toEqual([
             {
                kind: 'status',
                id: 1,
-               from: status,
+               from: 'parked',
+               fromAt: ago(10),
                status: 'active',
                note: 'Picked up again by iFixit/ifixit#7 on 2026-09-27',
             },
@@ -92,14 +93,24 @@ describe('picked up again', () => {
       }
    });
 
-   it('counts an older open PR newly labeled into it', () => {
-      const got = calls([item(1, { status: 'done', status_at: ago(10) })], {
-         p1: [pull(7, { opened: ago(40), labeledAt: ago(2) })],
-      });
-      expect(got[0]).toMatchObject({
-         status: 'active',
-         note: expect.stringContaining('2026-09-28'),
-      });
+   it('takes two PRs after a done or dropped plan: one fix is not a return', () => {
+      for (const status of ['done', 'dropped'] as const) {
+         const plan = item(1, { status, status_at: ago(10) });
+         const one = [pull(7, { opened: ago(3) })];
+         expect(calls([plan], { p1: one })).toEqual([]);
+         // the second: an older open PR newly labeled into it
+         const two = [...one, pull(8, { opened: ago(40), labeledAt: ago(2) })];
+         expect(calls([plan], { p1: two })).toEqual([
+            {
+               kind: 'status',
+               id: 1,
+               from: status,
+               fromAt: ago(10),
+               status: 'active',
+               note: `Picked up again: 2 PRs since it was marked ${status}, the latest iFixit/ifixit#8 on 2026-09-28`,
+            },
+         ]);
+      }
    });
 
    it('leaves a plan marked done while its old PRs are still open', () => {
@@ -110,7 +121,7 @@ describe('picked up again', () => {
    });
 
    it('reads only the latest plan, and none when another is under way', () => {
-      const pulls = { p1: [pull(7, { opened: ago(1) })] };
+      const pulls = { p1: [pull(7, { opened: ago(1) }), pull(8, { opened: ago(1) })] };
       const old = item(1, { status: 'done', status_at: ago(40) });
       const later = item(2, { project: 'p1', status: 'done', status_at: ago(10) });
       expect(calls([old, later], pulls).map(c => 'id' in c && c.id)).toEqual([2]);
@@ -121,7 +132,7 @@ describe('picked up again', () => {
    it('lets work go on after a finished plan of an ongoing project', () => {
       const got = calls(
          [item(1, { status: 'done', status_at: ago(10) })],
-         { p1: [pull(7, { opened: ago(1) })] },
+         { p1: [pull(7, { opened: ago(1) }), pull(8, { opened: ago(1) })] },
          { ongoing: new Set(['p1']) }
       );
       expect(got).toEqual([]);
@@ -130,7 +141,7 @@ describe('picked up again', () => {
 
 describe('put down', () => {
    it(`parks a plan in progress after ${IDLE_DAYS} days with no PR opened, merged or pushed`, () => {
-      const got = calls([item(1, { status_at: ago(90) })], {
+      const got = calls([item(1, { status_at: ago(90), updated_at: ago(90) })], {
          p1: [pull(7, { opened: ago(80), merged: ago(40), open: false, pushed: ago(30) })],
       });
       expect(got).toEqual([
@@ -138,6 +149,7 @@ describe('put down', () => {
             kind: 'status',
             id: 1,
             from: 'active',
+            fromAt: ago(90),
             status: 'parked',
             note: 'Put down: no PR opened, merged or pushed to since 2026-08-31',
          },
@@ -151,6 +163,26 @@ describe('put down', () => {
       expect(got).toEqual([]);
    });
 
+   it('keeps one with an update, or a person’s edit, inside the window', () => {
+      const old = { status_at: ago(90), updated_at: ago(90) };
+      const prs = { p1: [pull(7, { opened: ago(80), open: false, merged: ago(80) })] };
+      const update = {
+         id: 1,
+         item_id: 1,
+         health: 'on_track' as const,
+         body: '',
+         plan_start: '2026-09-07',
+         plan_weeks: 8,
+         author: 'dana',
+         at: ago(5),
+      };
+      expect(calls([item(1, { ...old, update })], prs)).toEqual([]);
+      expect(calls([item(1, { ...old, updated_at: ago(5) })], prs)).toEqual([]);
+      // Pulldasher's own last write isn't a person's
+      const ours = item(1, { ...old, updated_at: ago(5), updated_by: 'pulldasher' });
+      expect(calls([ours], prs)[0]).toMatchObject({ status: 'parked' });
+   });
+
    it('keeps one whose status someone set inside the window', () => {
       const got = calls([item(1, { status_at: ago(5) })], {
          p1: [pull(7, { opened: ago(80) })],
@@ -159,7 +191,7 @@ describe('put down', () => {
    });
 
    it('says so for a plan whose project never had a PR', () => {
-      const got = calls([item(1, { status_at: ago(40) })], {});
+      const got = calls([item(1, { status_at: ago(40), updated_at: ago(40) })], {});
       expect(got[0]).toMatchObject({
          status: 'parked',
          note: `Put down: no PRs in ${IDLE_DAYS} days`,
@@ -190,6 +222,7 @@ describe('finished', () => {
                kind: 'status',
                id: 1,
                from: 'active',
+               fromAt: ago(30),
                status: as,
                note: `Finished: its issue was closed as ${word} on 2026-09-27`,
             },
@@ -225,6 +258,7 @@ describe('finished', () => {
             kind: 'status',
             id: 1,
             from: 'active',
+            fromAt: ago(60),
             status: 'done',
             note: 'Finished: its end, 2026-08-30, passed with no PRs open',
          },
@@ -248,7 +282,7 @@ describe('new project', () => {
       ],
    };
 
-   it('plans it in progress with no end, from its first PR’s week, named from its slug', () => {
+   it('plans it in progress with no end, from its first open PR’s week, named from its slug', () => {
       expect(calls([], prs, { rows })).toEqual([
          {
             kind: 'new',
@@ -256,7 +290,8 @@ describe('new project', () => {
                name: 'GA4 events',
                project: 'ga4-events',
                status: 'active',
-               start: '2026-09-07',
+               // the week of Decide's since, not of #1, opened earlier
+               start: '2026-09-21',
                end_kind: 'ongoing',
                lead: 'kim',
             },
@@ -315,6 +350,16 @@ describe('lead', () => {
       expect(got).toEqual([
          { kind: 'lead', id: 1, lead: 'dana', note: "Lead: dana, its issue's assignee" },
       ]);
+   });
+
+   it('fills only plans under way, and none whose status moves this pass', () => {
+      const prs = { p1: [pull(3, { author: 'kim', opened: ago(80) })] };
+      for (const status of ['done', 'dropped', 'parked'] as const) {
+         expect(calls([item(1, { lead: null, status, status_at: ago(3) })], prs)).toEqual([]);
+      }
+      // put down this pass: the status call's note stands
+      const idle = item(1, { lead: null, status_at: ago(90), updated_at: ago(90) });
+      expect(calls([idle], prs).map(c => c.kind)).toEqual(['status']);
    });
 
    it('never replaces a lead someone set', () => {
