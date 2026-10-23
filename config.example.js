@@ -67,6 +67,12 @@ module.exports = {
       secret: 'secret for signing session cookies',
    },
 
+   // Read-only keys for /api/v1, for a job with no person's token (the
+   // labeling job sends one as its Bearer value): the SHA-256 hex digest of
+   // each key, never the key (printf %s "$KEY" | sha256sum). A key reads
+   // (GET) and never writes.
+   apiReadKeys: [],
+
    // When true (default), GitHub PR reviews with state APPROVED count as CR
    // signoffs without requiring a CR :emoji: tag in the review body.
    useGithubApprovalForCr: true,

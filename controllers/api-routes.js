@@ -42,8 +42,8 @@ export const PROJECT_WRITES = [
  * GET /api/v1 lists it, so a script (or an agent) reading the list can't
  * miss a route. Each takes the caller's own GitHub token as
  * `Authorization: Bearer <token>`; a write also needs a JSON body and is
- * recorded as that token's login. A GitHub App installation token reads only
- * (lib/api-auth.js).
+ * recorded as that token's login. A read key (config.js apiReadKeys) reads
+ * only (lib/api-auth.js).
  */
 export const API_ROUTES = [
    {
@@ -323,8 +323,8 @@ export const API_ROUTES = [
 export function apiIndex(req, res) {
    res.json({
       auth:
-         'Authorization: Bearer <your GitHub token>, from a member of the org. A GitHub App ' +
-         'installation token (ghs_..., a CI job’s) on the org reads (GET) and never writes',
+         'Authorization: Bearer <your GitHub token>, from a member of the org. A read key (what the ' +
+         'labeling job sends; config.js apiReadKeys holds its SHA-256) reads (GET) and never writes',
       endpoints: API_ROUTES.map(({ method, path, does }) => ({
          method: method.toUpperCase(),
          path,

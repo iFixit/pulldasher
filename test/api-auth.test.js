@@ -1,29 +1,33 @@
 import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import apiAuth, { _clearAuthCache } from '../lib/api-auth.js';
+import crypto from 'node:crypto';
+import config from '../lib/config-loader.js';
+import apiAuth, { _clearAuthCache, isReadKey } from '../lib/api-auth.js';
 
-// apiAuth against a stubbed GitHub: an installation token (ghs_) reads when
-// its installation is on the org this Pulldasher serves (the fixture's repos
-// are test/...), and never writes.
+// apiAuth with a stubbed GitHub: a read key (config.js apiReadKeys holds its
+// SHA-256) reads without asking GitHub, and never writes.
 
+const KEY = 'pd-read-0123456789abcdef';
+const digest = key => crypto.createHash('sha256').update(key).digest('hex');
 const realFetch = globalThis.fetch;
 let calls;
 let answer;
 
 beforeEach(() => {
    _clearAuthCache();
+   config.apiReadKeys = [digest('another key'), digest(KEY).toUpperCase()];
    calls = [];
-   globalThis.fetch = async (url, init) => {
-      calls.push({ url: String(url), auth: init.headers.Authorization });
+   globalThis.fetch = async url => {
+      calls.push(String(url));
       return answer();
    };
 });
 afterEach(() => {
    globalThis.fetch = realFetch;
+   delete config.apiReadKeys;
 });
 
 const json = (status, body) => () => ({ status, ok: status < 300, json: async () => body });
-const reposOf = owner => json(200, { total_count: 1, repositories: [{ owner: { login: owner } }] });
 
 /** Run apiAuth on one request; resolves {status, body} or {next: true, user}. */
 function run(method, token) {
@@ -43,58 +47,32 @@ function run(method, token) {
    });
 }
 
-test('an installation token on the served org reads', async () => {
-   answer = reposOf('Test');
-   const got = await run('GET', 'ghs_abc');
-   assert.deepEqual(got, { next: true, user: { login: null, installation: true } });
-   assert.equal(calls.length, 1);
-   assert.match(calls[0].url, /\/installation\/repositories\?per_page=1$/);
+test('a read key reads, and GitHub is never asked', async () => {
+   const got = await run('GET', KEY);
+   assert.deepEqual(got, { next: true, user: { login: null, readKey: true } });
+   assert.equal(calls.length, 0);
 });
 
-test('its verdict is kept, so a burst of reads asks GitHub once', async () => {
-   answer = reposOf('test');
-   await run('GET', 'ghs_abc');
-   await run('GET', 'ghs_abc');
-   assert.equal(calls.length, 1);
-});
-
-test('an installation token never writes, and GitHub is not asked', async () => {
-   answer = reposOf('test');
+test('a read key never writes, refused before anything else', async () => {
    for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
-      const got = await run(method, 'ghs_abc');
+      const got = await run(method, KEY);
       assert.equal(got.status, 403);
       assert.match(got.body.error, /can only read/);
    }
    assert.equal(calls.length, 0);
 });
 
-test('an installation on another org is refused', async () => {
-   answer = reposOf('someone-else');
-   const got = await run('GET', 'ghs_abc');
-   assert.equal(got.status, 403);
-});
-
-test('an installation with no repositories is refused', async () => {
-   answer = json(200, { total_count: 0, repositories: [] });
-   assert.equal((await run('GET', 'ghs_abc')).status, 403);
-});
-
-test('a bad installation token is a 401', async () => {
+test('a value matching no read key is checked as a GitHub token', async () => {
    answer = json(401, { message: 'Bad credentials' });
-   assert.equal((await run('GET', 'ghs_abc')).status, 401);
-});
-
-test('a GitHub blip is not kept as a verdict', async () => {
-   answer = json(502, {});
-   assert.equal((await run('GET', 'ghs_abc')).status, 500);
-   answer = reposOf('test');
-   assert.equal((await run('GET', 'ghs_abc')).next, true);
-   assert.equal(calls.length, 2);
+   assert.equal((await run('GET', 'pd-read-wrong')).status, 401);
+   assert.match(calls[0], /\/user$/);
+   assert.equal(isReadKey(KEY, []), false);
+   // a digest of the wrong length or not hex matches nothing
+   assert.equal(isReadKey(KEY, ['abc', 'not hex']), false);
 });
 
 test("a person's token still resolves to its login", async () => {
    answer = json(200, { login: 'dana' });
    const got = await run('PATCH', 'gho_xyz');
    assert.deepEqual(got, { next: true, user: { login: 'dana' } });
-   assert.match(calls[0].url, /\/user$/);
 });

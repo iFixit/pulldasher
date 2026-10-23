@@ -70,10 +70,10 @@ export default {
    },
 
    /** GET /api/v1/me -- the authenticated caller's login, so a skill can
-    * confirm its token works and resolve the default reviewer. A GitHub App
-    * installation token has none: `installation` says it reads only. */
+    * confirm its token works and resolve the default reviewer. A read key has
+    * none: `read_key` says it reads only. */
    getMe: function (req, res) {
-      const { login, installation } = req.apiUser;
-      res.json(installation ? { login, installation: true } : { login });
+      const { login, readKey } = req.apiUser;
+      res.json(readKey ? { login, read_key: true } : { login });
    },
 };
