@@ -66,3 +66,35 @@ export const slugName = (slug: string) => {
    const name = words.join(' ');
    return SLUG_WORDS[words[0].toLowerCase()] ? name : name.charAt(0).toUpperCase() + name.slice(1);
 };
+
+/** A stretch when a script added labels with a person's token
+ * (config.js projects.machineLabelRuns): a label `actor` added from `from`
+ * to `to` (ISO times, both counted) is the job's, not theirs. */
+export interface MachineLabelRun {
+   actor: string;
+   from: string;
+   to: string;
+}
+
+/**
+ * Who put a project label on a PR: a `person`, or the `job` that files PRs
+ * (a bot, or a person's token inside one of `runs`). A label whose adder
+ * isn't known (a renamed label loses it) is the job's, since no person can
+ * be said to have chosen it. `at` is epoch secs, null when not known.
+ */
+export function labeledBy(
+   login: string | null,
+   at: number | null,
+   { isBot, runs = [] }: { isBot: (login: string) => boolean; runs?: readonly MachineLabelRun[] }
+): 'person' | 'job' {
+   if (!login || isBot(login)) return 'job';
+   const ms = at == null ? null : at * 1000;
+   const scripted = runs.some(
+      r =>
+         r.actor.toLowerCase() === login.toLowerCase() &&
+         ms != null &&
+         ms >= Date.parse(r.from) &&
+         ms <= Date.parse(r.to)
+   );
+   return scripted ? 'job' : 'person';
+}

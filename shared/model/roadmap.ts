@@ -98,6 +98,10 @@ export interface RoadmapItem {
    updated_at: number | null;
    /** when it was added to the roadmap (epoch secs); null when not known */
    created_at: number | null;
+   /** why Pulldasher last changed it on its own (model/autoCalls.ts), and
+    * when (epoch secs); null, or absent from older servers, when it never has */
+   auto_note?: string | null;
+   auto_at?: number | null;
    /** the latest update on how it's going; null before the first */
    update: RoadmapUpdate | null;
    /** what its project did lately, as the server read it when it sent the
