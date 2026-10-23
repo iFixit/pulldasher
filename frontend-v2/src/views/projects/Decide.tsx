@@ -18,7 +18,7 @@ import {
    type DecideRow,
    type GrownProject,
 } from '../../../../shared/model/decide';
-import { withoutAnswered, type AutoCall } from '../../../../shared/model/autoCalls';
+import { withoutAnswered, AUTO_LOGIN, type AutoCall } from '../../../../shared/model/autoCalls';
 import type { Initiative } from '../../../../shared/model/initiatives';
 import { projectSlugs, type Today } from '../../../../shared/model/projects';
 import { decideTurn, type DecideRotation } from '../../../../shared/model/settings';
@@ -1892,8 +1892,13 @@ export function filledIn({
       const vouch = s?.kind === 'quiet' || s?.kind === 'current' ? s.vouch : undefined;
       return vouch ? [{ plan, vouch }] : [];
    });
+   // while it's still Pulldasher's: the last change is its own (a status
+   // call), or, for a lead it filled, which leaves who changed it last, no
+   // one has changed it since; a person's later change takes it off
+   const stillOurs = (p: RoadmapItem) =>
+      p.updated_by === AUTO_LOGIN || (p.updated_at ?? 0) <= (p.auto_at ?? 0);
    const moved = plans
-      .filter(p => (p.auto_at ?? 0) >= since)
+      .filter(p => (p.auto_at ?? 0) >= since && stillOurs(p))
       .sort((a, b) => (b.auto_at ?? 0) - (a.auto_at ?? 0));
    return { joined, linked, started, vouched, moved };
 }

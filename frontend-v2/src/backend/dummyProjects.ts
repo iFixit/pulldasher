@@ -361,6 +361,8 @@ export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
          lead: 'zdmitchell',
          auto_note: 'Lead: zdmitchell, with the most PRs here in the last 60 days (3)',
          auto_at: now - 2 * 86400,
+         // nobody changed it since, or the line would be theirs, not ours
+         updated_at: now - 3 * 86400,
       }),
       // parked twelve days ago while its PRs kept moving: "Parked, still
       // worked on", which Decide asks about
