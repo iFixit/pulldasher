@@ -219,7 +219,9 @@ pass), it:
   an open PR labeled into it, after it was parked goes back in progress
   ("Picked up again by owner/repo#12 on 2026-10-20"). A done or dropped
   plan takes 2 such PRs, since one fix after a finish isn't a return. PRs
-  that were already open when someone marked it done don't count.
+  that were already open when someone marked it done don't count. A plan
+  whose project issue closed after it stopped isn't picked up: Decide asks
+  about that.
 - puts a plan down: a plan in progress is parked when, for `idleDays` (28),
   its project had no PR opened, merged or pushed to, nobody posted an
   update, and no person changed it.
@@ -230,7 +232,8 @@ pass), it:
 - plans a project: one with 3 or more PRs (open, or merged in the last 14
   days) that never had a plan gets one, in progress from its first open
   PR's week with no end, named by its issue or its label. A plan someone
-  removed isn't made again.
+  removed isn't made again. Decide asks about it with every PR, but the
+  plan is made only once 3 PRs count by the rule below.
 - names a lead: a plan planned or in progress with no lead, whose status
   it isn't changing in the same pass, gets its project issue's assignee,
   else the author with the most PRs in its project over the last 60 days.
@@ -243,7 +246,15 @@ own". A person's change always wins: the rules only read what happened
 after a plan's status last changed, and a call that finds its plan's
 status changed since it read it doesn't land. Decide, the API's and the
 board's, works out the calls Pulldasher makes now and leaves out only
-the reasons those answer (`pending_calls` on `/api/v1/decide`).
+the reasons those answer (`pending_calls` on `/api/v1/decide`). A plan
+being finished is asked nothing more.
+
+The labeling job files PRs into projects and re-sorts its own filings at
+each sweep, so a fresh label of its own is still a guess. A PR the job
+labeled (a bot's label, or one inside a `machineLabelRuns` window) counts
+toward picking a plan up or making a new one only once that label is
+`settleDays` old (3 by default). A PR a person labeled, or one that joins
+by an issue link, counts at once.
 
 It's off until `autoCalls: true` is set in config.js's `projects`, and
 while it's off Decide asks those calls. To turn it on, deploy, run
@@ -283,9 +294,10 @@ curl -s -H "Authorization: Bearer $(gh auth token)" https://pulldasher.example.c
   take `start` and `end` as `YYYY-MM-DD` days (default: the last 30 days, at
   most 400), and `project=<slug>` narrows the numbers to one project. Each
   project also says what the labeling job reads: `status`, its plan's
-  status (null with none), `last_activity`, the day its newest PR opened
-  or merged, and `examples`, up to 5 of its labeled PRs (`repo`, `number`,
-  `title`, `merged_at`, `by`), the ones a person labeled (`by: "person"`)
+  status (null with none), `last_activity`, the team's day
+  (`projects.timeZone`) its newest PR opened, merged or was pushed to, the
+  same activity a plan is put down by, and `examples`, up to 5 of its labeled PRs (`repo`, `number`,
+  `title`, `merged_at`, `by`), open or merged, the ones a person labeled (`by: "person"`)
   before the job's (`"job"`), newest first. A bot's label, or one a script
   added with a person's token inside a `projects.machineLabelRuns` window,
   is the job's.

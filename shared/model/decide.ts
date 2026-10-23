@@ -1,4 +1,12 @@
-import { dayStart, firstOpenDay, targetOf, utcDay, type Project, type Today } from './projects';
+import {
+   dayIn,
+   dayStart,
+   firstOpenDay,
+   targetOf,
+   utcDay,
+   type Project,
+   type Today,
+} from './projects';
 import { goingProjects, homesOf, type Initiative } from './initiatives';
 import { healthStanding, isUnderWay, planEnd, weeksPast, type RoadmapItem } from './roadmap';
 import type { IssueCounts } from './work';
@@ -190,9 +198,20 @@ export const RANK: Record<DecideReason['kind'], number> = {
 /** Whether nobody changed a plan's status since its end passed: an `ended`
  * plan Pulldasher finishes on its own. One a person put back under way
  * after its end stays as they left it. */
-export function endedUnanswered(item: RoadmapItem): boolean {
+export function endedUnanswered(item: RoadmapItem, timeZone = 'UTC'): boolean {
    const changed = item.status_at ?? item.updated_at ?? 0;
-   return changed < (dayStart(planEnd(item)) as number) + DAY;
+   // its end is a day where the team is (projects.ts dayIn), as `today` is
+   return dayIn(changed, timeZone) <= planEnd(item);
+}
+
+/** The plan that stands for a project with none under way: the one changed
+ * last (the first in `plans`' order on a tie). Decide asks about it, and
+ * it's the one Pulldasher picks up again (model/autoCalls.ts). */
+export function lastPlan(plans: readonly RoadmapItem[]): RoadmapItem | null {
+   return plans.reduce<RoadmapItem | null>(
+      (a, i) => (!a || (i.updated_at ?? 0) > (a.updated_at ?? 0) ? i : a),
+      null
+   );
 }
 
 /**
@@ -202,14 +221,19 @@ export function endedUnanswered(item: RoadmapItem): boolean {
  * issues or its end with nothing left open. A closed issue with PRs still
  * open, or an end a person answered, never is.
  */
-export function answeredOnItsOwn(reason: DecideReason, item: RoadmapItem | null): boolean {
+export function answeredOnItsOwn(
+   reason: DecideReason,
+   item: RoadmapItem | null,
+   /** the team's (projects.timeZone), for the `ended` day */
+   timeZone?: string
+): boolean {
    switch (reason.kind) {
       case 'new':
       case 'reopened':
       case 'moving':
          return true;
       case 'ended':
-         return item != null && endedUnanswered(item);
+         return item != null && endedUnanswered(item, timeZone);
       case 'issue_closed':
       case 'issues_done':
          return reason.open === 0;
@@ -372,12 +396,7 @@ export function decideQueue({
       for (const item of going) planReasons(item, project);
       // with nothing under way, its latest plan is the decision, unless its
       // issue was closed after that
-      const last = going.length
-         ? null
-         : plans.reduce<RoadmapItem | null>(
-              (a, i) => (!a || decidedAt(i) > decidedAt(a) ? i : a),
-              null
-           );
+      const last = going.length ? null : lastPlan(plans);
       const issue = closed.get(project.slug);
       // open PRs gone quiet, and no call in that time
       const idle =

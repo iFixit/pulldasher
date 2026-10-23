@@ -344,6 +344,8 @@ function pullRow(number, owner, over = {}) {
 let roadmapRows = [];
 // the projects that ever had a plan (lib/roadmap.js plannedSlugs)
 let everPlanned = [];
+// when set, reading every project's PRs for the calls fails
+let pullsFail = false;
 // the initiatives tables, and what the not-tracked reads find in
 // pull_labels joined to pulls: each label's repos, and each PR's open time
 let initiativeRows = [];
@@ -470,6 +472,7 @@ before(() => {
       // every project's PRs (lib/auto-calls.js loadProjectPulls): who put
       // each label on, a person, a bot, or a person's token in a script run
       if (sql.startsWith('SELECT p.repo, p.number, p.title AS pr_title')) {
+         if (pullsFail) throw new Error('lost the database');
          if (!sql.includes('JOIN pull_labels')) return [];
          const pr = (number, over) => ({
             repo: 'test/repo-a',
@@ -573,7 +576,7 @@ test('/api/v1/projects lists each project with today and the window', async () =
    // what the labeling job reads: no plan, its newest PR merged yesterday,
    // and the PR a person labeled before the job's, a script run's included
    assert.equal(alpha.status, null);
-   const yesterday = new Date(Date.now() - DAY * 1000).toISOString().slice(0, 10);
+   const yesterday = teamDay(Date.now() / 1000 - DAY);
    assert.equal(alpha.last_activity, yesterday);
    assert.deepEqual(
       alpha.examples.map(e => [e.number, e.by]),
@@ -780,6 +783,31 @@ test('/api/v1/decide leaves out only what a call Pulldasher makes this pass answ
    } finally {
       config.projects.autoCalls = false;
       everPlanned = [];
+   }
+});
+
+test('Decide and the board still load when the calls can’t be read, asking everything', async () => {
+   roadmapRows = [];
+   config.projects.autoCalls = true;
+   pullsFail = true;
+   const logged = mock.method(console, 'error', () => {});
+   try {
+      const decide = await get('/api/v1/decide');
+      assert.equal(decide.status, 200);
+      assert.deepEqual(decide.body.pending_calls, []);
+      assert.ok(decide.body.decisions.some(d => d.reasons.some(r => r.kind === 'new')));
+      const board = await get('/projects-data');
+      assert.equal(board.status, 200);
+      assert.deepEqual(board.body.pending_calls, []);
+      // said once, not on every fetch
+      assert.equal(
+         logged.mock.calls.filter(c => String(c.arguments[0]).includes('roadmap calls')).length,
+         1
+      );
+   } finally {
+      logged.mock.restore();
+      pullsFail = false;
+      config.projects.autoCalls = false;
    }
 });
 

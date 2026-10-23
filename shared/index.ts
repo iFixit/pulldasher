@@ -144,7 +144,14 @@ export type {
    InitiativeSpan,
    InitiativeStatus,
 } from './model/initiatives';
-export { autoCalls, withoutAnswered, AUTO_LOGIN, IDLE_DAYS, LEAD_DAYS } from './model/autoCalls';
+export {
+   autoCalls,
+   withoutAnswered,
+   AUTO_LOGIN,
+   IDLE_DAYS,
+   LEAD_DAYS,
+   SETTLE_DAYS,
+} from './model/autoCalls';
 export type { AutoCall, AutoPull } from './model/autoCalls';
 export { labeledBy, slugName } from './model/projectLabel';
 export type { MachineLabelRun } from './model/projectLabel';

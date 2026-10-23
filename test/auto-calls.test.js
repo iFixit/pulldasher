@@ -52,31 +52,34 @@ test('each PR lands in its project by the one rule, with who labeled it', () => 
 
 test('the examples put a person’s labels first, then the job’s, newest first, five at most', () => {
    const day = 86400;
-   const pull = (number, at, labeledBy, over = {}) => ({
-      repo: 'test/repo-a',
-      number,
-      title: `PR ${number}`,
-      opened: at,
-      merged: null,
-      labeledAt: at,
-      labeledBy,
-      ...over,
+   const inRun = Date.parse('2026-10-10T08:00:00Z') / 1000;
+   // every PR in alpha, labeled by whom and when
+   const labeled = (number, at, user, over = {}) => ({
+      ...row(number, { date: at, ...over }),
+      title: 'project:alpha',
+      label_user: user,
+      label_date: at,
    });
    const runs = [{ actor: 'jarstelfox', from: '2026-10-10T07:55:00Z', to: '2026-10-10T08:05:00Z' }];
-   const inRun = Date.parse('2026-10-10T08:00:00Z') / 1000;
-   const { last_activity, examples } = projectActivity(
+   const pulls = projectPullsFrom(
       [
-         pull(1, 10 * day, 'dana'),
-         pull(2, 20 * day, 'job[bot]'),
-         pull(3, inRun, 'jarstelfox'),
-         pull(4, 5 * day, 'erin', { merged: 30 * day }),
-         pull(5, 40 * day, null, { labeledAt: null }),
-         pull(6, 1 * day, 'fixture-bot'),
-         pull(7, 2 * day, 'job[bot]'),
+         labeled(1, 10 * day, 'dana'),
+         labeled(2, 20 * day, 'job[bot]'),
+         // a person's token inside a script run: the job's
+         { ...labeled(3, inRun - day, 'jarstelfox'), label_date: inRun },
+         labeled(4, 5 * day, 'erin', { state: 'closed', date_merged: 30 * day }),
+         // closed without merging: no part of the project's work
+         labeled(5, 50 * day, 'erin', { state: 'closed' }),
+         labeled(6, 1 * day, 'fixture-bot', { owner: 'erin' }),
+         labeled(7, 2 * day, 'job[bot]'),
       ],
+      // no label: joins by a link, never an example
+      [row(8, { date: 40 * day })],
+      'project:',
+      { 'test/repo-a#8': ['alpha'] },
       runs
-   );
-   assert.equal(last_activity, '2026-10-10');
+   ).get('alpha');
+   const { examples } = projectActivity(pulls);
    assert.deepEqual(
       examples.map(e => [e.number, e.by]),
       [
@@ -88,7 +91,18 @@ test('the examples put a person’s labels first, then the job’s, newest first
       ]
    );
    assert.equal(examples[0].merged_at, new Date(30 * day * 1000).toISOString());
-   assert.deepEqual(projectActivity([], runs), { last_activity: null, examples: [] });
+   assert.deepEqual(projectActivity([]), { last_activity: null, examples: [] });
+});
+
+test('last activity is the team’s day of the newest PR opened, merged or pushed to', () => {
+   const pull = over => ({ opened: 0, merged: null, pushed: null, open: true, by: null, ...over });
+   // 3am UTC on Oct 11 is still Oct 10 in Los Angeles, the default team zone
+   const lateSunday = Date.parse('2026-10-11T03:00:00Z') / 1000;
+   assert.equal(
+      projectActivity([pull({ opened: 1000 }), pull({ opened: 2000, pushed: lateSunday })])
+         .last_activity,
+      '2026-10-10'
+   );
 });
 
 test("an automatic status change only lands while the plan's status is still as it was read", async () => {

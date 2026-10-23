@@ -70,8 +70,9 @@ export const API_ROUTES = [
          '`double_labeled` holds the open PRs in two. Each project says its `initiative` (slug, or null for ' +
          'Unsorted), whether it is `tracked`, and whether it `grew` while not tracked. A project Not tracked because ' +
          'its PRs are all in projects.untrackedRepos has `initiative: null` with `tracked: false`. For the ' +
-         'labeling job: `status`, its plan’s status or null; `last_activity`, the day its newest PR opened or ' +
-         'merged; `examples`, up to 5 of its labeled PRs {repo, number, title, merged_at, by}, `by` "person" ' +
+         'labeling job: `status`, its plan’s status or null; `last_activity`, the team’s day (projects.timeZone) ' +
+         'its newest PR opened, merged or was pushed to, the activity a plan is put down by; `examples`, up to 5 ' +
+         'of its labeled PRs, open or merged, {repo, number, title, merged_at, by}, `by` "person" ' +
          '(listed first) or "job" (a bot, or a projects.machineLabelRuns window), newest first',
    },
    {
@@ -401,9 +402,11 @@ export function apiIndex(req, res) {
             'work sync, recorded as `pulldasher` with why in the item’s `auto_note`. Decide leaves a reason out ' +
             'only when a call this pass answers it: `new` (a plan in progress with no end, unless one was ever ' +
             'removed), `reopened` and `moving` (back in progress once a PR opens, or an open PR is labeled in, ' +
-            'after the status was set: 1 for a parked plan, 2 for a done or dropped one), `issue_closed` and ' +
-            '`issues_done` with no PRs open (done, or dropped when closed as not planned), and `ended` while ' +
-            'nobody changed its status since its end. It also parks a plan in progress after projects.idleDays ' +
+            'after the status was set: 1 for a parked plan, 2 for a done or dropped one, and never once its issue ' +
+            'closed since), `issue_closed` and `issues_done` with no PRs open (done, or dropped when closed as ' +
+            'not planned), and `ended` while nobody changed its status since its end; a plan being finished is ' +
+            'asked nothing more. A PR the labeling job filed counts toward a pick-up or a new plan once its label ' +
+            'is projects.settleDays old (default 3); a person’s label counts at once. It also parks a plan in progress after projects.idleDays ' +
             '(default 28) with no PR opened, merged or pushed, no update and no change by a person, and fills an ' +
             'empty lead on a plan under way with its issue’s assignee, else the author of the most PRs in the ' +
             'last 60 days. A person’s write wins: change it back as usual',

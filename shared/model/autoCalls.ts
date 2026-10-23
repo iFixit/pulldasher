@@ -1,6 +1,13 @@
-import { answeredOnItsOwn, DECIDE_MIN_PRS, type DecideReason, type DecideRow } from './decide';
+import {
+   answeredOnItsOwn,
+   lastPlan,
+   DECIDE_MIN_PRS,
+   type ClosedIssue,
+   type DecideReason,
+   type DecideRow,
+} from './decide';
 import { slugName } from './projectLabel';
-import { utcDay } from './projects';
+import { utcDay, LIVE_DAYS } from './projects';
 import { isUnderWay, mondayOf, planEnd, type RoadmapItem } from './roadmap';
 
 /**
@@ -39,6 +46,11 @@ export const LEAD_DAYS = 60;
 export const AUTO_LOGIN = 'pulldasher';
 /** PRs a done or dropped plan takes after its finish to be picked up again */
 export const RETURN_PRS = 2;
+/** days the labeling job's label on a PR waits before it counts toward a
+ * pick-up or a new plan: the default for config.js projects.settleDays.
+ * The job re-sorts its own filings at each sweep, so a fresh one is still
+ * a guess; a person's label counts at once */
+export const SETTLE_DAYS = 3;
 const NAME_MAX = 120;
 const DAY = 86400;
 
@@ -55,6 +67,9 @@ export interface AutoPull {
    open: boolean;
    /** epoch secs its project label was put on; null when it joins by a link */
    labeledAt: number | null;
+   /** who put its project label on (projectLabel.ts labeledBy); null when
+    * it joins by a link */
+   by: 'person' | 'job' | null;
 }
 
 /** A plan's fields a new plan is written with. */
@@ -118,6 +133,11 @@ function leadFor(
    );
 }
 
+/** Whether a PR counts toward a call yet: a person's label, or one that
+ * joins by a link, at once; the job's once it's `settleDays` old. */
+const settled = (p: AutoPull, now: number, settleDays: number) =>
+   p.by !== 'job' || (p.labeledAt != null && now - p.labeledAt >= settleDays * DAY);
+
 /** The PRs that came to a project after `since`, each opened, or open and
  * labeled into it, after then, with when, first first. */
 function cameAfter(pulls: readonly AutoPull[], since: number) {
@@ -154,7 +174,10 @@ export function autoCalls({
    names = new Map(),
    leads = new Map(),
    ongoing = new Set(),
+   closed = new Map(),
    idleDays = IDLE_DAYS,
+   settleDays = SETTLE_DAYS,
+   timeZone,
    now,
 }: {
    /** Decide's queue asked without `auto`: what happened, as it reads it */
@@ -173,10 +196,17 @@ export function autoCalls({
    /** projects that run with no end: a finished plan of theirs isn't
     * picked up again by the work that follows (as Decide's `reopened`) */
    ongoing?: ReadonlySet<string>;
+   /** closed project issues, by slug (decide.ts closedIssues): one closed
+    * after a plan stopped is the news, so the plan isn't picked up */
+   closed?: ReadonlyMap<string, ClosedIssue>;
    idleDays?: number;
+   settleDays?: number;
+   /** the team's (projects.timeZone), for the day a plan ends */
+   timeZone?: string;
    /** epoch secs */
    now: number;
 }): AutoCall[] {
+   const counted = (prs: readonly AutoPull[]) => prs.filter(p => settled(p, now, settleDays));
    const calls: AutoCall[] = [];
    const moved = new Set<number>();
    const setStatus = (item: RoadmapItem, status: RoadmapItem['status'], note: string) => {
@@ -197,10 +227,14 @@ export function autoCalls({
       for (const r of row.reasons) {
          const item = row.item;
          if (r.kind === 'new' && row.slug && !item && !planned.has(row.slug)) {
-            calls.push(newPlan(row.slug, r.since));
+            // Decide asks with every PR; a plan is made once enough have settled
+            const live = counted(pulls.get(row.slug) ?? []).filter(
+               p => p.open || (p.merged ?? 0) >= now - LIVE_DAYS * DAY
+            );
+            if (live.length >= DECIDE_MIN_PRS) calls.push(newPlan(row.slug, r.since));
             continue;
          }
-         if (!item || !isUnderWay(item.status) || !answeredOnItsOwn(r, item)) continue;
+         if (!item || !isUnderWay(item.status) || !answeredOnItsOwn(r, item, timeZone)) continue;
          if (r.kind === 'issue_closed') {
             const as = r.as === 'dropped' ? 'not planned' : 'completed';
             setStatus(item, r.as, `Finished: its issue was closed as ${as} on ${r.on}`);
@@ -214,17 +248,20 @@ export function autoCalls({
       }
    }
 
+   // in Decide's order, so lastPlan breaks a tie as it does
    const plansOf = new Map<string, RoadmapItem[]>();
-   for (const item of items) {
+   for (const item of [...items].sort((a, b) => a.priority - b.priority || a.id - b.id)) {
       if (item.project) plansOf.set(item.project, [...(plansOf.get(item.project) ?? []), item]);
    }
    for (const [slug, plans] of plansOf) {
       const prs = pulls.get(slug) ?? [];
-      // picked up again: only the project's latest plan, with none under way
-      if (!plans.some(p => isUnderWay(p.status))) {
-         const last = [...plans].sort((a, b) => statusAt(b) - statusAt(a) || b.id - a.id)[0];
+      // picked up again: only the plan Decide reads for the project, with
+      // none under way, and not when its issue closed since: that's asked
+      const last = plans.some(p => isUnderWay(p.status)) ? null : lastPlan(plans);
+      const issue = closed.get(slug);
+      if (last && !(issue && issue.at > statusAt(last))) {
          const finished = last.status === 'done' || last.status === 'dropped';
-         const after = finished && ongoing.has(slug) ? [] : cameAfter(prs, statusAt(last));
+         const after = finished && ongoing.has(slug) ? [] : cameAfter(counted(prs), statusAt(last));
          if (after.length >= (finished ? RETURN_PRS : 1)) {
             const at = (p: { pull: AutoPull; at: number }) =>
                `${p.pull.repo}#${p.pull.number} on ${utcDay(p.at)}`;
@@ -285,11 +322,12 @@ export function autoCalls({
    }
 }
 
-/** The reasons each kind of status call answers, by the status it sets. */
-const ANSWERS: Record<RoadmapItem['status'], DecideReason['kind'][]> = {
+/** The reasons each kind of status call answers, by the status it sets:
+ * a finished plan is asked nothing more ('all'). */
+const ANSWERS: Record<RoadmapItem['status'], DecideReason['kind'][] | 'all'> = {
    active: ['reopened', 'moving'],
-   done: ['issue_closed', 'issues_done', 'ended'],
-   dropped: ['issue_closed', 'issues_done', 'ended'],
+   done: 'all',
+   dropped: 'all',
    parked: [],
    planned: [],
 };
@@ -305,7 +343,7 @@ export function withoutAnswered(
    rows: readonly DecideRow[],
    calls: readonly AutoCall[]
 ): DecideRow[] {
-   const byItem = new Map<number, DecideReason['kind'][]>();
+   const byItem = new Map<number, DecideReason['kind'][] | 'all'>();
    const planned = new Set<string>();
    for (const c of calls) {
       if (c.kind === 'status') byItem.set(c.id, ANSWERS[c.status]);
@@ -317,7 +355,7 @@ export function withoutAnswered(
          : row.slug && planned.has(row.slug)
          ? ['new']
          : [];
-      const reasons = row.reasons.filter(r => !answered.includes(r.kind));
+      const reasons = row.reasons.filter(r => answered !== 'all' && !answered.includes(r.kind));
       if (reasons.length === row.reasons.length) return [row];
       return reasons.length ? [{ ...row, reasons }] : [];
    });

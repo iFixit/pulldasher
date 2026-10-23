@@ -52,6 +52,7 @@ const pull = (number: number, over: Partial<AutoPull> = {}): AutoPull => ({
    pushed: null,
    open: true,
    labeledAt: ago(5),
+   by: 'person',
    ...over,
 });
 const project = (slug: string, over: Partial<DecideProject> = {}): DecideProject => ({
@@ -128,11 +129,67 @@ describe('picked up again', () => {
 
    it('reads only the latest plan, and none when another is under way', () => {
       const pulls = { p1: [pull(7, { opened: ago(1) }), pull(8, { opened: ago(1) })] };
-      const old = item(1, { status: 'done', status_at: ago(40) });
-      const later = item(2, { project: 'p1', status: 'done', status_at: ago(10) });
+      const old = item(1, { status: 'done', status_at: ago(40), updated_at: ago(40) });
+      const later = item(2, {
+         project: 'p1',
+         status: 'done',
+         status_at: ago(10),
+         updated_at: ago(10),
+      });
       expect(calls([old, later], pulls).map(c => 'id' in c && c.id)).toEqual([2]);
       const running = item(2, { project: 'p1', status: 'planned' });
       expect(calls([old, running], pulls)).toEqual([]);
+   });
+
+   it('waits for the job’s label to settle; a person’s counts at once', () => {
+      const plan = item(1, { status: 'parked', status_at: ago(10) });
+      const job = (labeledAt: number) => pull(7, { opened: ago(20), labeledAt, by: 'job' });
+      expect(calls([plan], { p1: [job(ago(2))] })).toEqual([]);
+      expect(calls([plan], { p1: [job(ago(3))] })[0]).toMatchObject({ status: 'active' });
+      // opened after, but filed by the job yesterday: still a guess
+      const fresh = pull(8, { opened: ago(1), labeledAt: ago(1), by: 'job' });
+      expect(calls([plan], { p1: [fresh] })).toEqual([]);
+      const person = pull(8, { opened: ago(1), labeledAt: ago(1), by: 'person' });
+      expect(calls([plan], { p1: [person] })[0]).toMatchObject({ status: 'active' });
+      // joined by a link, no label: at once
+      const linked = pull(8, { opened: ago(1), labeledAt: null, by: null });
+      expect(calls([plan], { p1: [linked] })[0]).toMatchObject({ status: 'active' });
+   });
+
+   it('never picks up a plan whose issue closed after it stopped: Decide asks that', () => {
+      const plan = item(1, { status: 'parked', status_at: ago(10) });
+      const got = autoCalls({
+         rows: [],
+         items: [plan],
+         pulls: new Map([['p1', [pull(7, { opened: ago(3) })]]]),
+         planned: new Set(['p1']),
+         closed: new Map([['p1', { as: 'done' as const, at: ago(5) }]]),
+         now: NOW,
+      });
+      expect(got).toEqual([]);
+      // closed before it was parked: the PR still picks it up
+      const before = autoCalls({
+         rows: [],
+         items: [plan],
+         pulls: new Map([['p1', [pull(7, { opened: ago(3) })]]]),
+         planned: new Set(['p1']),
+         closed: new Map([['p1', { as: 'done' as const, at: ago(20) }]]),
+         now: NOW,
+      });
+      expect(before[0]).toMatchObject({ status: 'active' });
+   });
+
+   it('picks up the plan Decide reads: the last one changed', () => {
+      const pulls = { p1: [pull(7, { opened: ago(1) })] };
+      // the earlier status, but changed since: Decide reads this one
+      const a = item(1, { status: 'parked', status_at: ago(40), updated_at: ago(2) });
+      const b = item(2, {
+         project: 'p1',
+         status: 'parked',
+         status_at: ago(10),
+         updated_at: ago(10),
+      });
+      expect(calls([a, b], pulls).map(c => 'id' in c && c.id)).toEqual([1]);
    });
 
    it('lets work go on after a finished plan of an ongoing project', () => {
@@ -269,6 +326,22 @@ describe('finished', () => {
             note: 'Finished: its end, 2026-08-30, passed with no PRs open',
          },
       ]);
+      // changed at 8pm on its end day where the team is, already the next
+      // day in UTC: after its end by UTC, not by the team's day
+      const lateThatDay = { ...plan, status_at: (dayStart('2026-08-31') as number) + 3 * 3600 };
+      const late = rowsFor(lateThatDay, [project('p1')]);
+      const utc = calls([lateThatDay], { p1: [] }, { rows: late });
+      expect(utc.some(c => c.kind === 'status' && c.status === 'done')).toBe(false);
+      expect(
+         autoCalls({
+            rows: late,
+            items: [lateThatDay],
+            pulls: new Map([['p1', []]]),
+            planned: new Set(['p1']),
+            timeZone: 'America/Los_Angeles',
+            now: NOW,
+         }).map(c => c.kind === 'status' && c.status)
+      ).toEqual(['done']);
       // a person put it back in progress after its end: theirs stands
       const reopened = { ...plan, status_at: ago(2), updated_at: ago(2) };
       const again = rowsFor(reopened, [project('p1')]);
@@ -318,6 +391,15 @@ describe('new project', () => {
          now: NOW,
       });
       expect(got[0]).toMatchObject({ fields: { name: 'GA4 event tracking' } });
+   });
+
+   it('makes it only once 3 PRs count: the job’s labels after they settle', () => {
+      const job = (n: number, labeledAt: number) =>
+         pull(n, { opened: ago(9), labeledAt, by: 'job', author: 'kim' });
+      const fresh = { 'ga4-events': [pull(1), job(2, ago(1)), job(3, ago(2))] };
+      expect(calls([], fresh, { rows })).toEqual([]);
+      const settledPrs = { 'ga4-events': [pull(1), job(2, ago(3)), job(3, ago(4))] };
+      expect(calls([], settledPrs, { rows }).map(c => c.kind)).toEqual(['new']);
    });
 
    it('never makes again a plan someone removed', () => {
@@ -436,6 +518,11 @@ describe('withoutAnswered', () => {
       note: '',
    });
 
+   it('asks a finished plan nothing more, its judgment calls included', () => {
+      const kept = withoutAnswered(rows, [status(3, 'active', 'done')]);
+      expect(kept.some(r => r.slug === 'p3')).toBe(false);
+   });
+
    it('leaves out only what a call this pass answers', () => {
       const kept = withoutAnswered(rows, [
          status(1, 'done', 'active'),
@@ -456,8 +543,6 @@ describe('withoutAnswered', () => {
       expect(kept.map(r => [r.slug, ...r.reasons.map(x => x.kind)])).toEqual([
          // moved with no new PR: no call, still asked
          ['p2', 'moving'],
-         // the judgment call on a finished plan stays
-         ['p3', 'at_risk'],
          // a removed plan's project got no new plan: still asked
          ['p5', 'new'],
          // reopened with no plan: nothing to pick up, still asked

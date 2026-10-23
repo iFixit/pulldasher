@@ -162,6 +162,11 @@ module.exports = {
       // see what it would do, then set it true. Off, Decide asks them.
       autoCalls: false,
       idleDays: 28,
+      // Days a PR the labeling job filed waits before it counts toward
+      // picking a plan up or making a new one: the job re-sorts its own
+      // filings, so a fresh one is still a guess. A person's label counts
+      // at once.
+      settleDays: 3,
       // When a script added project labels with a person's token: a label
       // `actor` added between `from` and `to` (ISO times, UTC) counts as the
       // labeling job's, not theirs, in /api/v1/projects `examples`.

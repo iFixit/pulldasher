@@ -14,6 +14,7 @@ import { trackedOnly } from '../lib/initiatives.js';
 import { trackedNow } from './roadmap.js';
 import {
    callsFrom,
+   callsOrNone,
    loadDecide,
    loadProjectPulls,
    pendingCalls,
@@ -121,7 +122,7 @@ function projectRecords(
    stats,
    prefix,
    { homes, untracked, grown },
-   { plans = [], pulls = new Map(), runs = [] } = {}
+   { plans = [], pulls = new Map() } = {}
 ) {
    const bySlug = new Map(projects.map(p => [p.slug, p]));
    const groups = new Map();
@@ -175,7 +176,7 @@ function projectRecords(
          idle_days: g ? g.idleDays : null,
          flags: g ? g.flags : [],
          status: planFor(slug, plans)?.status ?? null,
-         ...projectActivity(pulls.get(slug) ?? [], runs),
+         ...projectActivity(pulls.get(slug) ?? []),
          // its open PRs by where they stand, in the project page's words
          stages: stageCounts(g ? g.open : []),
          window: stats.projects[slug] || null,
@@ -272,7 +273,6 @@ export default {
                projects: projectRecords(projects, today, stats, settings.prefix, tracked, {
                   plans,
                   pulls: history,
-                  runs: settings.machineLabelRuns,
                }),
                misc: {
                   open: today.misc.map(d => key(d.data)),
@@ -536,7 +536,9 @@ export default {
       // the calls Pulldasher makes this pass, so Decide leaves out what they answer
       const load = trackedNow().then(async tracked => {
          const d = await loadDecide(settings, tracked, { now });
-         const calls = settings.autoCalls ? await callsFrom(settings, d, Math.floor(now)) : [];
+         const calls = settings.autoCalls
+            ? await callsOrNone(() => callsFrom(settings, d, Math.floor(now)))
+            : [];
          return { ...d, rows: withoutAnswered(d.rows, calls), calls, tracked };
       });
       respondOrError(
