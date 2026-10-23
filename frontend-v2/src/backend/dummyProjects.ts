@@ -353,11 +353,16 @@ export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
          end_kind: 'hard',
          done_when: 'Leads can see and approve leave balances',
       }),
-      // planned to start in two weeks: the list's "Starts" cell
+      // planned to start in two weeks: the list's "Starts" cell; its lead
+      // filled in by Pulldasher two days ago, Decide's "Changed on its own"
       item(11, 'Newsletter promo page', 2, 4, {
          project: 'newsletter-promo',
          team: 'Store',
          lead: 'zdmitchell',
+         auto_note: 'Lead: zdmitchell, with the most PRs here in the last 60 days (3)',
+         auto_at: now - 2 * 86400,
+         // nobody changed it since, or the line would be theirs, not ours
+         updated_at: now - 3 * 86400,
       }),
       // parked twelve days ago while its PRs kept moving: "Parked, still
       // worked on", which Decide asks about

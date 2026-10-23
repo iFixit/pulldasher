@@ -13,6 +13,14 @@ import { listItems } from '../lib/roadmap.js';
 import { trackedOnly } from '../lib/initiatives.js';
 import { trackedNow } from './roadmap.js';
 import {
+   callsFrom,
+   callsOrNone,
+   loadDecide,
+   loadProjectPulls,
+   pendingCalls,
+   projectActivity,
+} from '../lib/auto-calls.js';
+import {
    attachIssue,
    detachIssue,
    loadProjectWork,
@@ -24,7 +32,6 @@ import {
    addWeeks,
    closedIssues,
    decideProjects,
-   decideQueue,
    decideTurn,
    endOf,
    needsDecision,
@@ -39,6 +46,8 @@ import {
    windowStats,
    prStage,
    MISC_SLUG,
+   planFor,
+   withoutAnswered,
    PROJECT_SLUG,
    STALL_DAYS,
 } from '../shared/dist/index.js';
@@ -58,11 +67,6 @@ function issueOfRequest(from) {
    return typeof from?.issue === 'string' ? parseIssueRef(from.issue) : null;
 }
 
-/** Projects that run with no end: marked on the board, or by the `ongoing`
- * label on their issue. */
-function ongoingSlugs(settings, projects) {
-   return new Set([...settings.ongoing, ...projects.filter(p => p.ongoing).map(p => p.slug)]);
-}
 
 /**
  * Validate the projects config and the requested window, then load the
@@ -108,9 +112,18 @@ function load(req, res) {
  * then quiet ones, then the rest (done, dropped, or only in the window's
  * history) by slug. Each says its initiative (its home's slug, or null),
  * whether it's tracked, and whether it grew while not tracked
- * (lib/initiatives.js tracking).
+ * (lib/initiatives.js tracking). With `plans` and `pulls` (every project's
+ * PRs, lib/auto-calls.js loadProjectPulls), its plan's status and what the
+ * labeling job reads (projectActivity) too.
  */
-function projectRecords(projects, today, stats, prefix, { homes, untracked, grown }) {
+function projectRecords(
+   projects,
+   today,
+   stats,
+   prefix,
+   { homes, untracked, grown },
+   { plans = [], pulls = new Map() } = {}
+) {
    const bySlug = new Map(projects.map(p => [p.slug, p]));
    const groups = new Map();
    const standing = new Map();
@@ -162,6 +175,8 @@ function projectRecords(projects, today, stats, prefix, { homes, untracked, grow
          people: g ? g.people : [],
          idle_days: g ? g.idleDays : null,
          flags: g ? g.flags : [],
+         status: planFor(slug, plans)?.status ?? null,
+         ...projectActivity(pulls.get(slug) ?? []),
          // its open PRs by where they stand, in the project page's words
          stages: stageCounts(g ? g.open : []),
          window: stats.projects[slug] || null,
@@ -201,7 +216,9 @@ export default {
       if (!loaded) return;
       respondOrError(
          res,
-         loaded.then(({ settings, projects, linked, tracked, stats }) => {
+         loaded.then(async ({ settings, projects, linked, tracked, stats }) => {
+            // what Pulldasher's calls this pass answer, for the board's Decide
+            const calls = await pendingCalls();
             // the PRs Today is built from: the board's open and recently closed
             const onBoard = new Set(pullManager.getPulls().map(p => key(p.data).toLowerCase()));
             return {
@@ -211,6 +228,7 @@ export default {
                teams_from: settings.teamsFrom,
                decide_rotation: settings.decideRotation,
                ongoing: settings.ongoing,
+               pending_calls: calls,
                untracked: [...tracked.untracked].sort(),
                grew: [...tracked.grown.keys()].sort(),
                grew_counts: Object.fromEntries(tracked.grown),
@@ -239,7 +257,11 @@ export default {
       if (!loaded) return;
       respondOrError(
          res,
-         loaded.then(({ settings, projects, linked, tracked, stats }) => {
+         loaded.then(async ({ settings, projects, linked, tracked, stats }) => {
+            const [plans, history] = await Promise.all([
+               listItems(),
+               loadProjectPulls(settings, linked),
+            ]);
             const now = Date.now() / 1000;
             const pulls = pullManager.getPulls();
             const today = todayFromBoard(pulls, projects, settings.prefix, now, linked);
@@ -248,7 +270,10 @@ export default {
                start: stats.start,
                end: stats.end,
                label_prefix: settings.prefix,
-               projects: projectRecords(projects, today, stats, settings.prefix, tracked),
+               projects: projectRecords(projects, today, stats, settings.prefix, tracked, {
+                  plans,
+                  pulls: history,
+               }),
                misc: {
                   open: today.misc.map(d => key(d.data)),
                   window: stats.projects[MISC_SLUG] || null,
@@ -507,54 +532,31 @@ export default {
          res.status(404).json({ error: 'projects are not set up on this Pulldasher' });
          return;
       }
-      const load = Promise.all([
-         loadProjects(settings),
-         listItems(),
-         loadPullLinks(settings),
-         trackedNow(),
-      ]).then(([projects, plans, linked, tracked]) =>
-         loadWork(settings, { plans, projects }).then(work => [projects, plans, work, linked, tracked])
-      );
+      const now = Date.now() / 1000;
+      // the calls Pulldasher makes this pass, so Decide leaves out what they answer
+      const load = trackedNow().then(async tracked => {
+         const d = await loadDecide(settings, tracked, { now });
+         const calls = settings.autoCalls
+            ? await callsOrNone(() => callsFrom(settings, d, Math.floor(now)))
+            : [];
+         return { ...d, rows: withoutAnswered(d.rows, calls), calls, tracked };
+      });
       respondOrError(
          res,
-         load.then(([projects, allItems, work, linked, tracked]) => {
-            const now = Date.now() / 1000;
-            const pulls = pullManager.getPulls();
-            const fullToday = todayFromBoard(pulls, projects, settings.prefix, now, linked);
-            const { today, items } = trackedOnly(tracked.untracked, {
-               today: fullToday,
-               items: allItems,
-            });
+         load.then(({ rows, projects, fullToday, tracked, calls }) => {
             const bySlug = new Map(projects.map(p => [p.slug, p]));
             // from the full set: a grown project's row says its open PRs too
             const open = new Map(fullToday.live.map(g => [g.slug, g.open.length]));
             const byId = new Map(tracked.initiatives.map(i => [i.id, i]));
-            const rows = decideQueue({
-               live: decideProjects(today),
-               items,
-               initiatives: tracked.initiatives,
-               grown: [...tracked.grown].map(([slug, g]) => ({ slug, ...g })),
-               closed: closedIssues(projects),
-               planCounts: new Map(
-                  work.plans.map(p => [
-                     p.planId,
-                     {
-                        openPulls: p.openPulls,
-                        afterEnd: p.afterEnd.length,
-                        afterDone: p.afterDone.length,
-                     },
-                  ])
-               ),
-               issues: new Map(Object.entries(work.projects)),
-               ongoing: ongoingSlugs(settings, projects),
-               // the board's Decide asks by the browser's day: the team's
-               today: teamDay(now),
-               now,
-            });
             const day = teamDay(now);
             return {
                server_time: Math.floor(now),
                stall_days: STALL_DAYS,
+               // Pulldasher makes the calls that only say what happened
+               // (config.js projects.autoCalls); what this pass's calls
+               // answer isn't asked
+               auto_calls: settings.autoCalls,
+               pending_calls: calls,
                // who takes their turn running this list, this week and next
                runs_this_week: decideTurn(settings.decideRotation, day),
                runs_next_week: decideTurn(settings.decideRotation, addWeeks(day, 1)),

@@ -148,7 +148,9 @@ The tab has five views and a page per project:
   turns can be changed in place or with `PATCH /api/v1/settings`. A team's lead can
   take just their team's rows, and copy them as text for a meeting's
   notes. It weighs every project, whatever the filter bar narrows the
-  other views to. The tab's label counts what's left.
+  other views to. The tab's label counts what's left. With automatic
+  calls on (below), it leaves out a reason only when Pulldasher makes a
+  call that answers it, and asks the rest as before.
 - **Roadmap**: the plan set against everything actually in flight. Across
   the top, how many projects were in flight each week (from their PRs)
   and, for the weeks ahead, the plans plus every project big enough to owe
@@ -208,6 +210,69 @@ The tab has five views and a page per project:
     row opens the PRs that took the most days and who spent them. It all
     copies as text for the retro's notes.
 
+Pulldasher makes the roadmap calls that only say what already happened, so
+the roadmap follows the work without anyone answering Decide. After each
+sync of the projects' work (a webhook on a project's issue, or the hourly
+pass), it:
+
+- picks a plan up again: a parked plan whose project gets a PR opened, or
+  an open PR a person labeled into it, after it was parked goes back in progress
+  ("Picked up again by owner/repo#12 on 2026-10-20"). A done or dropped
+  plan takes 2 such PRs, since one fix after a finish isn't a return. PRs
+  that were already open when someone marked it done don't count, and
+  neither does an old PR the labeling job files later: a job's PR counts
+  by when it opened, not when its label went on. A plan whose project
+  issue closed after the plan last changed isn't picked up: Decide asks
+  about that.
+- puts a plan down: a plan in progress is parked when, for `idleDays` (28),
+  its project had no PR opened, merged or pushed to, nobody posted an
+  update, and no person changed it.
+- finishes a plan: one under way whose issue closed, or all of whose issues
+  closed, with no PRs open, is done, or dropped when they were closed as not
+  planned. One past its hard end with none open, its status untouched
+  since, is done.
+- plans a project: one with 3 or more PRs open or merged in the last 14
+  days that never had a plan gets one, in progress from its first open
+  PR's week (or its first PR's, when all have merged) with no end, named
+  by its issue or its label. A burst that already merged counts too, and
+  put down parks it once it goes quiet. A plan someone removed isn't made
+  again, and Not tracked, ongoing and closed projects get none. Decide's
+  own question about a new project still needs a PR open.
+- names a lead: a plan planned or in progress with no lead, whose status
+  it isn't changing in the same pass, gets its project issue's assignee,
+  else the author with the most PRs in its project over the last 60 days.
+  A lead someone set is never replaced, and a plan a person changed since
+  its project's PRs last moved keeps an empty lead, since they may have
+  cleared it.
+
+Each call is a roadmap write like a person's, recorded as `pulldasher`,
+with why in the plan's `auto_note` and when in `auto_at` (a lead fills in
+without counting as a call). Decide lists the week's under "Changed on its
+own". A person's change always wins: the rules only read what happened
+after a plan's status last changed, and a call that finds its plan's
+status changed since it read it doesn't land. Decide, the API's and the
+board's, works out the calls Pulldasher makes now and leaves out only
+the reasons those answer (`pending_calls` on `/api/v1/decide`). A plan
+being finished is asked nothing more.
+
+The labeling job files PRs into projects and re-sorts its own filings at
+each sweep, so a fresh label of its own is still a guess. A PR the job
+labeled (a bot's label, or one inside a `machineLabelRuns` window) counts
+toward picking a plan up or making a new one only once that label is
+`settleDays` old (3 by default). A PR a person labeled, or one that joins
+by an issue link, counts at once.
+
+It's off until `autoCalls: true` is set in config.js's `projects`, and
+while it's off Decide asks those calls. To turn it on:
+
+1. Deploy.
+2. On the server, run `bin/auto-calls` to see what it would do now. It
+   writes nothing.
+3. Run `bin/auto-calls --at <the day 28 days from today>` to see the plans
+   that will be put down once a burst of new labels goes quiet. It runs
+   the rules as of that day on today's PRs and plans.
+4. Set `autoCalls: true`.
+
 To put the plans where people already look, `bin/sync-issue-fields` copies
 each plan under way into its project issue's Start date, Target date and
 Priority fields: the plan's first Monday and last day, and Urgent for a
@@ -225,8 +290,12 @@ bin/sync-issue-fields --apply   # write it
 Everything the tab shows, and every change the roadmap takes, is in the API,
 Bearer-authed with the caller's own GitHub token like `/api/v1/pulls`, so a
 script or a Claude session can read the projects and run the roadmap
-without a browser. `GET /api/v1` lists every route with what it does, and
-the rules a roadmap write is checked against:
+without a browser. A job reads it with a read key instead: the labeling job
+sends one as its Bearer value. config.js's `apiReadKeys` lists the SHA-256
+hex digest of each key, never the key itself (`printf %s "$KEY" | sha256sum`).
+A read key is let in for `GET` only, and any write with one is refused, since
+it has no login to record. `GET /api/v1` lists every route with what it does,
+and the rules a roadmap write is checked against:
 
 ```sh
 curl -s -H "Authorization: Bearer $(gh auth token)" https://pulldasher.example.com/api/v1
@@ -235,7 +304,15 @@ curl -s -H "Authorization: Bearer $(gh auth token)" https://pulldasher.example.c
 - `GET /api/v1/projects` and `GET /api/v1/people`: each project and each
   person with where they stand today and their numbers for a window. Both
   take `start` and `end` as `YYYY-MM-DD` days (default: the last 30 days, at
-  most 400), and `project=<slug>` narrows the numbers to one project.
+  most 400), and `project=<slug>` narrows the numbers to one project. Each
+  project also says what the labeling job reads: `status`, its plan's
+  status (null with none), `last_activity`, the team's day
+  (`projects.timeZone`) its newest PR opened, merged or was pushed to, the
+  same activity a plan is put down by, and `examples`, up to 5 of its labeled PRs (`repo`, `number`,
+  `title`, `merged_at`, `by`), open or merged, the ones a person labeled (`by: "person"`)
+  before the job's (`"job"`), newest first. A bot's label, or one a script
+  added with a person's token inside a `projects.machineLabelRuns` window,
+  is the job's.
 - `GET /api/v1/decide`: the calls owed now, worst first, each with its
   project, its roadmap item if it has one, and its reasons. `GET /api/v1`
   says what each reason means and which write clears it. It also names who

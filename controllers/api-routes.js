@@ -42,7 +42,8 @@ export const PROJECT_WRITES = [
  * GET /api/v1 lists it, so a script (or an agent) reading the list can't
  * miss a route. Each takes the caller's own GitHub token as
  * `Authorization: Bearer <token>`; a write also needs a JSON body and is
- * recorded as that token's login.
+ * recorded as that token's login. A read key (config.js apiReadKeys) reads
+ * only (lib/api-auth.js).
  */
 export const API_ROUTES = [
    {
@@ -68,7 +69,11 @@ export const API_ROUTES = [
          'A PR counts toward its project label, or with none the project whose issue it links; ' +
          '`double_labeled` holds the open PRs in two. Each project says its `initiative` (slug, or null for ' +
          'Unsorted), whether it is `tracked`, and whether it `grew` while not tracked. A project Not tracked because ' +
-         'its PRs are all in projects.untrackedRepos has `initiative: null` with `tracked: false`',
+         'its PRs are all in projects.untrackedRepos has `initiative: null` with `tracked: false`. For the ' +
+         'labeling job: `status`, its plan’s status or null; `last_activity`, the team’s day (projects.timeZone) ' +
+         'its newest PR opened, merged or was pushed to, the activity a plan is put down by; `examples`, up to 5 ' +
+         'of its labeled PRs, open or merged, {repo, number, title, merged_at, by}, `by` "person" ' +
+         '(listed first) or "job" (a bot, or a projects.machineLabelRuns window), newest first',
    },
    {
       method: 'get',
@@ -151,8 +156,11 @@ export const API_ROUTES = [
       handlers: [projectsController.getDecide],
       does:
          'The decisions owed now, worst first, each with its project, roadmap item, `initiative` (its home, or ' +
-         'the one asked about), and reasons (see `decide`); days are the team’s (config.js projects.timeZone, ' +
-         'default America/Los_Angeles). Not-tracked projects are left out, but for the ones that grew',
+         'the one asked about), and reasons (see `decide`). `auto_calls`: whether Pulldasher makes the calls ' +
+         'that only say what happened itself (see `decide.made_by_pulldasher`); `pending_calls`, the ones it ' +
+         'makes this pass, and the reasons they answer are left out. Days ' +
+         'are the team’s (config.js projects.timeZone, default America/Los_Angeles). Not-tracked projects are ' +
+         'left out, but for the ones that grew',
    },
    {
       method: 'get',
@@ -316,7 +324,9 @@ export const API_ROUTES = [
  * against, so a caller can learn the API from the API. */
 export function apiIndex(req, res) {
    res.json({
-      auth: 'Authorization: Bearer <your GitHub token>, from a member of the org',
+      auth:
+         'Authorization: Bearer <your GitHub token>, from a member of the org. A read key (what the ' +
+         'labeling job sends; config.js apiReadKeys holds its SHA-256) reads (GET) and never writes',
       endpoints: API_ROUTES.map(({ method, path, does }) => ({
          method: method.toUpperCase(),
          path,
@@ -345,6 +355,8 @@ export function apiIndex(req, res) {
          },
          done_when: `one line on what finished looks like, up to ${DONE_WHEN_MAX} characters; line breaks become spaces`,
          notes: 'up to 2000 characters',
+         auto_note:
+            'read only: why Pulldasher last changed it on its own, and `auto_at` when; null when it never has',
          waits_on: `ids of other items this one waits on, at most ${WAITS_ON_MAX}, never a loop`,
       },
       initiative: {
@@ -370,7 +382,7 @@ export function apiIndex(req, res) {
             off_track: 'its latest update says off track, and the plan hasn’t changed since',
             at_risk: 'its latest update says at risk, and the plan hasn’t changed since',
             issue_closed:
-               'its project issue was closed (`as` done or dropped, `on` a day) after the plan last changed, and the plan is still under way',
+               'its project issue was closed (`as` done or dropped, `on` a day) after the plan last changed, and the plan is still under way; `open` = its PRs still open',
             reopened:
                'marked done or dropped a week ago or more (`by` the roadmap or by closing the issue), but `open` PRs are still open',
             moving: 'parked, but its PRs changed after it was parked',
@@ -385,6 +397,22 @@ export function apiIndex(req, res) {
             reopened_in_closed:
                'its `initiative` is closed (`as` done or dropped), but it has open PRs or a plan under way again: the same rule that refuses a close. On the project’s own row when it has one',
          },
+         made_by_pulldasher:
+            'With config.js projects.autoCalls true (off by default), Pulldasher makes these calls itself after each ' +
+            'work sync, recorded as `pulldasher` with why in the item’s `auto_note`. Decide leaves a reason out ' +
+            'only when a call this pass answers it: `new` (a plan in progress with no end, made for any project ' +
+            'with 3 or more PRs open or merged in the last 14 days, merged bursts too, unless one was ever ' +
+            'removed), `reopened` and `moving` (back in progress once a PR opens, or an open PR is labeled in, ' +
+            'after the status was set: 1 for a parked plan, 2 for a done or dropped one, and never once its issue ' +
+            'closed after its last change), `issue_closed` and `issues_done` with no PRs open (done, or dropped when closed as ' +
+            'not planned), and `ended` while nobody changed its status since its end; a plan being finished is ' +
+            'asked nothing more. A PR the labeling job filed counts toward a pick-up or a new plan once its label ' +
+            'is projects.settleDays old (default 3), and toward a pick-up only by when it opened; a person’s ' +
+            'label counts at once. An empty lead a person may have cleared (they changed the plan since its PRs ' +
+            'last moved) stays empty. It also parks a plan in progress after projects.idleDays ' +
+            '(default 28) with no PR opened, merged or pushed, no update and no change by a person, and fills an ' +
+            'empty lead on a plan under way with its issue’s assignee, else the author of the most PRs in the ' +
+            'last 60 days. A person’s write wins: change it back as usual',
          to_clear:
             'Make the call as a roadmap write. With no item: POST /api/v1/roadmap {name, project, status, ' +
             'start, weeks, end_kind: "hard"}. With one: PATCH /api/v1/roadmap/:id with {status: "active", weeks, ' +

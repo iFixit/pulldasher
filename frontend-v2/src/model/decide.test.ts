@@ -220,7 +220,12 @@ describe('decideQueue', () => {
          as: 'dropped',
          by: 'issue',
       });
-      expect(rows[1].reasons[0]).toEqual({ kind: 'issue_closed', as: 'done', on: '2026-09-27' });
+      expect(rows[1].reasons[0]).toEqual({
+         kind: 'issue_closed',
+         as: 'done',
+         on: '2026-09-27',
+         open: 2,
+      });
    });
 
    it('flags a missed target until someone replans', () => {
@@ -858,6 +863,37 @@ describe('filledIn', () => {
       ]);
       expect(found.started.map(p => p.id)).toEqual([1]);
       expect(found.vouched.map(v => [v.plan.id, v.vouch.merged])).toEqual([[3, 2]]);
+      expect(found.moved).toEqual([]);
+   });
+
+   it('lists the plans Pulldasher changed on its own this week, newest first', () => {
+      const plans = [
+         item(1, {
+            status: 'parked',
+            auto_note: 'Put down: no PRs in 28 days',
+            auto_at: ago(2),
+            updated_by: 'pulldasher',
+            updated_at: ago(2),
+         }),
+         // a lead filled after a person's last change: still Pulldasher's
+         item(2, { auto_note: 'Lead: kim', auto_at: ago(1), updated_by: 'dana', updated_at: ago(5) }),
+         // last week's
+         item(3, { status: 'done', auto_note: 'Finished', auto_at: ago(8) }),
+         // put down, then a person changed it: theirs now
+         item(4, {
+            status: 'active',
+            auto_note: 'Put down: no PRs in 28 days',
+            auto_at: ago(3),
+            updated_by: 'dana',
+            updated_at: ago(1),
+         }),
+      ];
+      const today: Pick<Today, 'live' | 'quiet'> = { live: [], quiet: [] };
+      const found = filledIn({ today, prefix: 'project:', plans, pages: new Map(), now: NOW });
+      expect(found.moved.map(p => [p.id, p.auto_note])).toEqual([
+         [2, 'Lead: kim'],
+         [1, 'Put down: no PRs in 28 days'],
+      ]);
    });
 });
 

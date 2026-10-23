@@ -4,6 +4,7 @@ import { rowWord } from '../model/actions';
 import type { PullData } from '../../../shared/types';
 import { n, pullKey } from '../../../shared/format';
 import { closedIssues, decideProjects, decideQueue } from '../../../shared/model/decide';
+import { withoutAnswered } from '../../../shared/model/autoCalls';
 import { buildToday } from '../../../shared/model/projects';
 import { dayOf } from '../model/days';
 import {
@@ -186,27 +187,30 @@ function useYourProjects(
       const ongoing = ongoingSlugs(data);
       // Decide's questions, asked as decideRows asks them
       // (views/projects/Decide.tsx), so each word names the call Decide puts first
-      const asked = decideQueue({
-         live: decideProjects(trackedToday(today, untracked)),
-         items: trackedPlans(plans, initiatives),
-         initiatives: initiatives ?? [],
-         grown: grownProjects(data, initiatives),
-         closed: closedIssues(data.projects),
-         planCounts: new Map(
-            [...(work?.plans ?? [])].map(([id, w]) => [
-               id,
-               {
-                  openPulls: w.openPulls,
-                  afterEnd: w.afterEnd.length,
-                  afterDone: w.afterDone.length,
-               },
-            ])
-         ),
-         issues: work?.projects,
-         ongoing,
-         today: dayOf(new Date(now)),
-         now: now / 1000,
-      });
+      const asked = withoutAnswered(
+         decideQueue({
+            live: decideProjects(trackedToday(today, untracked)),
+            items: trackedPlans(plans, initiatives),
+            initiatives: initiatives ?? [],
+            grown: grownProjects(data, initiatives),
+            closed: closedIssues(data.projects),
+            planCounts: new Map(
+               [...(work?.plans ?? [])].map(([id, w]) => [
+                  id,
+                  {
+                     openPulls: w.openPulls,
+                     afterEnd: w.afterEnd.length,
+                     afterDone: w.afterDone.length,
+                  },
+               ])
+            ),
+            issues: work?.projects,
+            ongoing,
+            today: dayOf(new Date(now)),
+            now: now / 1000,
+         }),
+         data.pending_calls ?? []
+      );
       const items = withCalls(
          portfolioItems(
             data.projects,

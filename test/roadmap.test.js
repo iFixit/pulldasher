@@ -194,6 +194,8 @@ test('itemFromRow renames the lead and fills the blanks', () => {
          updated_at: 1790000000,
          created_at: 1789000000,
          status_at: 1789500000,
+         auto_note: null,
+         auto_at: null,
          update: null,
       }
    );

@@ -222,6 +222,8 @@ CREATE TABLE IF NOT EXISTS `roadmap_items` (
   `updated_at` int unsigned DEFAULT NULL,
   `status_at` int unsigned DEFAULT NULL,
   `removed_at` int unsigned DEFAULT NULL,
+  `auto_note` varchar(200) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `auto_at` int unsigned DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `roadmap_items_priority` (`priority`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

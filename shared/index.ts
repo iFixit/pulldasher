@@ -107,6 +107,7 @@ export {
 export type { DecideRotation, DeveloperTeams } from './model/settings';
 
 export {
+   answeredOnItsOwn,
    closedIssues,
    decideProjects,
    decideQueue,
@@ -143,6 +144,17 @@ export type {
    InitiativeSpan,
    InitiativeStatus,
 } from './model/initiatives';
+export {
+   autoCalls,
+   withoutAnswered,
+   AUTO_LOGIN,
+   IDLE_DAYS,
+   LEAD_DAYS,
+   SETTLE_DAYS,
+} from './model/autoCalls';
+export type { AutoCall, AutoPull } from './model/autoCalls';
+export { labeledBy, slugName } from './model/projectLabel';
+export type { MachineLabelRun } from './model/projectLabel';
 export { loadByWeek, mondaysBetween, peakFrom, spansFrom } from './model/load';
 export type { InFlightSpan, LoadWeek, OriginCounts } from './model/load';
 export { timeSpent } from './model/retro';

@@ -70,8 +70,10 @@ export default {
    },
 
    /** GET /api/v1/me -- the authenticated caller's login, so a skill can
-    * confirm its token works and resolve the default reviewer. */
+    * confirm its token works and resolve the default reviewer. A read key has
+    * none: `read_key` says it reads only. */
    getMe: function (req, res) {
-      res.json({ login: req.apiUser.login });
+      const { login, readKey } = req.apiUser;
+      res.json(readKey ? { login, read_key: true } : { login });
    },
 };

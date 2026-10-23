@@ -67,6 +67,12 @@ module.exports = {
       secret: 'secret for signing session cookies',
    },
 
+   // Read-only keys for /api/v1, for a job with no person's token (the
+   // labeling job sends one as its Bearer value): the SHA-256 hex digest of
+   // each key, never the key (printf %s "$KEY" | sha256sum). A key reads
+   // (GET) and never writes.
+   apiReadKeys: [],
+
    // When true (default), GitHub PR reviews with state APPROVED count as CR
    // signoffs without requiring a CR :emoji: tag in the review body.
    useGithubApprovalForCr: true,
@@ -145,6 +151,36 @@ module.exports = {
       // leaves Decide, the counts and capacity. One PR in another repo ends
       // it. Omit or [] for none.
       // untrackedRepos: ['owner/ops'], // or just 'ops'
+      // Pulldasher makes the roadmap calls that only say what already
+      // happened: a plan picked up again by a new PR, put down after
+      // idleDays with no PR opened, merged or pushed, finished when its
+      // issues close or its hard end passes with nothing open, a plan for a
+      // project with 3 or more PRs and none, and a lead for a plan with
+      // none (its issue's assignee, else its busiest author lately). Each
+      // is recorded as 'pulldasher' with why, and a person's change always
+      // wins. Off unless true: deploy, run bin/auto-calls on the server to
+      // see what it would do, then set it true. Off, Decide asks them.
+      autoCalls: false,
+      idleDays: 28,
+      // Days a PR the labeling job filed waits before it counts toward
+      // picking a plan up or making a new one: the job re-sorts its own
+      // filings, so a fresh one is still a guess. A person's label counts
+      // at once.
+      settleDays: 3,
+      // When a script added project labels with a person's token: a label
+      // `actor` added between `from` and `to` (ISO times, UTC) counts as the
+      // labeling job's, not theirs: in /api/v1/projects `examples`, and it
+      // waits `settleDays` before counting toward an automatic call.
+      machineLabelRuns: [
+         { actor: 'jarstelfox', from: '2026-09-30T06:57:00Z', to: '2026-09-30T07:00:00Z' },
+         { actor: 'jarstelfox', from: '2026-10-10T07:55:00Z', to: '2026-10-10T08:05:00Z' },
+         { actor: 'jarstelfox', from: '2026-10-10T18:14:00Z', to: '2026-10-10T18:51:00Z' },
+         { actor: 'jarstelfox', from: '2026-10-10T19:28:00Z', to: '2026-10-10T19:41:00Z' },
+         { actor: 'jarstelfox', from: '2026-10-10T22:50:00Z', to: '2026-10-11T00:11:00Z' },
+         { actor: 'jarstelfox', from: '2026-10-11T02:35:00Z', to: '2026-10-11T03:10:00Z' },
+         { actor: 'jarstelfox', from: '2026-10-13T22:23:00Z', to: '2026-10-13T22:59:00Z' },
+         { actor: 'jarstelfox', from: '2026-10-13T23:32:00Z', to: '2026-10-13T23:42:00Z' },
+      ],
    },
 
    // The usual MySQL stuff. Like every other MySQL webapp, basically.

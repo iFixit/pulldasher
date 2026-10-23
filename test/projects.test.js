@@ -342,6 +342,10 @@ function pullRow(number, owner, over = {}) {
 
 // the roadmap_items rows the stubbed db answers with; a test sets its own
 let roadmapRows = [];
+// the projects that ever had a plan (lib/roadmap.js plannedSlugs)
+let everPlanned = [];
+// when set, reading every project's PRs for the calls fails
+let pullsFail = false;
 // the initiatives tables, and what the not-tracked reads find in
 // pull_labels joined to pulls: each label's repos, and each PR's open time
 let initiativeRows = [];
@@ -375,7 +379,15 @@ before(() => {
    // her own) aren't, so the window's dev/non-dev and review splits have
    // something real to split. 'Alice' is capitalized on purpose: teamOf must
    // still match the lowercase 'alice' pulls are seeded with.
-   config.projects = { repo: 'test/projects', developerTeams: { Store: ['Alice'] } };
+   // Decide asks every call here; one test turns on the calls Pulldasher makes
+   config.projects = {
+      repo: 'test/projects',
+      developerTeams: { Store: ['Alice'] },
+      autoCalls: false,
+      machineLabelRuns: [
+         { actor: 'jarstelfox', from: '2026-10-10T07:55:00Z', to: '2026-10-10T08:05:00Z' },
+      ],
+   };
    const now = Math.floor(Date.now() / 1000);
    // two open PRs in alpha (one person), one unsorted, one bot PR in alpha
    const seed = (row, labels) =>
@@ -457,6 +469,40 @@ before(() => {
             .filter(r => params[0].includes(r.title))
             .map((r, number) => ({ repo: 'test/repo-a', number, owner: 'alice', ...r }));
       }
+      // every project's PRs (lib/auto-calls.js loadProjectPulls): who put
+      // each label on, a person, a bot, or a person's token in a script run
+      if (sql.startsWith('SELECT p.repo, p.number, p.title AS pr_title')) {
+         if (pullsFail) throw new Error('lost the database');
+         if (!sql.includes('JOIN pull_labels')) return [];
+         const pr = (number, over) => ({
+            repo: 'test/repo-a',
+            number,
+            pr_title: `PR ${number}`,
+            owner: 'alice',
+            date: now - 3 * DAY,
+            state: 'open',
+            draft: 0,
+            title: 'project:alpha',
+            ...over,
+         });
+         return [
+            pr(11, {
+               date: now - 4 * DAY,
+               label_user: 'jarstelfox',
+               label_date: Date.parse('2026-10-10T08:00:00Z') / 1000,
+            }),
+            pr(12, { label_user: 'job-bot[bot]', label_date: now - 3 * DAY }),
+            pr(15, {
+               state: 'closed',
+               date: now - 5 * DAY,
+               date_merged: now - DAY,
+               label_user: 'alice',
+               label_date: now - 5 * DAY,
+            }),
+         ];
+      }
+      // every project that ever had a plan, removed ones too
+      if (sql.includes('SELECT DISTINCT `project` FROM `roadmap_items`')) return everPlanned;
       if (sql.includes('FROM `roadmap_items`')) return roadmapRows;
       if (sql.includes('FROM `roadmap_updates`')) return [];
       // alpha's own issue carries its label; its side names #11, on the
@@ -527,6 +573,22 @@ test('/api/v1/projects lists each project with today and the window', async () =
    const beta = body.projects.find(p => p.slug === 'beta');
    assert.equal(beta.standing, 'dropped');
    assert.deepEqual(body.unsorted.open, ['test/repo-a#13']);
+   // what the labeling job reads: no plan, its newest PR merged yesterday,
+   // and the PR a person labeled before the job's, a script run's included
+   assert.equal(alpha.status, null);
+   const yesterday = teamDay(Date.now() / 1000 - DAY);
+   assert.equal(alpha.last_activity, yesterday);
+   assert.deepEqual(
+      alpha.examples.map(e => [e.number, e.by]),
+      [
+         [15, 'person'],
+         [12, 'job'],
+         [11, 'job'],
+      ]
+   );
+   assert.equal(alpha.examples[0].title, 'PR 15');
+   assert.ok(alpha.examples[0].merged_at);
+   assert.equal(alpha.examples[1].merged_at, null);
    assert.equal(body.totals.backlog_end, 2);
    assert.equal(body.days.length, 30);
 });
@@ -698,6 +760,67 @@ test('/api/v1/decide lists a live project with no plan as new, then a slipped pl
    const parked = await get('/api/v1/decide');
    assert.ok(!parked.body.decisions.some(d => d.project === 'alpha'));
    roadmapRows = [];
+});
+
+test('/api/v1/decide leaves out only what a call Pulldasher makes this pass answers', async () => {
+   roadmapRows = [];
+   config.projects.autoCalls = true;
+   const asksNew = body => body.decisions.some(d => d.reasons.some(r => r.kind === 'new'));
+   try {
+      const { body } = await get('/api/v1/decide');
+      assert.equal(body.auto_calls, true);
+      // a first plan for alpha is made, not asked
+      assert.deepEqual(
+         body.pending_calls.map(c => [c.kind, c.fields?.project]),
+         [['new', 'alpha']]
+      );
+      assert.ok(!asksNew(body));
+      // a plan someone removed isn't made again, so Decide still asks
+      everPlanned = [{ project: 'alpha' }];
+      const removed = await get('/api/v1/decide');
+      assert.deepEqual(removed.body.pending_calls, []);
+      assert.ok(asksNew(removed.body));
+   } finally {
+      config.projects.autoCalls = false;
+      everPlanned = [];
+   }
+});
+
+test('Decide and the board still load when the calls can’t be read, asking everything', async () => {
+   roadmapRows = [];
+   config.projects.autoCalls = true;
+   pullsFail = true;
+   const logged = mock.method(console, 'error', () => {});
+   try {
+      const decide = await get('/api/v1/decide');
+      assert.equal(decide.status, 200);
+      assert.deepEqual(decide.body.pending_calls, []);
+      assert.ok(decide.body.decisions.some(d => d.reasons.some(r => r.kind === 'new')));
+      const board = await get('/projects-data');
+      assert.equal(board.status, 200);
+      assert.deepEqual(board.body.pending_calls, []);
+      // said once, not on every fetch
+      assert.equal(
+         logged.mock.calls.filter(c => String(c.arguments[0]).includes('roadmap calls')).length,
+         1
+      );
+   } finally {
+      logged.mock.restore();
+      pullsFail = false;
+      config.projects.autoCalls = false;
+   }
+});
+
+test('the calls Pulldasher makes are off unless config.js says true', async () => {
+   delete config.projects.autoCalls;
+   try {
+      assert.equal(projectSettings().autoCalls, false);
+      const { body } = await get('/api/v1/decide');
+      assert.equal(body.auto_calls, false);
+      assert.deepEqual(body.pending_calls, []);
+   } finally {
+      config.projects.autoCalls = false;
+   }
 });
 
 test('/api/v1/load counts this week and runs undecided projects ahead', async () => {

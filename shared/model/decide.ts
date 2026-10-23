@@ -1,4 +1,12 @@
-import { dayStart, firstOpenDay, targetOf, utcDay, type Project, type Today } from './projects';
+import {
+   dayIn,
+   dayStart,
+   firstOpenDay,
+   targetOf,
+   utcDay,
+   type Project,
+   type Today,
+} from './projects';
 import { goingProjects, homesOf, type Initiative } from './initiatives';
 import { healthStanding, isUnderWay, planEnd, weeksPast, type RoadmapItem } from './roadmap';
 import type { IssueCounts } from './work';
@@ -41,6 +49,9 @@ import type { IssueCounts } from './work';
  * Every plan still under way is judged on its own, so a project's finished
  * first phase can't hide its second running late. A call is a roadmap write
  * (commit, park, finish, drop); any change to a plan counts as one.
+ * With config.js projects.autoCalls on, Pulldasher makes the calls that
+ * only say what already happened itself (model/autoCalls.ts), and Decide
+ * leaves out what a call this pass answers (autoCalls.ts withoutAnswered).
  */
 
 export const STALL_DAYS = 21;
@@ -64,7 +75,8 @@ export type DecideReason =
    | { kind: 'missed'; due: string; open: number }
    | { kind: 'off_track' }
    | { kind: 'at_risk' }
-   | { kind: 'issue_closed'; as: 'done' | 'dropped'; on: string }
+   /** `open`: the plan's PRs still open */
+   | { kind: 'issue_closed'; as: 'done' | 'dropped'; on: string; open: number }
    /** `late`: PRs opened more than a week after it was marked so */
    | {
         kind: 'reopened';
@@ -183,6 +195,53 @@ export const RANK: Record<DecideReason['kind'], number> = {
    untracked_grew: 10,
 };
 
+/** Whether nobody changed a plan's status since its end passed: an `ended`
+ * plan Pulldasher finishes on its own. One a person put back under way
+ * after its end stays as they left it. */
+export function endedUnanswered(item: RoadmapItem, timeZone = 'UTC'): boolean {
+   const changed = item.status_at ?? item.updated_at ?? 0;
+   // its end is a day where the team is (projects.ts dayIn), as `today` is
+   return dayIn(changed, timeZone) <= planEnd(item);
+}
+
+/** The plan that stands for a project with none under way: the one changed
+ * last (the first in `plans`' order on a tie). Decide asks about it, and
+ * it's the one Pulldasher picks up again (model/autoCalls.ts). */
+export function lastPlan(plans: readonly RoadmapItem[]): RoadmapItem | null {
+   return plans.reduce<RoadmapItem | null>(
+      (a, i) => (!a || (i.updated_at ?? 0) > (a.updated_at ?? 0) ? i : a),
+      null
+   );
+}
+
+/**
+ * Whether a reason is one Pulldasher can answer itself (model/autoCalls.ts
+ * autoCalls reads it), when its other rules agree: a first plan (`new`),
+ * work picked up again (`reopened`, `moving`), and a plan finished by its
+ * issues or its end with nothing left open. A closed issue with PRs still
+ * open, or an end a person answered, never is.
+ */
+export function answeredOnItsOwn(
+   reason: DecideReason,
+   item: RoadmapItem | null,
+   /** the team's (projects.timeZone), for the `ended` day */
+   timeZone?: string
+): boolean {
+   switch (reason.kind) {
+      case 'new':
+      case 'reopened':
+      case 'moving':
+         return true;
+      case 'ended':
+         return item != null && endedUnanswered(item, timeZone);
+      case 'issue_closed':
+      case 'issues_done':
+         return reason.open === 0;
+      default:
+         return false;
+   }
+}
+
 /** A plan's PRs, by the dates (model/work.ts PlanWork), as Decide counts them. */
 export interface PlanCounts {
    /** its PRs still open */
@@ -277,12 +336,6 @@ export function decideQueue({
 
    // what a plan under way owes; `project` is its live project, if any
    const planReasons = (item: RoadmapItem, project: DecideProject | null) => {
-      const issue = item.project ? closed.get(item.project) : undefined;
-      if (issue && issue.at > decidedAt(item)) {
-         // the closed issue is the news; the plan's other troubles follow from it
-         add(item.project, item, { kind: 'issue_closed', as: issue.as, on: utcDay(issue.at) });
-         return;
-      }
       const counts = planCounts.get(item.id);
       // a project with several plans counts each plan's own PRs (by the
       // dates), so a later plan's open PRs don't keep a finished one over;
@@ -290,6 +343,17 @@ export function decideQueue({
       // them now
       const several = (item.project ? plansOf.get(item.project)?.length ?? 0 : 0) > 1;
       const open = counts && several ? counts.openPulls : project?.open ?? 0;
+      const issue = item.project ? closed.get(item.project) : undefined;
+      if (issue && issue.at > decidedAt(item)) {
+         // the closed issue is the news; the plan's other troubles follow from it
+         add(item.project, item, {
+            kind: 'issue_closed',
+            as: issue.as,
+            on: utcDay(issue.at),
+            open,
+         });
+         return;
+      }
       // only a hard end is a commitment to ask about once it passes
       if (item.end_kind === 'hard' && planEnd(item) < today) {
          add(item.project, item, {
@@ -332,12 +396,7 @@ export function decideQueue({
       for (const item of going) planReasons(item, project);
       // with nothing under way, its latest plan is the decision, unless its
       // issue was closed after that
-      const last = going.length
-         ? null
-         : plans.reduce<RoadmapItem | null>(
-              (a, i) => (!a || decidedAt(i) > decidedAt(a) ? i : a),
-              null
-           );
+      const last = going.length ? null : lastPlan(plans);
       const issue = closed.get(project.slug);
       // open PRs gone quiet, and no call in that time
       const idle =

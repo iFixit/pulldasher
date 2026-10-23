@@ -18,6 +18,7 @@ import {
    type DecideRow,
    type GrownProject,
 } from '../../../../shared/model/decide';
+import { withoutAnswered, AUTO_LOGIN, type AutoCall } from '../../../../shared/model/autoCalls';
 import type { Initiative } from '../../../../shared/model/initiatives';
 import { projectSlugs, type Today } from '../../../../shared/model/projects';
 import { decideTurn, type DecideRotation } from '../../../../shared/model/settings';
@@ -156,9 +157,16 @@ export function decideRows(
    {
       initiatives = [],
       grown = [],
-   }: { initiatives?: readonly Initiative[]; grown?: readonly GrownProject[] } = {}
+      calls = [],
+   }: {
+      initiatives?: readonly Initiative[];
+      grown?: readonly GrownProject[];
+      /** the calls the server makes this pass (ProjectsData
+       * pending_calls): what they answer isn't asked */
+      calls?: readonly AutoCall[];
+   } = {}
 ): DecideRow[] {
-   return decideQueue({
+   const rows = decideQueue({
       initiatives,
       grown,
       live: decideProjects(today),
@@ -179,6 +187,7 @@ export function decideRows(
       today: dayOf(new Date()),
       now: Date.now() / 1000,
    });
+   return withoutAnswered(rows, calls);
 }
 
 /** A call made on a row this visit, kept so the row stays in its place
@@ -1815,6 +1824,9 @@ export interface FilledIn {
    /** plans in progress whose numbers vouch for them, so their leads owe no
     * update this week */
    vouched: { plan: RoadmapItem; vouch: Vouch }[];
+   /** plans the server changed on its own this week (shared
+    * model/autoCalls.ts), each saying why, newest first */
+   moved: ShownPlan[];
 }
 
 export function filledIn({
@@ -1880,7 +1892,15 @@ export function filledIn({
       const vouch = s?.kind === 'quiet' || s?.kind === 'current' ? s.vouch : undefined;
       return vouch ? [{ plan, vouch }] : [];
    });
-   return { joined, linked, started, vouched };
+   // while it's still Pulldasher's: the last change is its own (a status
+   // call), or, for a lead it filled, which leaves who changed it last, no
+   // one has changed it since; a person's later change takes it off
+   const stillOurs = (p: RoadmapItem) =>
+      p.updated_by === AUTO_LOGIN || (p.updated_at ?? 0) <= (p.auto_at ?? 0);
+   const moved = plans
+      .filter(p => (p.auto_at ?? 0) >= since && stillOurs(p))
+      .sort((a, b) => (b.auto_at ?? 0) - (a.auto_at ?? 0));
+   return { joined, linked, started, vouched, moved };
 }
 
 /** A PR's own fields, open (as the board derives it) or closed. */
@@ -2061,7 +2081,12 @@ function FilledInSection({
    for (const j of held.values()) if (!joined.some(o => keyOf(o) === keyOf(j))) joined.push(j);
    const nameOf = (slug: string) => items.find(i => i.slug === slug)?.name ?? slug;
    const line = 'border-t border-secondary px-3.5 py-2 first:border-t-0';
-   const total = joined.length + found.linked.length + found.started.length + found.vouched.length;
+   const total =
+      joined.length +
+      found.linked.length +
+      found.started.length +
+      found.vouched.length +
+      found.moved.length;
    return (
       <>
          {withIssues.map(slug => (
@@ -2081,7 +2106,8 @@ function FilledInSection({
                            {WEEK_DAYS} days rather than asking anyone: issues that joined a project
                            because its PRs link them, PRs that count in a project because they link
                            one of its issues, plans that read In progress because their PRs moved,
-                           and updates nobody owes because the numbers vouch.
+                           updates nobody owes because the numbers vouch, and plans Pulldasher
+                           changed itself because their PRs or issues said so.
                         </p>
                         <p className="m-0">
                            Each line opens where it happened. A joined issue that doesn’t belong
@@ -2155,6 +2181,26 @@ function FilledInSection({
                            </div>
                         );
                      })}
+                  </Fold>
+                  <Fold
+                     count={found.moved.length}
+                     label="Changed on its own"
+                     gloss="Plans Pulldasher picked up again, put down, finished, planned or gave a lead in the last 7 days, going by their PRs and issues. A change you make to one stays"
+                     id="decide:filled:moved"
+                  >
+                     <ul className="m-0 list-none p-0 text-[13px] text-ink-2">
+                        {found.moved.map(plan => (
+                           <li key={plan.id} className={line}>
+                              <span className="block max-w-[70ch]">
+                                 <FactLink onClick={() => navigate(openPlan(nav, plan.id))}>
+                                    {plan.name}
+                                 </FactLink>
+                                 {' · '}
+                                 {plan.auto_note}
+                              </span>
+                           </li>
+                        ))}
+                     </ul>
                   </Fold>
                   <Fold
                      count={found.started.length}
@@ -2243,7 +2289,11 @@ export function Decide({
    navigate,
    onPerson,
    projectsRepo,
+   pendingCalls = [],
 }: {
+   /** the calls the server makes this pass: what they answer isn't asked
+    * (ProjectsData pending_calls) */
+   pendingCalls?: readonly AutoCall[];
    /** Today from every PR, not the filter bar's */
    today: Today;
    /** the portfolio from the same, for names, leads, sizes and teams */
@@ -2306,7 +2356,11 @@ export function Decide({
       return row.item?.team ?? (project ? mainTeam(project, teamOf) : null);
    };
    const kept = keepCalls(
-      decideRows(today, plans, closed, work, ongoing, { initiatives: initiatives ?? [], grown }),
+      decideRows(today, plans, closed, work, ongoing, {
+         initiatives: initiatives ?? [],
+         grown,
+         calls: pendingCalls,
+      }),
       made
    );
    // the Initiative switch's key for a row: its initiative, Unsorted, or
