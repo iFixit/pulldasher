@@ -396,7 +396,7 @@ export function apiIndex(req, res) {
                'its `initiative` is closed (`as` done or dropped), but it has open PRs or a plan under way again: the same rule that refuses a close. On the project’s own row when it has one',
          },
          made_by_pulldasher:
-            'With config.js projects.autoCalls on (the default), Pulldasher makes these calls itself after each ' +
+            'With config.js projects.autoCalls true (off by default), Pulldasher makes these calls itself after each ' +
             'work sync, recorded as `pulldasher` with why in the item’s `auto_note`, so Decide leaves them out: ' +
             '`new` (a plan in progress with no end, unless one was ever removed), `reopened` and `moving` (back ' +
             'in progress once a PR opens, or an open PR is labeled in, after the status was set), `issue_closed` ' +

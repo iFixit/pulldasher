@@ -156,9 +156,11 @@ module.exports = {
       // idleDays with no PR opened, merged or pushed, finished when its
       // issues close or its hard end passes with nothing open, a plan for a
       // project with 3 or more PRs and none, and a lead for a plan with
-      // none (its issue's assignee, else its busiest author lately). Each is recorded as 'pulldasher' with why, and a person's
-      // change always wins. false turns it off, and Decide asks them again.
-      autoCalls: true,
+      // none (its issue's assignee, else its busiest author lately). Each
+      // is recorded as 'pulldasher' with why, and a person's change always
+      // wins. Off unless true: deploy, run bin/auto-calls on the server to
+      // see what it would do, then set it true. Off, Decide asks them.
+      autoCalls: false,
       idleDays: 28,
       // When a script added project labels with a person's token: a label
       // `actor` added between `from` and `to` (ISO times, UTC) counts as the

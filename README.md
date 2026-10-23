@@ -240,9 +240,12 @@ with why in the plan's `auto_note` and when in `auto_at` (a lead fills in
 without counting as a call). Decide lists the week's under "Changed on its
 own". A person's change always wins: the rules only read what happened
 after a plan's status last changed, and a call that finds its plan changed
-since it read it doesn't land. `autoCalls: false` in config.js's
-`projects` turns it off, and Decide asks those calls again.
-`bin/auto-calls` says what it would do now; `--apply` does it.
+since it read it doesn't land.
+
+It's off until `autoCalls: true` is set in config.js's `projects`, and
+while it's off Decide asks those calls. To turn it on, deploy, run
+`bin/auto-calls` on the server to see what it would do now (it writes
+nothing), and then set `autoCalls: true`.
 
 To put the plans where people already look, `bin/sync-issue-fields` copies
 each plan under way into its project issue's Start date, Target date and
