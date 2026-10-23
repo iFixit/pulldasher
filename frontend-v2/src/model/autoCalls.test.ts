@@ -318,6 +318,17 @@ describe('finished', () => {
       expect(calls([plan], { p1: [] }, { rows: dropped })[0]).toMatchObject({ status: 'dropped' });
    });
 
+   it('never finishes an ongoing plan, whose issues closing means nothing is asked of it', () => {
+      const plan = item(1, { start: '2026-09-07', end_kind: 'ongoing' });
+      const issues = new Map([['p1', { total: 3, open: 0, done: 3, dropped: 0, lastClosedAt: ago(2) }]]);
+      const finishes = (c: ReturnType<typeof calls>) =>
+         c.filter(x => x.kind === 'status' && (x.status === 'done' || x.status === 'dropped'));
+      const rows = rowsFor(plan, [project('p1')], { issues });
+      expect(finishes(calls([plan], { p1: [] }, { rows }))).toEqual([]);
+      const closed = rowsFor(plan, [project('p1')], { closed: closedOn('done', 3) });
+      expect(finishes(calls([plan], { p1: [] }, { rows: closed }))).toEqual([]);
+   });
+
    it('finishes a plan past its hard end with none open, until someone reopens it', () => {
       const plan = item(1, { end_kind: 'hard', start: '2026-08-03', weeks: 4, status_at: ago(60) });
       const rows = rowsFor(plan, [project('p1')]);

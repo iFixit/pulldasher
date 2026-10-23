@@ -26,7 +26,8 @@ import { isUnderWay, mondayOf, planEnd, type RoadmapItem } from './roadmap';
  * - finished: a plan under way whose issue closed, or all of whose issues
  *   closed, with none of its PRs open, is done (dropped when they were
  *   closed as not planned); one past its hard end with none open, its
- *   status untouched since, is done (model/decide.ts answeredOnItsOwn)
+ *   status untouched since, is done (model/decide.ts answeredOnItsOwn).
+ *   Never an ongoing plan: upkeep has no end, so it parks when idle
  * - new: a project with DECIDE_MIN_PRS or more PRs open or merged in the
  *   last LIVE_DAYS, that never had a plan (not even one since removed),
  *   gets one in progress, with no end; put down parks it once it's idle.
@@ -239,6 +240,9 @@ export function autoCalls({
       for (const r of row.reasons) {
          const item = row.item;
          if (!item || !isUnderWay(item.status) || !answeredOnItsOwn(r, item, timeZone)) continue;
+         // upkeep has no end: closed issues mean nothing is asked of it right
+         // now, not that it's finished; it parks once it's idle instead
+         if (item.end_kind === 'ongoing') continue;
          if (r.kind === 'issue_closed') {
             const as = r.as === 'dropped' ? 'not planned' : 'completed';
             setStatus(item, r.as, `Finished: its issue was closed as ${as} on ${r.on}`);
