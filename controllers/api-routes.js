@@ -152,8 +152,10 @@ export const API_ROUTES = [
       handlers: [projectsController.getDecide],
       does:
          'The decisions owed now, worst first, each with its project, roadmap item, `initiative` (its home, or ' +
-         'the one asked about), and reasons (see `decide`); days are the team’s (config.js projects.timeZone, ' +
-         'default America/Los_Angeles). Not-tracked projects are left out, but for the ones that grew',
+         'the one asked about), and reasons (see `decide`). `auto_calls`: Pulldasher makes the calls that only ' +
+         'say what happened itself (see `decide.made_by_pulldasher`), so they are left out. Days ' +
+         'are the team’s (config.js projects.timeZone, default America/Los_Angeles). Not-tracked projects are ' +
+         'left out, but for the ones that grew',
    },
    {
       method: 'get',
@@ -348,6 +350,8 @@ export function apiIndex(req, res) {
          },
          done_when: `one line on what finished looks like, up to ${DONE_WHEN_MAX} characters; line breaks become spaces`,
          notes: 'up to 2000 characters',
+         auto_note:
+            'read only: why Pulldasher last changed it on its own, and `auto_at` when; null when it never has',
          waits_on: `ids of other items this one waits on, at most ${WAITS_ON_MAX}, never a loop`,
       },
       initiative: {
@@ -373,7 +377,7 @@ export function apiIndex(req, res) {
             off_track: 'its latest update says off track, and the plan hasn’t changed since',
             at_risk: 'its latest update says at risk, and the plan hasn’t changed since',
             issue_closed:
-               'its project issue was closed (`as` done or dropped, `on` a day) after the plan last changed, and the plan is still under way',
+               'its project issue was closed (`as` done or dropped, `on` a day) after the plan last changed, and the plan is still under way; `open` = its PRs still open',
             reopened:
                'marked done or dropped a week ago or more (`by` the roadmap or by closing the issue), but `open` PRs are still open',
             moving: 'parked, but its PRs changed after it was parked',
@@ -388,6 +392,15 @@ export function apiIndex(req, res) {
             reopened_in_closed:
                'its `initiative` is closed (`as` done or dropped), but it has open PRs or a plan under way again: the same rule that refuses a close. On the project’s own row when it has one',
          },
+         made_by_pulldasher:
+            'With config.js projects.autoCalls on (the default), Pulldasher makes these calls itself after each ' +
+            'work sync, recorded as `pulldasher` with why in the item’s `auto_note`, so Decide leaves them out: ' +
+            '`new` (a plan in progress with no end, unless one was ever removed), `reopened` and `moving` (back ' +
+            'in progress once a PR opens, or an open PR is labeled in, after the status was set), `issue_closed` ' +
+            'and `issues_done` with no PRs open (done, or dropped when closed as not planned), and `ended` while ' +
+            `nobody changed its status since its end. It also parks a plan in progress after projects.idleDays ` +
+            '(default 28) with no PR opened, merged or pushed and no status change, and fills an empty lead with ' +
+            'its issue’s assignee, else the author of the most PRs in the last 60 days. A person’s write wins: change it back as usual',
          to_clear:
             'Make the call as a roadmap write. With no item: POST /api/v1/roadmap {name, project, status, ' +
             'start, weeks, end_kind: "hard"}. With one: PATCH /api/v1/roadmap/:id with {status: "active", weeks, ' +

@@ -375,7 +375,12 @@ before(() => {
    // her own) aren't, so the window's dev/non-dev and review splits have
    // something real to split. 'Alice' is capitalized on purpose: teamOf must
    // still match the lowercase 'alice' pulls are seeded with.
-   config.projects = { repo: 'test/projects', developerTeams: { Store: ['Alice'] } };
+   // Decide asks every call here; one test turns on the calls Pulldasher makes
+   config.projects = {
+      repo: 'test/projects',
+      developerTeams: { Store: ['Alice'] },
+      autoCalls: false,
+   };
    const now = Math.floor(Date.now() / 1000);
    // two open PRs in alpha (one person), one unsorted, one bot PR in alpha
    const seed = (row, labels) =>
@@ -698,6 +703,19 @@ test('/api/v1/decide lists a live project with no plan as new, then a slipped pl
    const parked = await get('/api/v1/decide');
    assert.ok(!parked.body.decisions.some(d => d.project === 'alpha'));
    roadmapRows = [];
+});
+
+test('/api/v1/decide leaves the calls Pulldasher makes itself out when they are on', async () => {
+   roadmapRows = [];
+   config.projects.autoCalls = true;
+   try {
+      const { body } = await get('/api/v1/decide');
+      assert.equal(body.auto_calls, true);
+      // a first plan for alpha is made, not asked
+      assert.ok(!body.decisions.some(d => d.reasons.some(r => r.kind === 'new')));
+   } finally {
+      config.projects.autoCalls = false;
+   }
 });
 
 test('/api/v1/load counts this week and runs undecided projects ahead', async () => {

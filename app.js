@@ -24,6 +24,7 @@ import { syncRepoIssues } from './lib/project-issue-sync.js';
 import { loadSettingsWithRetry } from './lib/settings.js';
 import { issueRepos, projectSettings } from './lib/projects.js';
 import { setOnWorkSynced, syncWork } from './lib/work.js';
+import { runAutoCalls } from './lib/auto-calls.js';
 import { missingMigrations } from './lib/schema-check.js';
 import apiAuth from './lib/api-auth.js';
 import Debug from './lib/debug.js';
@@ -116,7 +117,15 @@ app.use(PROJECT_WRITES, function (req, res, next) {
    }
    next();
 });
-setOnWorkSynced(projectsChanged);
+// once the work is read again, Pulldasher makes the roadmap calls that only
+// say what happened (lib/auto-calls.js), then open boards fetch again
+setOnWorkSynced(function () {
+   runAutoCalls(projectSettings())
+      .catch(function (err) {
+         console.error('Roadmap calls failed: %s', (err && err.message) || err);
+      })
+      .finally(projectsChanged);
+});
 app.post('/project-issues', canWrite, projectsController.attachIssue);
 app.delete('/project-issues', canWrite, projectsController.detachIssue);
 // the roadmap is the one part of the Projects tab people edit here: reads are

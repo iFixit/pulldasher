@@ -125,6 +125,7 @@ test('names the roadmap and settings tables a database from before them lacks, i
       '0032-roadmap-items--add-end-kind-done-when.sql',
       // 0022 makes the column 24 wide; 0038 widens it
       '0038-roadmap-items--widen-project.sql',
+      '0042-roadmap-items--add-auto-note.sql',
    ]);
    mock.restoreAll();
 });
@@ -144,5 +145,11 @@ test('names the ready_at migration until pulls has the column', async () => {
 test('names the ready_at index until pulls has it', async () => {
    mock.method(db, 'query', async () => all.filter(r => r.c !== 'key:pulls_ready_at'));
    assert.deepEqual(await missingMigrations(), ['0041-pulls--add-ready-at-index.sql']);
+   mock.restoreAll();
+});
+
+test('names the auto note migration until roadmap_items has it', async () => {
+   mock.method(db, 'query', async () => all.filter(r => r.c !== 'auto_note'));
+   assert.deepEqual(await missingMigrations(), ['0042-roadmap-items--add-auto-note.sql']);
    mock.restoreAll();
 });

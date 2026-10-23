@@ -145,6 +145,15 @@ module.exports = {
       // leaves Decide, the counts and capacity. One PR in another repo ends
       // it. Omit or [] for none.
       // untrackedRepos: ['owner/ops'], // or just 'ops'
+      // Pulldasher makes the roadmap calls that only say what already
+      // happened: a plan picked up again by a new PR, put down after
+      // idleDays with no PR opened, merged or pushed, finished when its
+      // issues close or its hard end passes with nothing open, a plan for a
+      // project with 3 or more PRs and none, and a lead for a plan with
+      // none (its issue's assignee, else its busiest author lately). Each is recorded as 'pulldasher' with why, and a person's
+      // change always wins. false turns it off, and Decide asks them again.
+      autoCalls: true,
+      idleDays: 28,
    },
 
    // The usual MySQL stuff. Like every other MySQL webapp, basically.

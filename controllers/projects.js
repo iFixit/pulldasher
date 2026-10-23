@@ -12,6 +12,7 @@ import {
 import { listItems } from '../lib/roadmap.js';
 import { trackedOnly } from '../lib/initiatives.js';
 import { trackedNow } from './roadmap.js';
+import { loadDecide } from '../lib/auto-calls.js';
 import {
    attachIssue,
    detachIssue,
@@ -24,7 +25,6 @@ import {
    addWeeks,
    closedIssues,
    decideProjects,
-   decideQueue,
    decideTurn,
    endOf,
    needsDecision,
@@ -58,11 +58,6 @@ function issueOfRequest(from) {
    return typeof from?.issue === 'string' ? parseIssueRef(from.issue) : null;
 }
 
-/** Projects that run with no end: marked on the board, or by the `ongoing`
- * label on their issue. */
-function ongoingSlugs(settings, projects) {
-   return new Set([...settings.ongoing, ...projects.filter(p => p.ongoing).map(p => p.slug)]);
-}
 
 /**
  * Validate the projects config and the requested window, then load the
@@ -211,6 +206,7 @@ export default {
                teams_from: settings.teamsFrom,
                decide_rotation: settings.decideRotation,
                ongoing: settings.ongoing,
+               auto_calls: settings.autoCalls,
                untracked: [...tracked.untracked].sort(),
                grew: [...tracked.grown.keys()].sort(),
                grew_counts: Object.fromEntries(tracked.grown),
@@ -507,54 +503,24 @@ export default {
          res.status(404).json({ error: 'projects are not set up on this Pulldasher' });
          return;
       }
-      const load = Promise.all([
-         loadProjects(settings),
-         listItems(),
-         loadPullLinks(settings),
-         trackedNow(),
-      ]).then(([projects, plans, linked, tracked]) =>
-         loadWork(settings, { plans, projects }).then(work => [projects, plans, work, linked, tracked])
+      const now = Date.now() / 1000;
+      const load = trackedNow().then(tracked =>
+         loadDecide(settings, tracked, { auto: settings.autoCalls, now }).then(d => ({ ...d, tracked }))
       );
       respondOrError(
          res,
-         load.then(([projects, allItems, work, linked, tracked]) => {
-            const now = Date.now() / 1000;
-            const pulls = pullManager.getPulls();
-            const fullToday = todayFromBoard(pulls, projects, settings.prefix, now, linked);
-            const { today, items } = trackedOnly(tracked.untracked, {
-               today: fullToday,
-               items: allItems,
-            });
+         load.then(({ rows, projects, fullToday, tracked }) => {
             const bySlug = new Map(projects.map(p => [p.slug, p]));
             // from the full set: a grown project's row says its open PRs too
             const open = new Map(fullToday.live.map(g => [g.slug, g.open.length]));
             const byId = new Map(tracked.initiatives.map(i => [i.id, i]));
-            const rows = decideQueue({
-               live: decideProjects(today),
-               items,
-               initiatives: tracked.initiatives,
-               grown: [...tracked.grown].map(([slug, g]) => ({ slug, ...g })),
-               closed: closedIssues(projects),
-               planCounts: new Map(
-                  work.plans.map(p => [
-                     p.planId,
-                     {
-                        openPulls: p.openPulls,
-                        afterEnd: p.afterEnd.length,
-                        afterDone: p.afterDone.length,
-                     },
-                  ])
-               ),
-               issues: new Map(Object.entries(work.projects)),
-               ongoing: ongoingSlugs(settings, projects),
-               // the board's Decide asks by the browser's day: the team's
-               today: teamDay(now),
-               now,
-            });
             const day = teamDay(now);
             return {
                server_time: Math.floor(now),
                stall_days: STALL_DAYS,
+               // Pulldasher makes the calls that only say what happened, so
+               // they aren't asked (config.js projects.autoCalls)
+               auto_calls: settings.autoCalls,
                // who takes their turn running this list, this week and next
                runs_this_week: decideTurn(settings.decideRotation, day),
                runs_next_week: decideTurn(settings.decideRotation, addWeeks(day, 1)),
