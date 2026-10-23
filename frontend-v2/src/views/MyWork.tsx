@@ -204,6 +204,7 @@ function useYourProjects(
          ),
          issues: work?.projects,
          ongoing,
+         auto: data.auto_calls ?? false,
          today: dayOf(new Date(now)),
          now: now / 1000,
       });

@@ -55,6 +55,10 @@ export interface ProjectsData {
    untracked?: string[];
    grew?: string[];
    grew_counts?: Record<string, { since: number; baseline: number }>;
+   /** the server makes the roadmap calls that only say what happened
+    * (shared/model/autoCalls.ts), so Decide doesn't ask them. Older
+    * servers omit it. */
+   auto_calls?: boolean;
    window: WindowStats;
 }
 

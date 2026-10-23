@@ -182,9 +182,10 @@ export function Projects({
             ? decideRows(today, plans, closedProjects, work, ongoing, {
                  initiatives: initiatives ?? [],
                  grown,
+                 auto: data?.auto_calls ?? false,
               })
             : null,
-      [today, plans, closedProjects, work, ongoing, initiatives, grown]
+      [today, plans, closedProjects, work, ongoing, initiatives, grown, data?.auto_calls]
    );
    // a call made this visit stays with its row (a receipt and Undo) on
    // Decide and on the project's page; the badge counts what's still owed
@@ -331,6 +332,7 @@ export function Projects({
                navigate={navigate}
                onPerson={onPersonHere}
                projectsRepo={data?.projects_repo}
+               auto={data?.auto_calls ?? false}
             />
          ) : nav.view === 'retro' ? (
             <Retro

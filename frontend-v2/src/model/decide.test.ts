@@ -916,6 +916,22 @@ describe('filledIn', () => {
       ]);
       expect(found.started.map(p => p.id)).toEqual([1]);
       expect(found.vouched.map(v => [v.plan.id, v.vouch.merged])).toEqual([[3, 2]]);
+      expect(found.moved).toEqual([]);
+   });
+
+   it('lists the plans Pulldasher changed on its own this week, newest first', () => {
+      const plans = [
+         item(1, { status: 'parked', auto_note: 'Put down: no PRs in 28 days', auto_at: ago(2) }),
+         item(2, { auto_note: 'Lead: kim', auto_at: ago(1) }),
+         // last week's
+         item(3, { status: 'done', auto_note: 'Finished', auto_at: ago(8) }),
+      ];
+      const today: Pick<Today, 'live' | 'quiet'> = { live: [], quiet: [] };
+      const found = filledIn({ today, prefix: 'project:', plans, pages: new Map(), now: NOW });
+      expect(found.moved.map(p => [p.id, p.auto_note])).toEqual([
+         [2, 'Lead: kim'],
+         [1, 'Put down: no PRs in 28 days'],
+      ]);
    });
 });
 
