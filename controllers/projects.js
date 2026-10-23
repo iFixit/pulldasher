@@ -12,7 +12,13 @@ import {
 import { listItems } from '../lib/roadmap.js';
 import { trackedOnly } from '../lib/initiatives.js';
 import { trackedNow } from './roadmap.js';
-import { loadDecide, loadProjectPulls, projectActivity } from '../lib/auto-calls.js';
+import {
+   callsFrom,
+   loadDecide,
+   loadProjectPulls,
+   pendingCalls,
+   projectActivity,
+} from '../lib/auto-calls.js';
 import {
    attachIssue,
    detachIssue,
@@ -40,6 +46,7 @@ import {
    prStage,
    MISC_SLUG,
    planFor,
+   withoutAnswered,
    PROJECT_SLUG,
    STALL_DAYS,
 } from '../shared/dist/index.js';
@@ -208,7 +215,9 @@ export default {
       if (!loaded) return;
       respondOrError(
          res,
-         loaded.then(({ settings, projects, linked, tracked, stats }) => {
+         loaded.then(async ({ settings, projects, linked, tracked, stats }) => {
+            // what Pulldasher's calls this pass answer, for the board's Decide
+            const calls = await pendingCalls();
             // the PRs Today is built from: the board's open and recently closed
             const onBoard = new Set(pullManager.getPulls().map(p => key(p.data).toLowerCase()));
             return {
@@ -218,7 +227,7 @@ export default {
                teams_from: settings.teamsFrom,
                decide_rotation: settings.decideRotation,
                ongoing: settings.ongoing,
-               auto_calls: settings.autoCalls,
+               pending_calls: calls,
                untracked: [...tracked.untracked].sort(),
                grew: [...tracked.grown.keys()].sort(),
                grew_counts: Object.fromEntries(tracked.grown),
@@ -524,12 +533,15 @@ export default {
          return;
       }
       const now = Date.now() / 1000;
-      const load = trackedNow().then(tracked =>
-         loadDecide(settings, tracked, { auto: settings.autoCalls, now }).then(d => ({ ...d, tracked }))
-      );
+      // the calls Pulldasher makes this pass, so Decide leaves out what they answer
+      const load = trackedNow().then(async tracked => {
+         const d = await loadDecide(settings, tracked, { now });
+         const calls = settings.autoCalls ? await callsFrom(settings, d, Math.floor(now)) : [];
+         return { ...d, rows: withoutAnswered(d.rows, calls), calls, tracked };
+      });
       respondOrError(
          res,
-         load.then(({ rows, projects, fullToday, tracked }) => {
+         load.then(({ rows, projects, fullToday, tracked, calls }) => {
             const bySlug = new Map(projects.map(p => [p.slug, p]));
             // from the full set: a grown project's row says its open PRs too
             const open = new Map(fullToday.live.map(g => [g.slug, g.open.length]));
@@ -538,9 +550,11 @@ export default {
             return {
                server_time: Math.floor(now),
                stall_days: STALL_DAYS,
-               // Pulldasher makes the calls that only say what happened, so
-               // they aren't asked (config.js projects.autoCalls)
+               // Pulldasher makes the calls that only say what happened
+               // (config.js projects.autoCalls); what this pass's calls
+               // answer isn't asked
                auto_calls: settings.autoCalls,
+               pending_calls: calls,
                // who takes their turn running this list, this week and next
                runs_this_week: decideTurn(settings.decideRotation, day),
                runs_next_week: decideTurn(settings.decideRotation, addWeeks(day, 1)),

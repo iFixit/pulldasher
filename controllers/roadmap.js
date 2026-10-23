@@ -17,6 +17,7 @@ import {
 } from '../lib/roadmap.js';
 import { serially, tracking, trackedOnly } from '../lib/initiatives.js';
 import { sharedValue } from '../lib/ttl-cache.js';
+import { forgetPendingCalls } from '../lib/auto-calls.js';
 import { loadPullLinks, loadWork } from '../lib/work.js';
 import {
    checkRoadmapFields,
@@ -165,6 +166,7 @@ const standingNow = sharedValue(STANDING_MS, async () => {
 /** Forget what's kept of the projects: a project write, or a sync of the
  * issues and their links, changed it (app.js). */
 export function forgetProjectCaches() {
+   forgetPendingCalls();
    latelyNow.forget();
    trackingNow.forget();
    standingNow.forget();

@@ -41,10 +41,9 @@ import type { IssueCounts } from './work';
  * Every plan still under way is judged on its own, so a project's finished
  * first phase can't hide its second running late. A call is a roadmap write
  * (commit, park, finish, drop); any change to a plan counts as one.
- * With `auto` (config.js projects.autoCalls), Pulldasher makes the calls
- * that only say what already happened itself (model/autoCalls.ts), so the
- * queue leaves them out (answeredOnItsOwn) and keeps the ones that take
- * judgment.
+ * With config.js projects.autoCalls on, Pulldasher makes the calls that
+ * only say what already happened itself (model/autoCalls.ts), and Decide
+ * leaves out what a call this pass answers (autoCalls.ts withoutAnswered).
  */
 
 export const STALL_DAYS = 21;
@@ -197,11 +196,11 @@ export function endedUnanswered(item: RoadmapItem): boolean {
 }
 
 /**
- * Whether Pulldasher makes this call itself when projects.autoCalls is on
- * (model/autoCalls.ts autoCalls), so Decide doesn't ask it: a first plan
- * (`new`), work picked up or put down again (`reopened`, `moving`), and a
- * plan finished by its issues or its end with nothing left open. A closed
- * issue with PRs still open, or an end a person answered, is still asked.
+ * Whether a reason is one Pulldasher can answer itself (model/autoCalls.ts
+ * autoCalls reads it), when its other rules agree: a first plan (`new`),
+ * work picked up again (`reopened`, `moving`), and a plan finished by its
+ * issues or its end with nothing left open. A closed issue with PRs still
+ * open, or an end a person answered, never is.
  */
 export function answeredOnItsOwn(reason: DecideReason, item: RoadmapItem | null): boolean {
    switch (reason.kind) {
@@ -267,7 +266,6 @@ export function decideQueue({
    ongoing = new Set(),
    initiatives = [],
    grown = [],
-   auto = false,
    today,
    now,
 }: {
@@ -288,9 +286,6 @@ export function decideQueue({
    initiatives?: readonly Pick<Initiative, 'id' | 'kind' | 'status' | 'status_at' | 'projects'>[];
    /** not-tracked projects that grew, which `live` leaves out */
    grown?: readonly GrownProject[];
-   /** Pulldasher makes the calls that only say what happened
-    * (answeredOnItsOwn), so they aren't asked */
-   auto?: boolean;
    /** the day `now` falls on where the team is (projects.ts dayIn): what
     * "overdue" is judged by, the vouch for an update included */
    today: string;
@@ -308,7 +303,6 @@ export function decideQueue({
       reason: DecideReason,
       key = `${slug ?? ''}:${item?.id ?? ''}`
    ) => {
-      if (auto && answeredOnItsOwn(reason, item)) return;
       const row = rows.get(key) ?? { slug, item, reasons: [] };
       row.reasons.push(reason);
       rows.set(key, row);

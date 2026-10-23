@@ -149,9 +149,8 @@ The tab has five views and a page per project:
   take just their team's rows, and copy them as text for a meeting's
   notes. It weighs every project, whatever the filter bar narrows the
   other views to. The tab's label counts what's left. With automatic
-  calls on (below), it asks only the calls that take judgment: stalls,
-  missed targets, plans past a hard end with PRs open, updates at risk or
-  off track, and the initiative questions.
+  calls on (below), it leaves out a reason only when Pulldasher makes a
+  call that answers it, and asks the rest as before.
 - **Roadmap**: the plan set against everything actually in flight. Across
   the top, how many projects were in flight each week (from their PRs)
   and, for the weeks ahead, the plans plus every project big enough to owe
@@ -216,31 +215,35 @@ the roadmap follows the work without anyone answering Decide. After each
 sync of the projects' work (a webhook on a project's issue, or the hourly
 pass), it:
 
-- picks a plan up again: a plan parked, done or dropped whose project gets
-  a PR opened, or an open PR labeled into it, after that status was set
-  goes back in progress ("Picked up again by owner/repo#12 on 2026-10-20").
-  PRs that were already open when someone marked it done don't count.
-- puts a plan down: a plan in progress whose project had no PR opened,
-  merged or pushed to for `idleDays` (28), and whose status nobody changed
-  in that time, is parked.
+- picks a plan up again: a parked plan whose project gets a PR opened, or
+  an open PR labeled into it, after it was parked goes back in progress
+  ("Picked up again by owner/repo#12 on 2026-10-20"). A done or dropped
+  plan takes 2 such PRs, since one fix after a finish isn't a return. PRs
+  that were already open when someone marked it done don't count.
+- puts a plan down: a plan in progress is parked when, for `idleDays` (28),
+  its project had no PR opened, merged or pushed to, nobody posted an
+  update, and no person changed it.
 - finishes a plan: one under way whose issue closed, or all of whose issues
   closed, with no PRs open, is done, or dropped when they were closed as not
   planned. One past its hard end with none open, its status untouched
   since, is done.
 - plans a project: one with 3 or more PRs (open, or merged in the last 14
-  days) that never had a plan gets one, in progress from its first PR's
-  week with no end, named by its issue or its label. A plan someone
+  days) that never had a plan gets one, in progress from its first open
+  PR's week with no end, named by its issue or its label. A plan someone
   removed isn't made again.
-- names a lead: a plan with no lead gets its project issue's assignee, else
-  the author with the most PRs in its project over the last 60 days. A lead
-  someone set is never replaced.
+- names a lead: a plan planned or in progress with no lead, whose status
+  it isn't changing in the same pass, gets its project issue's assignee,
+  else the author with the most PRs in its project over the last 60 days.
+  A lead someone set is never replaced.
 
 Each call is a roadmap write like a person's, recorded as `pulldasher`,
 with why in the plan's `auto_note` and when in `auto_at` (a lead fills in
 without counting as a call). Decide lists the week's under "Changed on its
 own". A person's change always wins: the rules only read what happened
-after a plan's status last changed, and a call that finds its plan changed
-since it read it doesn't land.
+after a plan's status last changed, and a call that finds its plan's
+status changed since it read it doesn't land. Decide, the API's and the
+board's, works out the calls Pulldasher makes now and leaves out only
+the reasons those answer (`pending_calls` on `/api/v1/decide`).
 
 It's off until `autoCalls: true` is set in config.js's `projects`, and
 while it's off Decide asks those calls. To turn it on, deploy, run

@@ -1,4 +1,4 @@
-import { answeredOnItsOwn, DECIDE_MIN_PRS, type DecideRow } from './decide';
+import { answeredOnItsOwn, DECIDE_MIN_PRS, type DecideReason, type DecideRow } from './decide';
 import { slugName } from './projectLabel';
 import { utcDay } from './projects';
 import { isUnderWay, mondayOf, planEnd, type RoadmapItem } from './roadmap';
@@ -26,7 +26,8 @@ import { isUnderWay, mondayOf, planEnd, type RoadmapItem } from './roadmap';
  *   never replaced
  * Pure: the server reads the inputs and writes the calls (lib/auto-calls.js).
  * A person's write always wins, since each rule only reads changes made
- * after the last status change, and Decide stops asking what this answers.
+ * after the last status change. Decide leaves out only what a call made
+ * this pass answers (withoutAnswered).
  */
 
 /** days with no PR activity before a plan in progress is put down: the
@@ -282,4 +283,42 @@ export function autoCalls({
             (lead ? `. ${lead.note}` : ''),
       };
    }
+}
+
+/** The reasons each kind of status call answers, by the status it sets. */
+const ANSWERS: Record<RoadmapItem['status'], DecideReason['kind'][]> = {
+   active: ['reopened', 'moving'],
+   done: ['issue_closed', 'issues_done', 'ended'],
+   dropped: ['issue_closed', 'issues_done', 'ended'],
+   parked: [],
+   planned: [],
+};
+
+/**
+ * Decide's rows without what this pass's calls answer: a plan's reasons its
+ * status call settles, and `new` on a project a new plan is made for. A
+ * row with nothing left goes. Everything no call answers is still asked:
+ * work that moved with no new PR, a finish whose PRs are open, a plan
+ * someone removed.
+ */
+export function withoutAnswered(
+   rows: readonly DecideRow[],
+   calls: readonly AutoCall[]
+): DecideRow[] {
+   const byItem = new Map<number, DecideReason['kind'][]>();
+   const planned = new Set<string>();
+   for (const c of calls) {
+      if (c.kind === 'status') byItem.set(c.id, ANSWERS[c.status]);
+      else if (c.kind === 'new') planned.add(c.fields.project);
+   }
+   return rows.flatMap(row => {
+      const answered = row.item
+         ? byItem.get(row.item.id) ?? []
+         : row.slug && planned.has(row.slug)
+         ? ['new']
+         : [];
+      const reasons = row.reasons.filter(r => !answered.includes(r.kind));
+      if (reasons.length === row.reasons.length) return [row];
+      return reasons.length ? [{ ...row, reasons }] : [];
+   });
 }

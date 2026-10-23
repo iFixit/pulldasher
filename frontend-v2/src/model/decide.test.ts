@@ -384,59 +384,6 @@ describe('decideQueue', () => {
    });
 });
 
-describe('decideQueue with Pulldasher making the calls that only say what happened', () => {
-   const ask = (over: Partial<Parameters<typeof decideQueue>[0]>, auto: boolean) =>
-      kinds(decideQueue({ live: [], items: [], today, now: NOW, ...over, auto }));
-
-   it('stops asking a first plan, work picked up or put down again, and an end passed', () => {
-      const over = {
-         live: [
-            project('fresh', { open: 3, prs: 3 }),
-            project('finished', { open: 2 }),
-            project('parked', { lastActivity: ago(1) }),
-            project('ended', { open: 0 }),
-         ],
-         items: [
-            item(1, { project: 'finished', status: 'done', updated_at: ago(30) }),
-            item(2, { project: 'parked', status: 'parked', updated_at: ago(10) }),
-            item(3, { project: 'ended', start: '2026-08-03', weeks: 4, updated_at: ago(60) }),
-         ],
-      };
-      expect(ask(over, false)).toEqual([
-         ['finished', 'reopened'],
-         ['parked', 'moving'],
-         ['ended', 'ended'],
-         ['fresh', 'new'],
-      ]);
-      expect(ask(over, true)).toEqual([]);
-   });
-
-   it('still asks a closed issue whose PRs are open, and an end a person reopened', () => {
-      const over = {
-         live: [project('open-prs', { open: 2 }), project('reopened', { open: 0 })],
-         items: [
-            item(1, { project: 'open-prs' }),
-            // put back in progress after its end passed
-            item(2, { project: 'reopened', start: '2026-08-03', weeks: 4, updated_at: ago(2) }),
-         ],
-         closed: closedIssues([closedOn('open-prs', 'completed', 3)]),
-      };
-      expect(ask(over, true)).toEqual([
-         ['open-prs', 'issue_closed'],
-         ['reopened', 'ended'],
-      ]);
-   });
-
-   it('keeps the calls that take judgment', () => {
-      const over = {
-         live: [project('late', { open: 1, lastActivity: ago(30) })],
-         items: [item(1, { project: 'late', update: update('off_track', 2) })],
-      };
-      expect(ask(over, true)).toEqual(ask(over, false));
-      expect(ask(over, true)).toEqual([['late', 'off_track', 'stalled']]);
-   });
-});
-
 describe('Decide’s calls', () => {
    const done = item(7, { project: 'sso', status: 'done', start: '2026-08-03' });
    const reopened: DecideRow = {

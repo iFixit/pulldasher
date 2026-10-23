@@ -18,6 +18,7 @@ import {
    type DecideRow,
    type GrownProject,
 } from '../../../../shared/model/decide';
+import { withoutAnswered, type AutoCall } from '../../../../shared/model/autoCalls';
 import type { Initiative } from '../../../../shared/model/initiatives';
 import { projectSlugs, type Today } from '../../../../shared/model/projects';
 import { decideTurn, type DecideRotation } from '../../../../shared/model/settings';
@@ -156,19 +157,18 @@ export function decideRows(
    {
       initiatives = [],
       grown = [],
-      auto = false,
+      calls = [],
    }: {
       initiatives?: readonly Initiative[];
       grown?: readonly GrownProject[];
-      /** the server makes the calls that only say what happened
-       * (ProjectsData auto_calls), so they aren't asked */
-      auto?: boolean;
+      /** the calls the server makes this pass (ProjectsData
+       * pending_calls): what they answer isn't asked */
+      calls?: readonly AutoCall[];
    } = {}
 ): DecideRow[] {
-   return decideQueue({
+   const rows = decideQueue({
       initiatives,
       grown,
-      auto,
       live: decideProjects(today),
       items,
       closed,
@@ -187,6 +187,7 @@ export function decideRows(
       today: dayOf(new Date()),
       now: Date.now() / 1000,
    });
+   return withoutAnswered(rows, calls);
 }
 
 /** A call made on a row this visit, kept so the row stays in its place
@@ -2283,11 +2284,11 @@ export function Decide({
    navigate,
    onPerson,
    projectsRepo,
-   auto = false,
+   pendingCalls = [],
 }: {
-   /** the server makes the calls that only say what happened, so they
-    * aren't asked (ProjectsData auto_calls) */
-   auto?: boolean;
+   /** the calls the server makes this pass: what they answer isn't asked
+    * (ProjectsData pending_calls) */
+   pendingCalls?: readonly AutoCall[];
    /** Today from every PR, not the filter bar's */
    today: Today;
    /** the portfolio from the same, for names, leads, sizes and teams */
@@ -2353,7 +2354,7 @@ export function Decide({
       decideRows(today, plans, closed, work, ongoing, {
          initiatives: initiatives ?? [],
          grown,
-         auto,
+         calls: pendingCalls,
       }),
       made
    );

@@ -1,3 +1,4 @@
+import type { AutoCall } from '../../../shared/model/autoCalls';
 import { useEffect, useMemo, useState } from 'react';
 import type { Initiative } from '../../../shared/model/initiatives';
 import { dummyTracking, isNotTrackedNow, useInitiatives } from './initiativesData';
@@ -55,10 +56,10 @@ export interface ProjectsData {
    untracked?: string[];
    grew?: string[];
    grew_counts?: Record<string, { since: number; baseline: number }>;
-   /** the server makes the roadmap calls that only say what happened
-    * (shared/model/autoCalls.ts), so Decide doesn't ask them. Older
+   /** the roadmap calls the server makes this pass (shared/model/autoCalls.ts):
+    * Decide leaves out what they answer. Empty while they're off; older
     * servers omit it. */
-   auto_calls?: boolean;
+   pending_calls?: AutoCall[];
    window: WindowStats;
 }
 

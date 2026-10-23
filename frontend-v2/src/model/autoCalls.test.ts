@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { dayStart } from '../../../shared/model/projects';
 import { labeledBy } from '../../../shared/model/projectLabel';
-import { autoCalls, leadOf, IDLE_DAYS, type AutoPull } from '../../../shared/model/autoCalls';
+import {
+   autoCalls,
+   leadOf,
+   withoutAnswered,
+   IDLE_DAYS,
+   type AutoPull,
+} from '../../../shared/model/autoCalls';
 import {
    answeredOnItsOwn,
    decideQueue,
@@ -393,5 +399,73 @@ describe('labeledBy', () => {
       expect(labeledBy('github-actions[bot]', at('2026-10-01T00:00:00Z'), { isBot })).toBe('job');
       expect(labeledBy('fixture-bot', null, { isBot })).toBe('job');
       expect(labeledBy(null, null, { isBot })).toBe('job');
+   });
+});
+
+describe('withoutAnswered', () => {
+   const plan = (id: number, status: RoadmapItem['status']) => item(id, { status });
+   const rows: DecideRow[] = [
+      {
+         slug: 'p1',
+         item: plan(1, 'done'),
+         reasons: [{ kind: 'reopened', open: 2, late: 0, as: 'done', by: 'roadmap' }],
+      },
+      { slug: 'p2', item: plan(2, 'parked'), reasons: [{ kind: 'moving' }] },
+      {
+         slug: 'p3',
+         item: plan(3, 'active'),
+         reasons: [
+            { kind: 'issue_closed', as: 'done', on: '2026-09-27', open: 0 },
+            { kind: 'at_risk' },
+         ],
+      },
+      { slug: 'p4', item: null, reasons: [{ kind: 'new', since: '2026-09-21' }] },
+      { slug: 'p5', item: null, reasons: [{ kind: 'new', since: '2026-09-21' }] },
+      {
+         slug: 'p6',
+         item: null,
+         reasons: [{ kind: 'reopened', open: 1, late: 0, as: 'done', by: 'issue' }],
+      },
+   ];
+   const status = (id: number, from: RoadmapItem['status'], to: RoadmapItem['status']) => ({
+      kind: 'status' as const,
+      id,
+      from,
+      fromAt: null,
+      status: to,
+      note: '',
+   });
+
+   it('leaves out only what a call this pass answers', () => {
+      const kept = withoutAnswered(rows, [
+         status(1, 'done', 'active'),
+         status(3, 'active', 'done'),
+         {
+            kind: 'new',
+            fields: {
+               name: 'P4',
+               project: 'p4',
+               status: 'active',
+               start: '2026-09-21',
+               end_kind: 'ongoing',
+               lead: null,
+            },
+            note: '',
+         },
+      ]);
+      expect(kept.map(r => [r.slug, ...r.reasons.map(x => x.kind)])).toEqual([
+         // moved with no new PR: no call, still asked
+         ['p2', 'moving'],
+         // the judgment call on a finished plan stays
+         ['p3', 'at_risk'],
+         // a removed plan's project got no new plan: still asked
+         ['p5', 'new'],
+         // reopened with no plan: nothing to pick up, still asked
+         ['p6', 'reopened'],
+      ]);
+   });
+
+   it('asks everything when no call was made', () => {
+      expect(withoutAnswered(rows, [])).toEqual(rows);
    });
 });

@@ -155,8 +155,9 @@ export const API_ROUTES = [
       handlers: [projectsController.getDecide],
       does:
          'The decisions owed now, worst first, each with its project, roadmap item, `initiative` (its home, or ' +
-         'the one asked about), and reasons (see `decide`). `auto_calls`: Pulldasher makes the calls that only ' +
-         'say what happened itself (see `decide.made_by_pulldasher`), so they are left out. Days ' +
+         'the one asked about), and reasons (see `decide`). `auto_calls`: whether Pulldasher makes the calls ' +
+         'that only say what happened itself (see `decide.made_by_pulldasher`); `pending_calls`, the ones it ' +
+         'makes this pass, and the reasons they answer are left out. Days ' +
          'are the team’s (config.js projects.timeZone, default America/Los_Angeles). Not-tracked projects are ' +
          'left out, but for the ones that grew',
    },
@@ -397,13 +398,15 @@ export function apiIndex(req, res) {
          },
          made_by_pulldasher:
             'With config.js projects.autoCalls true (off by default), Pulldasher makes these calls itself after each ' +
-            'work sync, recorded as `pulldasher` with why in the item’s `auto_note`, so Decide leaves them out: ' +
-            '`new` (a plan in progress with no end, unless one was ever removed), `reopened` and `moving` (back ' +
-            'in progress once a PR opens, or an open PR is labeled in, after the status was set), `issue_closed` ' +
-            'and `issues_done` with no PRs open (done, or dropped when closed as not planned), and `ended` while ' +
-            `nobody changed its status since its end. It also parks a plan in progress after projects.idleDays ` +
-            '(default 28) with no PR opened, merged or pushed and no status change, and fills an empty lead with ' +
-            'its issue’s assignee, else the author of the most PRs in the last 60 days. A person’s write wins: change it back as usual',
+            'work sync, recorded as `pulldasher` with why in the item’s `auto_note`. Decide leaves a reason out ' +
+            'only when a call this pass answers it: `new` (a plan in progress with no end, unless one was ever ' +
+            'removed), `reopened` and `moving` (back in progress once a PR opens, or an open PR is labeled in, ' +
+            'after the status was set: 1 for a parked plan, 2 for a done or dropped one), `issue_closed` and ' +
+            '`issues_done` with no PRs open (done, or dropped when closed as not planned), and `ended` while ' +
+            'nobody changed its status since its end. It also parks a plan in progress after projects.idleDays ' +
+            '(default 28) with no PR opened, merged or pushed, no update and no change by a person, and fills an ' +
+            'empty lead on a plan under way with its issue’s assignee, else the author of the most PRs in the ' +
+            'last 60 days. A person’s write wins: change it back as usual',
          to_clear:
             'Make the call as a roadmap write. With no item: POST /api/v1/roadmap {name, project, status, ' +
             'start, weeks, end_kind: "hard"}. With one: PATCH /api/v1/roadmap/:id with {status: "active", weeks, ' +

@@ -342,6 +342,8 @@ function pullRow(number, owner, over = {}) {
 
 // the roadmap_items rows the stubbed db answers with; a test sets its own
 let roadmapRows = [];
+// the projects that ever had a plan (lib/roadmap.js plannedSlugs)
+let everPlanned = [];
 // the initiatives tables, and what the not-tracked reads find in
 // pull_labels joined to pulls: each label's repos, and each PR's open time
 let initiativeRows = [];
@@ -496,6 +498,8 @@ before(() => {
             }),
          ];
       }
+      // every project that ever had a plan, removed ones too
+      if (sql.includes('SELECT DISTINCT `project` FROM `roadmap_items`')) return everPlanned;
       if (sql.includes('FROM `roadmap_items`')) return roadmapRows;
       if (sql.includes('FROM `roadmap_updates`')) return [];
       // alpha's own issue carries its label; its side names #11, on the
@@ -755,14 +759,37 @@ test('/api/v1/decide lists a live project with no plan as new, then a slipped pl
    roadmapRows = [];
 });
 
-test('/api/v1/decide leaves the calls Pulldasher makes itself out when they are on', async () => {
+test('/api/v1/decide leaves out only what a call Pulldasher makes this pass answers', async () => {
    roadmapRows = [];
    config.projects.autoCalls = true;
+   const asksNew = body => body.decisions.some(d => d.reasons.some(r => r.kind === 'new'));
    try {
       const { body } = await get('/api/v1/decide');
       assert.equal(body.auto_calls, true);
       // a first plan for alpha is made, not asked
-      assert.ok(!body.decisions.some(d => d.reasons.some(r => r.kind === 'new')));
+      assert.deepEqual(
+         body.pending_calls.map(c => [c.kind, c.fields?.project]),
+         [['new', 'alpha']]
+      );
+      assert.ok(!asksNew(body));
+      // a plan someone removed isn't made again, so Decide still asks
+      everPlanned = [{ project: 'alpha' }];
+      const removed = await get('/api/v1/decide');
+      assert.deepEqual(removed.body.pending_calls, []);
+      assert.ok(asksNew(removed.body));
+   } finally {
+      config.projects.autoCalls = false;
+      everPlanned = [];
+   }
+});
+
+test('the calls Pulldasher makes are off unless config.js says true', async () => {
+   delete config.projects.autoCalls;
+   try {
+      assert.equal(projectSettings().autoCalls, false);
+      const { body } = await get('/api/v1/decide');
+      assert.equal(body.auto_calls, false);
+      assert.deepEqual(body.pending_calls, []);
    } finally {
       config.projects.autoCalls = false;
    }
