@@ -230,7 +230,8 @@ pass), it:
 - finishes a plan: one under way whose issue closed, or all of whose issues
   closed, with no PRs open, is done, or dropped when they were closed as not
   planned. One past its hard end with none open, its status untouched
-  since, is done.
+  since, is done. Never an ongoing plan: upkeep has no end, so closed
+  issues only mean nothing is asked of it, and it parks once it's idle.
 - plans a project: one with 3 or more PRs open or merged in the last 14
   days that never had a plan gets one, in progress from its first open
   PR's week (or its first PR's, when all have merged) with no end, named
