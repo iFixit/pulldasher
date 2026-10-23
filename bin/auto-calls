@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * The roadmap calls Pulldasher makes on its own after each sync of the
- * projects' work (lib/auto-calls.js): a plan picked up again, put down,
- * finished, planned or given a lead. A dry run unless given --apply: it
- * says what it would write and writes nothing. --apply writes them even
- * when config.js projects.autoCalls is false.
+ * What the roadmap calls Pulldasher makes on its own after each sync of the
+ * projects' work (lib/auto-calls.js) would be now: a plan picked up again,
+ * put down, finished, planned or given a lead. It only says so and writes
+ * nothing, whether or not config.js projects.autoCalls is on: the server is
+ * the one writer, so two processes never make the same call.
  *
- * Usage: bin/auto-calls [--apply]
+ * Usage: bin/auto-calls
  */
 import db from '../lib/db.js';
 import dbManager from '../lib/db-manager.js';
@@ -14,20 +14,15 @@ import pullManager from '../lib/pull-manager.js';
 import { describe, runAutoCalls } from '../lib/auto-calls.js';
 import { projectSettings } from '../lib/projects.js';
 
-const apply = process.argv.includes('--apply');
-
 async function main() {
    const settings = projectSettings();
    if (!settings) throw new Error('this Pulldasher has no projects config');
    // the board's pulls, as the server holds them: what's open now is read off them
    const pulls = await dbManager.getRecentPulls(pullManager.getOldestAllowedPullTimestamp());
    for (const pull of pulls) pullManager.updatePull(pull);
-   const calls = await runAutoCalls({ ...settings, autoCalls: true }, { apply });
-   for (const call of calls) {
-      const said = apply && !call.landed ? ' (not written: a person changed it first)' : '';
-      console.log(`${describe(call)}${said}`);
-   }
-   console.log(`${calls.length} call(s)${apply ? '' : ', a dry run: --apply writes them'}`);
+   const calls = await runAutoCalls(settings, { apply: false });
+   for (const call of calls) console.log(describe(call));
+   console.log(`${calls.length} call(s). Nothing was written.`);
 }
 
 main()
